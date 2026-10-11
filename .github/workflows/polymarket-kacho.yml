@@ -181,6 +181,7 @@ jobs:
             --workdir "$RUNNER_TEMP/wallet-lead" \
             --out real/wallet-lead.md \
             --csv-out real/wallet-lead.csv.gz
+          sed -n '1,240p' real/wallet-lead.md
 
       - name: Keep the filtered September fills between runs
         if: steps.mode.outputs.mode == 'onchain' || steps.mode.outputs.mode == 'makers' || steps.mode.outputs.mode == 'rules'
@@ -264,7 +265,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add real/kacho-* real/hf-*.md real/onchain-* real/makers-* real/rules-* real/forward-replay.md real/latency-* real/cross-* real/momentum5s-* real/reward-dust-chain.* real/wallet-lead.* 2>/dev/null || true
+          git add -A -- real/
           git commit -q -m "research: kacho.io ${{ steps.mode.outputs.mode }} results" \
             -m "Workflow run ${{ github.run_id }}." \
             -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>" \

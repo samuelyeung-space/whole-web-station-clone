@@ -13,7 +13,8 @@ Environment=OMP_NUM_THREADS=1
 Environment=STRICT_SHARED_ROOT=/home/ubuntu/rec/formal/strict-days
 Environment=EXPECTED_PROTOCOL_SHA256=28588718bd3a944595fc8a786beeb6fb1b54d3bd51a2246775995c31cdfe8b45
 Environment=EXPECTED_PROJECTION_PROTOCOL_SHA256=26f64d5332186ef53f4e1e5e1a1ab7b50fcd45b544770d5b1268fcc42808145c
-ExecStart=/usr/bin/timeout 3600 /home/ubuntu/rec/venv/bin/python /home/ubuntu/rec/h-race/mix_daily.py
+ExecStartPre=/home/ubuntu/rec/mix-venv/bin/python /home/ubuntu/rec/h-race/mix_runtime.py
+ExecStart=/usr/bin/timeout 3600 /home/ubuntu/rec/mix-venv/bin/python /home/ubuntu/rec/h-race/mix_daily.py
 Nice=15
 IOSchedulingClass=idle
 MemoryMax=4G

@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 import mix_daily as daily
+import mix_runtime
 import pytest
 
 DAY = "20261010"
@@ -53,6 +54,23 @@ def test_aggregate_source_selection_requires_every_route_hour():
     manifest["files"].pop()
     with pytest.raises(ValueError, match="aggregate route coverage"):
         daily.aggregate_source_items(manifest, DAY, {0, 23})
+
+
+def test_dvol_source_selection_requires_every_requested_hour():
+    files = [
+        {"file": f"deribit_vol.{DAY}T{hour:02d}.txt.gz", "size": 1, "sha256": "a" * 64}
+        for hour in range(24)
+    ]
+    manifest = {"day": DAY, "group": "rec", "files": files}
+
+    selected = daily.dvol_source_items(manifest, DAY, {0, 23})
+
+    assert [item["file"] for item in selected] == [
+        f"deribit_vol.{DAY}T00.txt.gz", f"deribit_vol.{DAY}T23.txt.gz",
+    ]
+    manifest["files"].pop()
+    with pytest.raises(ValueError, match="DVOL route coverage"):
+        daily.dvol_source_items(manifest, DAY, {0, 23})
 
 
 def test_build_aggregate_tape_keeps_first_copy_and_records_identity(tmp_path):
@@ -164,7 +182,7 @@ def test_stage_is_not_committed_before_evidence_upload(tmp_path, monkeypatch):
 def test_evaluator_freeze_binds_dependencies(tmp_path):
     frozen, digest = daily.load_evaluator_freeze()
 
-    assert digest == "45fe604c3c800eae5522533e24455e17dd56c933ca25524626ce7b1070b10c4b"
+    assert digest == "d817435e5382fd6cc71fda0496ae029419588ca77d745b4a97454f43fb7cf8ec"
     assert frozen["control_protocol_sha256"] == (
         "28588718bd3a944595fc8a786beeb6fb1b54d3bd51a2246775995c31cdfe8b45"
     )
@@ -176,6 +194,60 @@ def test_evaluator_freeze_binds_dependencies(tmp_path):
     )
     with pytest.raises(ValueError, match="dependency drift"):
         daily.load_evaluator_freeze(path)
+
+
+def test_mix_service_uses_frozen_isolated_runtime():
+    root = Path(daily.__file__).resolve().parent
+    service = (root / "systemd" / "mix-daily.service").read_text(encoding="utf-8")
+    requirements = {
+        name: version
+        for line in (root / "mix-runtime-requirements.txt").read_text(encoding="utf-8").splitlines()
+        if line and not line.startswith("#")
+        for name, version in [line.split("==", 1)]
+    }
+    proposal = json.loads(
+        (root / "real" / "cross-mix-model-proposal.json").read_text(encoding="utf-8")
+    )
+    frozen_runtime = proposal["provenance"]["runner"]
+
+    assert "ExecStartPre=/home/ubuntu/rec/mix-venv/bin/python " in service
+    assert "/home/ubuntu/rec/h-race/mix_runtime.py" in service
+    assert "ExecStart=/usr/bin/timeout 3600 /home/ubuntu/rec/mix-venv/bin/python " in service
+    assert requirements["numpy"] == frozen_runtime["runtime"]["numpy"]
+    assert requirements["pandas"] == frozen_runtime["runtime"]["pandas"]
+    assert requirements["scipy"] == frozen_runtime["runtime"]["scipy"]
+    assert requirements["pyarrow"] == frozen_runtime["runtime"]["pyarrow"]
+    assert requirements["scikit-learn"] == frozen_runtime["runtime"]["sklearn"]
+    assert requirements["joblib"] == frozen_runtime["runtime"]["joblib"]
+    assert frozen_runtime["runtime"]["python"] == "3.12.14"
+    evaluator, _digest = daily.load_evaluator_freeze()
+    assert "mix_runtime.py" in evaluator["dependencies_sha256"]
+    assert "mix-runtime-requirements.txt" in evaluator["dependencies_sha256"]
+
+
+def test_mix_runtime_guard_fails_before_replay_on_any_drift():
+    expected = mix_runtime.locked_packages()
+    runner = {"sha256": mix_runtime.EXPECTED_MIGRATION_RUNNER_SHA256}
+
+    verified = mix_runtime.verify_runtime(
+        python_version=mix_runtime.EXPECTED_PYTHON,
+        installed=expected,
+        runner_identity=runner,
+    )
+
+    assert verified["status"] == "ok"
+    with pytest.raises(RuntimeError, match='"numpy"'):
+        mix_runtime.verify_runtime(
+            python_version=mix_runtime.EXPECTED_PYTHON,
+            installed={**expected, "numpy": "0"},
+            runner_identity=runner,
+        )
+    with pytest.raises(RuntimeError, match="runner identity mismatch"):
+        mix_runtime.verify_runtime(
+            python_version=mix_runtime.EXPECTED_PYTHON,
+            installed=expected,
+            runner_identity={"sha256": "0" * 64},
+        )
 
 
 def _install_daily_fakes(tmp_path, monkeypatch, calls):
@@ -204,6 +276,7 @@ def _install_daily_fakes(tmp_path, monkeypatch, calls):
     )
     monkeypatch.setattr(daily.archive_daily, "validate_local_archive", lambda *args: None)
     monkeypatch.setattr(daily, "aggregate_source_items", lambda *args: [])
+    monkeypatch.setattr(daily, "dvol_source_items", lambda *args: [])
     monkeypatch.setattr(daily, "_validate_local_items", lambda *args: None)
 
     def build_artifact(_data, _poly, day_root, day, _snapshot):
@@ -242,6 +315,14 @@ def _install_daily_fakes(tmp_path, monkeypatch, calls):
     monkeypatch.setattr(daily, "build_aggregate_tape", build_tape)
     monkeypatch.setattr(daily.control, "replay_archive", replay)
     monkeypatch.setattr(daily.control, "append_observations", append)
+    monkeypatch.setattr(
+        daily.mix_dvol,
+        "enrich_ledger_rows",
+        lambda rows, day, tape, paths: (rows, {
+            "schema": "mix-dvol-enrichment-v1", "day": day,
+            "target_rows": len(rows), "populated_rows": 0,
+        }),
+    )
     monkeypatch.setattr(
         daily.control, "pin_verdict",
         lambda *_args, **_kwargs: {"status": "collecting"},

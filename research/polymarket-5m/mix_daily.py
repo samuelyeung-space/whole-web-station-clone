@@ -18,6 +18,7 @@ from typing import Any
 import boto3
 
 import mix_agg_rec
+import mix_dvol
 import mix_forward as control
 import mix_hf
 import mix_projection as projection
@@ -56,6 +57,18 @@ def _atomic_json(path: str | Path, payload: Mapping[str, Any]) -> None:
         json.dumps(payload, indent=2, sort_keys=True, allow_nan=False) + "\n",
         encoding="utf-8",
     )
+    temporary.replace(destination)
+
+
+def _atomic_jsonl(path: str | Path, rows: Iterable[Mapping[str, Any]]) -> None:
+    destination = Path(path)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temporary = destination.with_name(destination.name + ".tmp")
+    with temporary.open("w", encoding="utf-8") as stream:
+        for row in rows:
+            stream.write(json.dumps(
+                row, sort_keys=True, separators=(",", ":"), allow_nan=False,
+            ) + "\n")
     temporary.replace(destination)
 
 
@@ -134,6 +147,18 @@ def aggregate_source_items(
     selected = [item for item in manifest["files"] if str(item.get("file")) in expected]
     if {str(item["file"]) for item in selected} != expected:
         raise ValueError(f"MIX aggregate route coverage is incomplete for {day}")
+    return sorted(selected, key=lambda item: str(item["file"]))
+
+
+def dvol_source_items(
+    manifest: Mapping[str, Any], day: str, hours: set[int],
+) -> list[Mapping[str, Any]]:
+    expected = {
+        f"{mix_dvol.ROUTE}.{day}T{hour:02d}.txt.gz" for hour in hours
+    }
+    selected = [item for item in manifest["files"] if str(item.get("file")) in expected]
+    if {str(item["file"]) for item in selected} != expected:
+        raise ValueError(f"MIX DVOL route coverage is incomplete for {day}")
     return sorted(selected, key=lambda item: str(item["file"]))
 
 
@@ -475,9 +500,10 @@ def process_day(
                 shutil.rmtree(temporary)
         return complete
 
+    previous_day = _next_day(day, -1)
+    previous_rec = archive_daily._archive_manifest(s3, bucket, previous_day, "rec")
     current_rec = archive_daily._archive_manifest(s3, bucket, day, "rec")
     current_poly = archive_daily._archive_manifest(s3, bucket, day, "poly")
-    previous_day = _next_day(day, -1)
     previous_mix = _mix_manifest(s3, bucket, previous_day)
     current_mix = _mix_manifest(s3, bucket, day)
     archive_daily.validate_local_archive(current_rec, Path(data_dir), day, "rec")
@@ -487,9 +513,15 @@ def process_day(
         *aggregate_source_items(previous_mix, previous_day, pre_roll_hours),
         *aggregate_source_items(current_mix, day, set(range(24))),
     ]
+    dvol_items = [
+        *dvol_source_items(previous_rec, previous_day, pre_roll_hours),
+        *dvol_source_items(current_rec, day, set(range(24))),
+    ]
     _validate_local_items(Path(mix_dir), aggregate_items)
+    _validate_local_items(Path(data_dir), dvol_items)
     archive_snapshot = day_root / "archive-manifests.json"
     _atomic_json(archive_snapshot, {
+        "rec_previous": previous_rec,
         "rec": current_rec,
         "poly": current_poly,
         "mix_previous": previous_mix,
@@ -524,6 +556,23 @@ def process_day(
     pooled = control.append_observations(
         staged / CONTROL_LEDGER, rows_path, staged / CONTROL_VERDICT,
     )
+    pooled, dvol_profile = mix_dvol.enrich_ledger_rows(
+        pooled,
+        day,
+        tape,
+        [Path(data_dir) / str(item["file"]) for item in dvol_items],
+    )
+    _atomic_jsonl(staged / CONTROL_LEDGER, pooled)
+    dvol_profile.update({
+        "archive_manifests_sha256": archive_daily._sha256(archive_snapshot),
+        "control_ledger_sha256": archive_daily._sha256(staged / CONTROL_LEDGER),
+        "source_files": [
+            {key: item[key] for key in ("file", "size", "sha256")}
+            for item in dvol_items
+        ],
+    })
+    dvol_profile_path = day_root / "dvol-enrichment.json"
+    _atomic_json(dvol_profile_path, dvol_profile)
     control_status = control.pin_verdict(
         pooled, staged / CONTROL_VERDICT, frozen, staged / CONTROL_LEDGER,
     )
@@ -559,6 +608,7 @@ def process_day(
     evidence = [
         archive_snapshot,
         tape_profile_path,
+        dvol_profile_path,
         day_root / "strict-manifest.json",
         day_root / "strict-input-binding.json",
         rows_path,
