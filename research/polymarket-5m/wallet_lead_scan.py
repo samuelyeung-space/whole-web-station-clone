@@ -16,6 +16,7 @@ import argparse
 import gzip
 import hashlib
 import math
+import urllib.request
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
@@ -29,7 +30,6 @@ import cross
 import momentum5s
 import resolved
 import reward_dust
-import reward_dust_chain_scan as chain_scan
 import wallet_lead as wl
 
 
@@ -48,6 +48,24 @@ ALPHA = 0.01
 BOOK_DATASET = cross.DS
 BOOK_START = "2026-07-02"
 BOOK_END = "2026-08-29"
+CHAIN_DATASET = "TimeSeventeen/Polymarket-v2"
+CHAIN_REVISION = "101908446bbff1afa2513fa7f8f3dd1d168c4345"
+CHAIN_API = "https://huggingface.co/api/datasets"
+CHAIN_BASE = "https://huggingface.co/datasets"
+DAILY_SCAN_COLUMNS = (
+    "id",
+    "order_hash",
+    "maker",
+    "taker",
+    "timestamp",
+    "maker_direction",
+    "taker_direction",
+    "token_asset_id",
+    "token_amount",
+    "usdc_amount",
+    "price",
+    "fee_usdc",
+)
 RESULT_COLUMNS = (
     "day",
     "period",
@@ -86,6 +104,20 @@ class ScanStats:
 
 
 @dataclass(frozen=True)
+class DailyChainFile:
+    day: date
+    name: str
+    sha256: str
+    size: int
+
+    @property
+    def url(self) -> str:
+        return (
+            f"{CHAIN_BASE}/{CHAIN_DATASET}/resolve/{CHAIN_REVISION}/{self.name}"
+        )
+
+
+@dataclass(frozen=True)
 class BookFile:
     day: date
     name: str
@@ -109,20 +141,122 @@ def period_for_day(day: date) -> str:
     return "locked"
 
 
-def _eligible_raw_row(row: Mapping[str, Any]) -> bool:
-    """Apply frozen economic eligibility before strict event normalisation."""
-    if str(row.get("contract")) != wl.CTF_EXCHANGE_V2_LABEL:
-        return False
-    if str(row.get("taker", "")).lower() != wl.CTF_EXCHANGE_V2_ADDRESS.lower():
-        return False
+def daily_source_files(
+    metadata: Mapping[str, Any],
+    *,
+    start_day: date,
+    days: int,
+) -> list[DailyChainFile]:
+    if metadata.get("sha") != CHAIN_REVISION:
+        raise ValueError("daily chain metadata does not match the pinned revision")
+    siblings = metadata.get("siblings")
+    if not isinstance(siblings, list):
+        raise ValueError("daily chain metadata has no sibling inventory")
+    by_name: dict[str, Mapping[str, Any]] = {}
+    for item in siblings:
+        if not isinstance(item, Mapping):
+            continue
+        name = item.get("rfilename")
+        if isinstance(name, str):
+            if name in by_name:
+                raise ValueError(f"duplicate daily chain file {name}")
+            by_name[name] = item
+    files: list[DailyChainFile] = []
+    for offset in range(days):
+        day = start_day + timedelta(days=offset)
+        name = f"OrderFilled/{day:%Y_%m_%d}.parquet"
+        raw = by_name.get(name)
+        if raw is None:
+            raise ValueError(f"missing daily chain file {name}")
+        size = raw.get("size")
+        lfs = raw.get("lfs")
+        if (
+            isinstance(size, bool)
+            or not isinstance(size, int)
+            or size <= 0
+            or not isinstance(lfs, Mapping)
+            or lfs.get("size") != size
+        ):
+            raise ValueError(f"invalid LFS size metadata for {name}")
+        sha256 = lfs.get("sha256")
+        if (
+            not isinstance(sha256, str)
+            or len(sha256) != 64
+            or any(char not in "0123456789abcdef" for char in sha256)
+        ):
+            raise ValueError(f"invalid LFS SHA-256 metadata for {name}")
+        files.append(DailyChainFile(day, name, sha256, size))
+    return files
+
+
+def _timestamp_bounds(source: Any) -> list[tuple[int, int]]:
+    timestamp_index = source.schema_arrow.get_field_index("timestamp")
+    bounds: list[tuple[int, int]] = []
+    for group_index in range(source.metadata.num_row_groups):
+        statistics = source.metadata.row_group(group_index).column(
+            timestamp_index
+        ).statistics
+        if statistics is None or not statistics.has_min_max:
+            raise ValueError("daily timestamp row-group statistics are required")
+        bounds.append((int(statistics.min), int(statistics.max)))
+    return bounds
+
+
+def validate_daily_partition(source: Any, expected_day: date) -> None:
+    if source.metadata.num_rows <= 0:
+        raise ValueError(f"{expected_day}: daily chain file is empty")
+    start_s = _day_start(expected_day)
+    end_s = start_s + 86_400
+    for minimum, maximum in _timestamp_bounds(source):
+        if minimum < start_s or maximum >= end_s or minimum > maximum:
+            raise ValueError(f"{expected_day}: daily chain timestamp escaped partition")
+
+
+def write_verified_stream(
+    source: Any,
+    destination: Path,
+    *,
+    expected_size: int,
+    expected_sha256: str,
+) -> int:
+    destination.unlink(missing_ok=True)
+    digest = hashlib.sha256()
+    written = 0
     try:
-        if int(str(row.get("side"))) != 0:
-            return False
-        collateral = int(str(row.get("maker_amount_filled")))
-        shares = int(str(row.get("taker_amount_filled")))
-    except (TypeError, ValueError):
-        return False
-    return collateral > 0 and shares > 0 and collateral < shares
+        with destination.open("wb") as handle:
+            while block := source.read(1 << 20):
+                if not isinstance(block, bytes):
+                    raise ValueError("chain response must yield bytes")
+                handle.write(block)
+                digest.update(block)
+                written += len(block)
+        if written != expected_size:
+            raise ValueError(
+                f"chain file has {written} bytes, expected {expected_size}"
+            )
+        if digest.hexdigest() != expected_sha256:
+            raise ValueError("chain file sha256 mismatch")
+    except Exception:
+        destination.unlink(missing_ok=True)
+        raise
+    return written
+
+
+def _download_chain(item: DailyChainFile, destination: Path) -> int:
+    request = urllib.request.Request(item.url, headers={"User-Agent": "research"})
+    error: Exception | None = None
+    for _attempt in range(4):
+        try:
+            with urllib.request.urlopen(request, timeout=120) as response:
+                return write_verified_stream(
+                    response,
+                    destination,
+                    expected_size=item.size,
+                    expected_sha256=item.sha256,
+                )
+        except Exception as exc:
+            error = exc
+    raise RuntimeError(f"failed to download verified chain file {item.name}") from error
 
 
 def scan_parquet(
@@ -132,17 +266,17 @@ def scan_parquet(
     capture_start_s: int,
     capture_end_s: int,
 ) -> tuple[list[wl.ParentBuy], ScanStats]:
-    """Read intersecting row groups and retain eligible target-token parent BUYs."""
+    """Read one pinned daily source and retain target-token parent BUYs."""
     import pyarrow as pa
     import pyarrow.compute as pc
     import pyarrow.parquet as pq
 
     pf = source if hasattr(source, "read_row_group") else pq.ParquetFile(source)
     columns = frozenset(pf.schema_arrow.names)
-    missing = frozenset(chain_scan.SCAN_COLUMNS) - columns
+    missing = frozenset(DAILY_SCAN_COLUMNS) - columns
     if missing:
-        raise ValueError(f"raw V2 Parquet misses {','.join(sorted(missing))}")
-    bounds = chain_scan.timestamp_row_group_bounds(pf)
+        raise ValueError(f"daily V2 Parquet misses {','.join(sorted(missing))}")
+    bounds = _timestamp_bounds(pf)
     groups = [
         index
         for index, (minimum, maximum) in enumerate(bounds)
@@ -151,20 +285,31 @@ def scan_parquet(
     token_values = pa.array(sorted(tokens), type=pa.string())
     events: list[wl.ParentBuy] = []
     for index in groups:
-        table = pf.read_row_group(index, columns=list(chain_scan.SCAN_COLUMNS))
+        table = pf.read_row_group(index, columns=list(DAILY_SCAN_COLUMNS))
         mask = pc.and_(
             pc.and_(
                 pc.greater_equal(table["timestamp"], pa.scalar(capture_start_s)),
                 pc.less(table["timestamp"], pa.scalar(capture_end_s)),
             ),
             pc.and_(
-                pc.equal(table["contract"], pa.scalar(wl.CTF_EXCHANGE_V2_LABEL)),
-                pc.is_in(table["token_id"], value_set=token_values),
+                pc.and_(
+                    pc.equal(
+                        pc.utf8_lower(table["taker"]),
+                        pa.scalar(wl.CTF_EXCHANGE_V2_ADDRESS.lower()),
+                    ),
+                    pc.equal(table["maker_direction"], pa.scalar("BUY")),
+                ),
+                pc.and_(
+                    pc.equal(table["taker_direction"], pa.scalar("SELL")),
+                    pc.is_in(table["token_asset_id"], value_set=token_values),
+                ),
             ),
         )
         for row in table.filter(mask).to_pylist():
-            if _eligible_raw_row(row):
-                events.append(wl.normalise_parent_buy(row, tokens))
+            events.append(wl.normalise_daily_parent_buy(row, tokens))
+    keys = [event.event_key for event in events]
+    if len(keys) != len(set(keys)):
+        raise ValueError("duplicate daily chain event id")
     return events, ScanStats(
         raw_rows=pf.metadata.num_rows,
         selected_rows=len(events),
@@ -363,6 +508,8 @@ def replay_day(
     history: list[wl.WalletObservation],
     features: pd.DataFrame,
 ) -> tuple[list[dict[str, Any]], tuple[wl.WalletScore, ...]]:
+    if day <= DISCOVERY_END:
+        return [], ()
     selected = wl.select_wallets(history, day)
     score_by_wallet = {score.wallet: score for score in selected}
     if not selected:
@@ -519,6 +666,7 @@ def render_report(
     chain_files: int,
     chain_fetched_bytes: int,
     chain_finalized: bool,
+    chain_manifest_sha256: str,
     book_manifest_sha256: str,
     book_files: int,
 ) -> str:
@@ -568,7 +716,8 @@ def render_report(
         "",
         "## 来源与审计边界",
         "",
-        f"- 链事件：{chain_scan.DATASET}，固定 revision {chain_revision}，{chain_files} 个 Parquet；远程实际读取 {chain_fetched_bytes / 1e6:.1f} MB。",
+        f"- 链事件：{CHAIN_DATASET} 原始逐日 OrderFilled，固定 revision {chain_revision}，{chain_files} 个 Parquet；LFS 清单 SHA-256 {chain_manifest_sha256}；远程实际读取 {chain_fetched_bytes / 1e6:.1f} MB。",
+        "- 吃单身份只认 CTF Exchange V2 parent 行：taker 为交易所合约、maker_direction=BUY；逐 maker 成交行不作钱包信号。",
         f"- 链源最终性账本：{'通过' if chain_finalized else '未证明；结果因此只能作历史诊断'}。",
         f"- 盘口：{BOOK_DATASET}，{book_files} 个逐日档；MANIFEST SHA-256 {book_manifest_sha256}。",
         f"- 日期：{BOOK_START} 至 {BOOK_END}；共 {len(rows):,} 条变体/延迟尝试。",
@@ -595,79 +744,68 @@ def run_audit(workdir: Path, out: Path, csv_out: Path) -> pd.DataFrame:
     token_maps = fetch_token_maps(http)
 
     metadata = reward_dust.certified_json_get(
-        f"{chain_scan.HF_API}/{chain_scan.DATASET}/revision/"
-        f"{chain_scan.PINNED_REVISION}?blobs=true"
+        f"{CHAIN_API}/{CHAIN_DATASET}/revision/{CHAIN_REVISION}?blobs=true"
     )
-    chain_files = chain_scan.source_files(
+    chain_files = daily_source_files(
         metadata,
-        chain_scan._months_for_window(HISTORY_SEED_DAY, DAYS + 1),
-        expected_revision=chain_scan.PINNED_REVISION,
-    )
-    manifest = reward_dust.certified_json_get(
-        f"{chain_scan.HF_BASE}/{chain_scan.DATASET}/resolve/"
-        f"{chain_scan.PINNED_REVISION}/manifest.json"
-    )
-    collector = reward_dust.certified_json_get(
-        f"{chain_scan.HF_BASE}/{chain_scan.DATASET}/resolve/"
-        f"{chain_scan.PINNED_REVISION}/collector_state.json"
-    )
-    inventory = chain_scan.validate_source_inventory(
-        chain_files,
-        manifest,
-        collector,
         start_day=HISTORY_SEED_DAY,
         days=DAYS + 1,
     )
-    if not inventory.complete:
-        raise ValueError(
-            "chain source inventory failed: " + "; ".join(inventory.reasons)
-        )
-    opened: list[tuple[Any, Any]] = []
-    for index, item in enumerate(chain_files, 1):
-        parquet, raw = cross.remote_parquet(item.url)
-        opened.append((parquet, raw))
-        print(f"opened chain shard {index}/{len(chain_files)}", flush=True)
-    chain_scan.preflight_timestamp_statistics([parquet for parquet, _ in opened])
+    chain_manifest = "\n".join(
+        f"{item.day.isoformat()} {item.name} {item.size} {item.sha256}"
+        for item in chain_files
+    ).encode()
+    chain_manifest_sha256 = hashlib.sha256(chain_manifest).hexdigest()
+    chain_by_day = {item.day: item for item in chain_files}
 
     raw_book_manifest = cross.fetch("MANIFEST.txt")
     book_manifest_sha256 = hashlib.sha256(raw_book_manifest).hexdigest()
     book_files = parse_book_manifest(raw_book_manifest.decode("utf-8"))
     rows: list[dict[str, Any]] = []
-    seed_start_s = _day_start(HISTORY_SEED_DAY)
-    seed_events: list[wl.ParentBuy] = []
-    for parquet, _raw in opened:
-        part, _stats = scan_parquet(
-            parquet,
-            token_maps[HISTORY_SEED_DAY],
-            capture_start_s=seed_start_s,
-            capture_end_s=seed_start_s + 86_400,
-        )
-        seed_events.extend(part)
-    history = [
-        wl.WalletObservation.from_parent_buy(event)
-        for event in dedupe_parent_buys(seed_events)
-    ]
-    local_book = workdir / "book-day.tar.gz"
-    for offset in range(DAYS):
-        day = START_DAY + timedelta(days=offset)
-        start_s = _day_start(day)
-        events: list[wl.ParentBuy] = []
-        for parquet, _raw in opened:
-            part, _stats = scan_parquet(
+    chain_fetched_bytes = 0
+    local_chain = workdir / "chain-day.parquet"
+
+    def read_chain_day(day: date) -> list[wl.ParentBuy]:
+        nonlocal chain_fetched_bytes
+        import pyarrow.parquet as pq
+
+        item = chain_by_day[day]
+        try:
+            chain_fetched_bytes += _download_chain(item, local_chain)
+            parquet = pq.ParquetFile(local_chain)
+            validate_daily_partition(parquet, day)
+            start_s = _day_start(day)
+            events, _stats = scan_parquet(
                 parquet,
                 token_maps[day],
                 capture_start_s=start_s,
                 capture_end_s=start_s + 86_400,
             )
-            events.extend(part)
-        events = dedupe_parent_buys(events)
-        item = book_files[day]
-        try:
-            _download_book(item, local_book)
-            features, _markets, _resolution = cross.read_day(local_book, depth=0)
+            return dedupe_parent_buys(events)
         finally:
-            local_book.unlink(missing_ok=True)
-        day_rows, selected = replay_day(day, events, history, features)
+            local_chain.unlink(missing_ok=True)
+
+    seed_events = read_chain_day(HISTORY_SEED_DAY)
+    history = [
+        wl.WalletObservation.from_parent_buy(event)
+        for event in seed_events
+    ]
+    local_book = workdir / "book-day.tar.gz"
+    for offset in range(DAYS):
+        day = START_DAY + timedelta(days=offset)
+        events = read_chain_day(day)
+        if day <= DISCOVERY_END:
+            day_rows: list[dict[str, Any]] = []
+            selected: tuple[wl.WalletScore, ...] = ()
+        else:
+            item = book_files[day]
+            try:
+                _download_book(item, local_book)
+                features, _markets, _resolution = cross.read_day(local_book, depth=0)
+            finally:
+                local_book.unlink(missing_ok=True)
+            day_rows, selected = replay_day(day, events, history, features)
+            del features
         rows.extend(day_rows)
         history.extend(wl.WalletObservation.from_parent_buy(event) for event in events)
         cutoff = day - timedelta(days=14)
@@ -677,19 +815,19 @@ def run_audit(workdir: Path, out: Path, csv_out: Path) -> pd.DataFrame:
             f"{len(day_rows):,} attempts",
             flush=True,
         )
-        del features, events
+        del events
 
     frame = pd.DataFrame(rows, columns=RESULT_COLUMNS)
     summary = summarize(frame)
     _write_rows(csv_out, frame)
-    fetched = sum(int(raw.fetched) for _parquet, raw in opened)
     report = render_report(
         frame,
         summary,
-        chain_revision=chain_scan.PINNED_REVISION,
+        chain_revision=CHAIN_REVISION,
         chain_files=len(chain_files),
-        chain_fetched_bytes=fetched,
-        chain_finalized=inventory.finalized,
+        chain_fetched_bytes=chain_fetched_bytes,
+        chain_finalized=False,
+        chain_manifest_sha256=chain_manifest_sha256,
         book_manifest_sha256=book_manifest_sha256,
         book_files=len(book_files),
     )

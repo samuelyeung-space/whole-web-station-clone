@@ -15,6 +15,9 @@ CTF_EXCHANGE_V2_ADDRESS = "0xE111180000d2663C0091e4f400237545B87B996B"
 RAW_SCALE = 1_000_000
 FEE_RATE = Decimal("0.07")
 FEE_QUANTUM = Decimal("0.00001")
+SOURCE_AMOUNT_QUANTUM = Decimal("0.000001")
+SOURCE_FLOAT_TOLERANCE = Decimal("0.000000001")
+SOURCE_PRICE_TOLERANCE = Decimal("0.000001")
 MIN_SHARES = Decimal(5)
 Side = Literal["Up", "Down"]
 EventKey = tuple[int, str, str, int]
@@ -162,7 +165,8 @@ class ParentBuy:
     shares: Decimal
     fee: Decimal
     event_key: EventKey
-    transaction_hash: str
+    source_event_id: str
+    transaction_hash: str | None
     order_hash: str
     block_number: int
     log_index: int
@@ -203,9 +207,14 @@ class ParentBuy:
             raise ValueError("price must be strictly between zero and one")
         if shares <= 0:
             raise ValueError("parent BUY shares must be positive")
-        if fee != charged_taker_fee(shares, price):
-            raise ValueError("fee must equal the five-decimal-truncated taker fee")
-        transaction_hash = _text(self.transaction_hash, "transaction_hash").lower()
+        if fee < 0 or fee > shares * price:
+            raise ValueError("fee must be between zero and collateral paid")
+        source_event_id = _text(self.source_event_id, "source_event_id").lower()
+        transaction_hash = (
+            _text(self.transaction_hash, "transaction_hash").lower()
+            if self.transaction_hash is not None
+            else None
+        )
         order_hash = _text(self.order_hash, "order_hash").lower()
         if (
             isinstance(self.block_number, bool)
@@ -220,8 +229,8 @@ class ParentBuy:
         ):
             raise ValueError("log_index must be nonnegative")
         event_key = _validate_event_key(self.event_key)
-        if event_key[2] != transaction_hash or event_key[3] != self.log_index:
-            raise ValueError("event_key does not match transaction_hash and log_index")
+        if event_key[2] != source_event_id or event_key[3] != self.log_index:
+            raise ValueError("event_key does not match source_event_id and log_index")
         object.__setattr__(self, "market", market)
         object.__setattr__(self, "token", token)
         object.__setattr__(self, "opposite_token", opposite_token)
@@ -230,6 +239,7 @@ class ParentBuy:
         object.__setattr__(self, "shares", shares)
         object.__setattr__(self, "fee", fee)
         object.__setattr__(self, "event_key", event_key)
+        object.__setattr__(self, "source_event_id", source_event_id)
         object.__setattr__(self, "transaction_hash", transaction_hash)
         object.__setattr__(self, "order_hash", order_hash)
 
@@ -250,6 +260,7 @@ class WalletObservation:
     timestamp_s: int
     price: Decimal
     shares: Decimal
+    fee: Decimal
     settlement: Decimal
     event_key: EventKey | None = None
     block_number: int | None = None
@@ -268,11 +279,14 @@ class WalletObservation:
             raise ValueError("timestamp_s must be a nonnegative integer second")
         price = _exact_decimal(self.price, "price")
         shares = _exact_decimal(self.shares, "shares")
+        fee = _exact_decimal(self.fee, "fee")
         settlement = _exact_decimal(self.settlement, "settlement")
         if not Decimal(0) < price < Decimal(1):
             raise ValueError("price must be strictly between zero and one")
         if shares <= 0:
             raise ValueError("observation shares must be positive")
+        if fee < 0 or fee > shares * price:
+            raise ValueError("fee must be between zero and collateral paid")
         if settlement not in (Decimal(0), Decimal(1)):
             raise ValueError("settlement must be zero or one")
         event_key = (
@@ -302,6 +316,7 @@ class WalletObservation:
         object.__setattr__(self, "market", market)
         object.__setattr__(self, "price", price)
         object.__setattr__(self, "shares", shares)
+        object.__setattr__(self, "fee", fee)
         object.__setattr__(self, "settlement", settlement)
         object.__setattr__(self, "event_key", event_key)
 
@@ -316,6 +331,7 @@ class WalletObservation:
             timestamp_s=event.timestamp_s,
             price=event.price,
             shares=event.shares,
+            fee=event.fee,
             settlement=event.settlement,
             event_key=event.event_key,
             block_number=event.block_number,
@@ -427,18 +443,16 @@ class ReplayResult:
 
 def _validate_event_key(event_key: object) -> EventKey:
     if not isinstance(event_key, tuple) or len(event_key) != 4:
-        raise ValueError(
-            "event_key must contain chain, exchange, transaction, and log index"
-        )
-    chain_id, exchange, transaction_hash, log_index = event_key
+        raise ValueError("event_key must contain chain, exchange, source id, and log index")
+    chain_id, exchange, source_event_id, log_index = event_key
     if chain_id != CHAIN_ID:
         raise ValueError("event_key has the wrong chain")
     if _text(exchange, "event exchange").lower() != CTF_EXCHANGE_V2_ADDRESS.lower():
         raise ValueError("event_key has the wrong exchange")
-    transaction = _text(transaction_hash, "event transaction hash").lower()
+    source_id = _text(source_event_id, "event source id").lower()
     if isinstance(log_index, bool) or not isinstance(log_index, int) or log_index < 0:
         raise ValueError("event log index must be nonnegative")
-    return (chain_id, exchange.lower(), transaction, log_index)
+    return (chain_id, exchange.lower(), source_id, log_index)
 
 
 def charged_taker_fee(shares: object, price: object) -> Decimal:
@@ -471,6 +485,8 @@ def fixed_limit(
     signal_price: object,
     wallet_score: object,
     shares: object = 5,
+    *,
+    signal_fee: object | None = None,
 ) -> Decimal | None:
     """Choose the highest cent limit preserving the frozen one-cent edge."""
     price = _exact_decimal(signal_price, "signal_price")
@@ -480,7 +496,14 @@ def fixed_limit(
         raise ValueError("signal_price must be strictly between zero and one")
     if exact_shares <= 0:
         raise ValueError("signal shares must be positive")
-    signal_fee_per_share = charged_taker_fee(exact_shares, price) / exact_shares
+    exact_signal_fee = (
+        charged_taker_fee(exact_shares, price)
+        if signal_fee is None
+        else _exact_decimal(signal_fee, "signal_fee")
+    )
+    if exact_signal_fee < 0 or exact_signal_fee > exact_shares * price:
+        raise ValueError("signal_fee must be between zero and collateral paid")
+    signal_fee_per_share = exact_signal_fee / exact_shares
     ceiling = price + signal_fee_per_share + score - Decimal("0.01")
     for cents in range(98, 0, -1):
         candidate = Decimal(cents) / Decimal(100)
@@ -542,10 +565,7 @@ def select_wallets(
 
     pnl_by_wallet: dict[str, list[Decimal]] = {}
     for observation in first_by_market.values():
-        fee_per_share = (
-            charged_taker_fee(observation.shares, observation.price)
-            / observation.shares
-        )
+        fee_per_share = observation.fee / observation.shares
         pnl = observation.settlement - observation.price - fee_per_share
         pnl_by_wallet.setdefault(observation.wallet, []).append(pnl)
 
@@ -644,7 +664,7 @@ def opposite_signal(signal: ParentBuy) -> ParentBuy:
         opposite_token=signal.token,
         side="Down" if signal.side == "Up" else "Up",
         price=price,
-        fee=charged_taker_fee(signal.shares, price),
+        fee=signal.fee,
     )
 
 
@@ -685,7 +705,10 @@ def replay(
             raise ValueError("score must be greater than 0.02")
 
     limit_price = fixed_limit(
-        execution_signal.price, score_value, execution_signal.shares
+        execution_signal.price,
+        score_value,
+        execution_signal.shares,
+        signal_fee=execution_signal.fee,
     )
 
     def result(
@@ -896,7 +919,124 @@ def normalise_parent_buy(
         shares=shares,
         fee=fee,
         event_key=event_key,
+        source_event_id=transaction_hash,
         transaction_hash=transaction_hash,
+        order_hash=order_hash,
+        block_number=block_number,
+        log_index=log_index,
+    )
+
+
+def _daily_decimal(value: object, field: str) -> Decimal:
+    if isinstance(value, bool):
+        raise ValueError(f"{field} must be a finite decimal")
+    try:
+        result = Decimal(str(value))
+    except (ArithmeticError, TypeError, ValueError) as exc:
+        raise ValueError(f"{field} must be a finite decimal") from exc
+    if not result.is_finite():
+        raise ValueError(f"{field} must be a finite decimal")
+    return result
+
+
+def _daily_amount(value: object, field: str) -> Decimal:
+    result = _daily_decimal(value, field)
+    quantized = result.quantize(SOURCE_AMOUNT_QUANTUM)
+    if abs(result - quantized) > SOURCE_FLOAT_TOLERANCE:
+        raise ValueError(f"{field} exceeds six-decimal token precision")
+    return quantized
+
+
+def normalise_daily_parent_buy(
+    row: Mapping[str, Any],
+    tokens: Mapping[str, TokenMeta],
+) -> ParentBuy:
+    """Validate one TimeSeventeen CTF Exchange V2 parent BUY row."""
+    try:
+        source_event_id = _text(row["id"], "id").lower()
+        order_hash = _text(row["order_hash"], "order_hash").lower()
+        wallet = _text(row["maker"], "maker").lower()
+        taker = _text(row["taker"], "taker")
+        maker_direction = _text(row["maker_direction"], "maker_direction")
+        taker_direction = _text(row["taker_direction"], "taker_direction")
+        token_id = _text(row["token_asset_id"], "token_asset_id")
+        timestamp_s = _unsigned_integer(row["timestamp"], "timestamp")
+    except KeyError as exc:
+        raise ValueError(f"missing daily source field {exc.args[0]}") from exc
+    match = re.fullmatch(r"([0-9]+)_([0-9]+)_([0-9]+)", source_event_id)
+    if match is None or int(match.group(1)) != CHAIN_ID:
+        raise ValueError("id must contain the Polygon chain, block, and log index")
+    block_number = int(match.group(2))
+    log_index = int(match.group(3))
+    if taker.lower() != CTF_EXCHANGE_V2_ADDRESS.lower():
+        raise ValueError("row is not an aggressor-parent event")
+    if maker_direction != "BUY" or taker_direction != "SELL":
+        raise ValueError("row is not a parent BUY")
+    token = tokens.get(token_id)
+    if token is None:
+        raise ValueError(f"unknown token {token_id}")
+    if token.token != token_id:
+        raise ValueError("token mapping key and metadata disagree")
+
+    try:
+        shares = _daily_amount(row["token_amount"], "token_amount")
+        collateral = _daily_amount(row["usdc_amount"], "usdc_amount")
+        source_price = _daily_decimal(row["price"], "price")
+        fee = _daily_amount(row["fee_usdc"], "fee_usdc")
+    except KeyError as exc:
+        raise ValueError(f"missing daily source field {exc.args[0]}") from exc
+    if shares <= 0:
+        raise ValueError("parent BUY shares must be positive")
+    if collateral <= 0:
+        raise ValueError("parent BUY collateral must be positive")
+    with localcontext() as context:
+        context.prec = 50
+        price = collateral / shares
+    if not Decimal(0) < source_price < Decimal(1):
+        raise ValueError("source price must be strictly between zero and one")
+    if not Decimal(0) < price < Decimal(1):
+        raise ValueError("price must be strictly between zero and one")
+    if abs(source_price - price) > SOURCE_PRICE_TOLERANCE:
+        raise ValueError("source price disagrees with collateral divided by shares")
+    if fee < 0 or fee > collateral:
+        raise ValueError("daily source fee must be between zero and collateral paid")
+
+    opposite_side = "Down" if token.side == "Up" else "Up"
+    complements = [
+        item
+        for item in tokens.values()
+        if item.market == token.market
+        and item.start_s == token.start_s
+        and item.day == token.day
+        and item.side == opposite_side
+    ]
+    if len(complements) > 1:
+        raise ValueError("token mapping has multiple complementary tokens")
+    if complements and complements[0].up_won != token.up_won:
+        raise ValueError("complementary tokens disagree on market settlement")
+
+    event_key = (
+        CHAIN_ID,
+        CTF_EXCHANGE_V2_ADDRESS.lower(),
+        source_event_id,
+        log_index,
+    )
+    return ParentBuy(
+        day=token.day,
+        start_s=token.start_s,
+        market=token.market,
+        token=token.token,
+        opposite_token=complements[0].token if complements else None,
+        side=token.side,
+        up_won=token.up_won,
+        wallet=wallet,
+        timestamp_s=timestamp_s,
+        price=price,
+        shares=shares,
+        fee=fee,
+        event_key=event_key,
+        source_event_id=source_event_id,
+        transaction_hash=None,
         order_hash=order_hash,
         block_number=block_number,
         log_index=log_index,

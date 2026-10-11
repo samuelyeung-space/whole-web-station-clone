@@ -1,6 +1,8 @@
+import hashlib
 from dataclasses import replace
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
+from io import BytesIO
 
 import pandas as pd
 import pyarrow as pa
@@ -56,6 +58,31 @@ def raw_row(
     }
 
 
+def daily_row(
+    *,
+    token_id: str = TOKEN,
+    taker: str = chain_scan.CTF_EXCHANGE_V2_ADDRESS,
+    maker_direction: str = "BUY",
+    taker_direction: str = "SELL",
+    log_index: int = 7,
+    token_amount: float = 5.0,
+) -> dict:
+    return {
+        "id": f"137_90000001_{log_index}",
+        "order_hash": "0x" + format(log_index, "064x"),
+        "maker": "0xleader",
+        "taker": taker,
+        "timestamp": START + 70,
+        "maker_direction": maker_direction,
+        "taker_direction": taker_direction,
+        "token_asset_id": token_id,
+        "token_amount": token_amount,
+        "usdc_amount": token_amount * 0.5,
+        "price": 0.5,
+        "fee_usdc": 0.0875 if token_amount == 5.0 else 0.0175,
+    }
+
+
 def write_parquet(path, rows):
     pq.write_table(pa.Table.from_pylist(rows), path)
     return pq.ParquetFile(path)
@@ -63,10 +90,10 @@ def write_parquet(path, rows):
 
 def test_scan_keeps_only_unique_target_aggressor_parent_buys(tmp_path):
     rows = [
-        raw_row(),
-        raw_row(side=1, log_index=8),
-        raw_row(taker="0xmaker-child", log_index=9),
-        raw_row(token_id="other", log_index=10),
+        daily_row(),
+        daily_row(maker_direction="SELL", taker_direction="BUY", log_index=8),
+        daily_row(taker="0xmaker-child", log_index=9),
+        daily_row(token_id="other", log_index=10),
     ]
     pf = write_parquet(tmp_path / "fills.parquet", rows)
 
@@ -86,8 +113,7 @@ def test_scan_keeps_only_unique_target_aggressor_parent_buys(tmp_path):
 
 
 def test_scan_keeps_small_first_buys_in_the_wallet_history(tmp_path):
-    row = raw_row(maker_amount="400000", taker_amount="1000000")
-    row["fee"] = "16800"
+    row = daily_row(token_amount=1.0)
     parquet = write_parquet(tmp_path / "small.parquet", [row])
 
     buys, _stats = scan.scan_parquet(
@@ -99,6 +125,86 @@ def test_scan_keeps_small_first_buys_in_the_wallet_history(tmp_path):
 
     assert len(buys) == 1
     assert buys[0].shares == Decimal("1")
+
+
+def test_scan_rejects_duplicate_daily_chain_event_ids(tmp_path):
+    row = daily_row()
+    parquet = write_parquet(tmp_path / "duplicate.parquet", [row, row])
+
+    with pytest.raises(ValueError, match="duplicate daily chain event"):
+        scan.scan_parquet(
+            parquet,
+            {TOKEN: token()},
+            capture_start_s=START,
+            capture_end_s=START + 300,
+        )
+
+
+def test_daily_source_inventory_is_revision_and_lfs_bound():
+    revision = scan.CHAIN_REVISION
+    siblings = []
+    for offset in range(scan.DAYS + 1):
+        day = scan.HISTORY_SEED_DAY + timedelta(days=offset)
+        siblings.append(
+            {
+                "rfilename": f"OrderFilled/{day:%Y_%m_%d}.parquet",
+                "size": 10_000_000 + offset,
+                "lfs": {"size": 10_000_000 + offset, "sha256": "ab" * 32},
+            }
+        )
+
+    files = scan.daily_source_files(
+        {"sha": revision, "siblings": siblings},
+        start_day=scan.HISTORY_SEED_DAY,
+        days=scan.DAYS + 1,
+    )
+
+    assert len(files) == scan.DAYS + 1
+    assert files[0].day == scan.HISTORY_SEED_DAY
+    assert files[-1].day == scan.FINAL_DAY
+    assert files[0].sha256 == "ab" * 32
+
+    broken = {"sha": revision, "siblings": siblings[:-1]}
+    with pytest.raises(ValueError, match="missing daily chain file"):
+        scan.daily_source_files(
+            broken,
+            start_day=scan.HISTORY_SEED_DAY,
+            days=scan.DAYS + 1,
+        )
+
+
+def test_verified_chain_stream_checks_full_size_and_sha_and_removes_failure(tmp_path):
+    payload = b"immutable daily parquet bytes"
+    expected = hashlib.sha256(payload).hexdigest()
+    target = tmp_path / "chain.parquet"
+
+    scan.write_verified_stream(
+        BytesIO(payload),
+        target,
+        expected_size=len(payload),
+        expected_sha256=expected,
+    )
+    assert target.read_bytes() == payload
+
+    with pytest.raises(ValueError, match="sha256 mismatch"):
+        scan.write_verified_stream(
+            BytesIO(payload),
+            target,
+            expected_size=len(payload),
+            expected_sha256="00" * 32,
+        )
+    assert not target.exists()
+
+
+def test_daily_partition_rejects_any_timestamp_outside_its_utc_day(tmp_path):
+    valid = write_parquet(tmp_path / "valid.parquet", [daily_row()])
+    scan.validate_daily_partition(valid, date(2026, 7, 2))
+
+    escaped_row = daily_row()
+    escaped_row["timestamp"] = START - 1
+    escaped = write_parquet(tmp_path / "escaped.parquet", [escaped_row])
+    with pytest.raises(ValueError, match="escaped partition"):
+        scan.validate_daily_partition(escaped, date(2026, 7, 2))
 
 
 def test_dedupe_accepts_exact_duplicates_and_rejects_conflicts():
@@ -265,6 +371,7 @@ def test_empty_book_day_keeps_signals_as_no_snapshot_attempts():
             timestamp_s=START + index,
             price=Decimal("0.1"),
             shares=Decimal("1"),
+            fee=Decimal("0.0063"),
             settlement=Decimal(1),
         )
         for index in range(20)
@@ -276,3 +383,31 @@ def test_empty_book_day_keeps_signals_as_no_snapshot_attempts():
     assert len(rows) == 6
     assert {row["reason"] for row in rows} == {"no_snapshot"}
     assert not any(row["filled"] for row in rows)
+
+
+def test_discovery_days_only_warm_ranking_history_and_never_emit_attempts():
+    day = scan.DISCOVERY_END
+    market_start = int(datetime(day.year, day.month, day.day, tzinfo=UTC).timestamp())
+    meta = wl.TokenMeta(day, market_start, "condition", TOKEN, "Up", True)
+    down = wl.TokenMeta(day, market_start, "condition", "456", "Down", True)
+    event_row = raw_row()
+    event_row.update({"timestamp": market_start + 70, "maker": "0xleader"})
+    event = wl.normalise_parent_buy(event_row, {TOKEN: meta, "456": down})
+    history = [
+        wl.WalletObservation(
+            day=date(2026, 7, 2),
+            wallet="0xleader",
+            market=f"prior-{index}",
+            timestamp_s=START + index,
+            price=Decimal("0.1"),
+            shares=Decimal("1"),
+            fee=Decimal("0.0063"),
+            settlement=Decimal(1),
+        )
+        for index in range(20)
+    ]
+
+    rows, selected = scan.replay_day(day, [event], history, pd.DataFrame())
+
+    assert rows == []
+    assert selected == ()

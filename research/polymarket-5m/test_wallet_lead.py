@@ -77,8 +77,88 @@ def test_normalise_parent_buy_preserves_exact_v2_identity_and_units():
         7,
     )
     assert event.order_hash == "0x" + "cd" * 32
+    assert event.source_event_id == "0x" + "ab" * 32
+    assert event.transaction_hash == "0x" + "ab" * 32
     assert event.block_number == 61_000_001
     assert event.log_index == 7
+
+
+def _daily_row(**overrides: object) -> dict[str, object]:
+    row: dict[str, object] = {
+        "id": "137_61000001_7",
+        "order_hash": "0x" + "ef" * 32,
+        "maker": WALLET,
+        "taker": lead.CTF_EXCHANGE_V2_ADDRESS,
+        "timestamp": START + 61,
+        "maker_direction": "BUY",
+        "taker_direction": "SELL",
+        "token_asset_id": UP,
+        "token_amount": 54.147691,
+        "usdc_amount": 14.010011,
+        "price": 0.258737,
+        "fee_usdc": 0.72695,
+    }
+    row.update(overrides)
+    return row
+
+
+def test_normalise_daily_parent_buy_preserves_daily_event_identity_and_actual_fee():
+    event = lead.normalise_daily_parent_buy(_daily_row(), _tokens())
+
+    assert event.wallet == WALLET.lower()
+    assert event.side == "Up"
+    assert event.shares == Decimal("54.147691")
+    assert event.price == Decimal(
+        "0.25873699766810001187308245516877164716035629293962"
+    )
+    assert event.fee == Decimal("0.72695")
+    assert event.source_event_id == "137_61000001_7"
+    assert event.event_key == (
+        137,
+        lead.CTF_EXCHANGE_V2_ADDRESS.lower(),
+        "137_61000001_7",
+        7,
+    )
+    assert event.transaction_hash is None
+    assert event.order_hash == "0x" + "ef" * 32
+    assert event.block_number == 61_000_001
+
+
+def test_normalise_daily_parent_buy_accepts_event_fee_that_differs_from_current_formula():
+    event = lead.normalise_daily_parent_buy(
+        _daily_row(
+            token_amount=5.5,
+            usdc_amount=2.86,
+            price=0.52,
+            fee_usdc=0.11754,
+        ),
+        _tokens(),
+    )
+
+    assert event.fee == Decimal("0.11754")
+    assert event.fee != lead.charged_taker_fee(event.shares, event.price)
+    assert lead.opposite_signal(event).fee == event.fee
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"id": "137_bad_7"},
+        {"taker": "0xmaker-child"},
+        {"maker_direction": "SELL", "taker_direction": "BUY"},
+        {"token_asset_id": "unknown"},
+        {"token_amount": 0.0},
+        {"token_amount": 5.0000001},
+        {"usdc_amount": 2.0000001},
+        {"price": 0.3},
+        {"fee_usdc": -0.01},
+        {"fee_usdc": 0.0000001},
+        {"fee_usdc": 20.0},
+    ],
+)
+def test_normalise_daily_parent_buy_rejects_nonparent_or_impossible_rows(overrides):
+    with pytest.raises(ValueError):
+        lead.normalise_daily_parent_buy(_daily_row(**overrides), _tokens())
 
 
 @pytest.mark.parametrize(
@@ -153,6 +233,7 @@ def _observation(
         timestamp_s=timestamp_s,
         price=Decimal(price),
         shares=Decimal(shares),
+        fee=lead.charged_taker_fee(Decimal(shares), Decimal(price)),
         settlement=Decimal(settlement),
     )
 
@@ -271,6 +352,27 @@ def test_select_wallets_orders_same_second_buys_by_block_then_log_index():
     assert selected[0].score == Decimal("0.2351094")
 
 
+def test_select_wallets_uses_each_leaders_actual_historical_fee():
+    observations = [
+        lead.WalletObservation(
+            day=date(2026, 8, 10),
+            wallet=WALLET,
+            market=f"actual-fee-{index}",
+            timestamp_s=OBS_START + index,
+            price=Decimal("0.5"),
+            shares=Decimal("5"),
+            fee=Decimal("0.5"),
+            settlement=Decimal("1"),
+        )
+        for index in range(20)
+    ]
+
+    selected = lead.select_wallets(observations, date(2026, 8, 19))
+
+    assert selected[0].pnl_sum == Decimal("8.0")
+    assert selected[0].score == Decimal("0.2")
+
+
 def test_observable_time_rounds_to_second_end_and_fixed_limit_uses_total_fee_rounding():
     assert lead.observable_ms(START + 61) == (START + 62) * 1000
     assert lead.fixed_limit(Decimal("0.4"), Decimal("0.03")) == Decimal("0.41")
@@ -285,6 +387,12 @@ def test_observable_time_rounds_to_second_end_and_fixed_limit_uses_total_fee_rou
     assert lead.fixed_limit(
         Decimal("0.4"), Decimal("0.03"), shares=Decimal("0.5")
     ) == Decimal("0.41")
+    assert lead.fixed_limit(
+        Decimal("0.52"),
+        Decimal("0.03"),
+        shares=Decimal("5.5"),
+        signal_fee=Decimal("0.05"),
+    ) == Decimal("0.53")
 
 
 def _score(wallet: str = WALLET, score: str = "0.03") -> lead.WalletScore:
@@ -364,6 +472,30 @@ def test_replay_fills_first_snapshot_at_most_100ms_late_and_charges_total_fee():
     assert result.fee == Decimal("0.08400")
     assert result.pnl == Decimal("2.91600")
     assert result.filled and result.reason == "filled"
+
+
+def test_replay_uses_actual_leader_fee_for_limit_and_current_fee_for_our_fill():
+    signal = lead.normalise_daily_parent_buy(
+        _daily_row(
+            token_amount=5.5,
+            usdc_amount=2.86,
+            price=0.52,
+            fee_usdc=0.05,
+        ),
+        _tokens(),
+    )
+    target_ms = lead.observable_ms(signal.timestamp_s) + 400
+
+    result = lead.replay(
+        signal,
+        _score(),
+        [_snapshot(target_ms, up_ask=Decimal("0.53"))],
+        400,
+    )
+
+    assert result.limit_price == Decimal("0.53")
+    assert result.filled
+    assert result.fee == Decimal("0.08718")
 
 
 def test_replay_does_not_skip_an_unfresh_first_snapshot_for_a_later_healthy_one():
