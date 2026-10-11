@@ -2,6 +2,7 @@
 import gzip
 import io
 import json
+import math
 from pathlib import Path
 import tarfile
 import tempfile
@@ -11,6 +12,33 @@ import historical100_runner as R
 
 
 class RunnerTests(unittest.TestCase):
+    def test_roundoff_does_not_relax_execution_identity(self):
+        original = [dict(signal_id='s', score=.06722820314007796, cut=.05,
+                         asklimit=.5, decision_ms=1000., side='up')]
+        rebuilt = [dict(original[0], score=math.nextafter(original[0]['score'], math.inf))]
+        audit = R.compare_continuation_signals(original, rebuilt)
+        self.assertEqual(audit['score_roundoff_rows'], 1)
+        self.assertTrue(audit['execution_uses_original_signals'])
+        for field, value in [('asklimit', .5000000000000001), ('decision_ms', 1000.0000000001),
+                             ('side', 'down'), ('signal_id', 'other'), ('cut', .05000000000000001)]:
+            changed = [dict(rebuilt[0], **{field: value})]
+            with self.subTest(field=field), self.assertRaisesRegex(ValueError, 'economic fields'):
+                R.compare_continuation_signals(original, changed)
+        self.assertNotEqual(original[0]['score'], rebuilt[0]['score'])
+        with self.assertRaisesRegex(ValueError, 'row count'):
+            R.compare_continuation_signals(original, [])
+
+    def test_roundoff_rejects_threshold_crossing_nonfinite_and_larger_drift(self):
+        a = dict(signal_id='s', score=.05, cut=.05)
+        for score, error in [(math.nextafter(.05, 0.), 'threshold side'),
+                             (.050001, 'exceeds 8 ULP'), (float('nan'), 'invalid score'),
+                             (float('inf'), 'invalid score'), (True, 'invalid score')]:
+            with self.subTest(score=score), self.assertRaisesRegex(ValueError, error):
+                R.compare_continuation_signals([a], [dict(a, score=score)])
+        with self.assertRaisesRegex(ValueError, 'economic fields'):
+            R.compare_continuation_signals([a, dict(a, signal_id='t')],
+                                           [dict(a, signal_id='t'), a])
+
     def test_rule_subset_does_not_change_latency_or_capital(self):
         args = R.parse_args(['--rules', 'R3', '--workdir', '/tmp/a', '--out', '/tmp/b'])
         self.assertEqual((args.rules,args.latencies,args.shares,args.initial_cash),(['R3'],[500,600,1000],100,1000))

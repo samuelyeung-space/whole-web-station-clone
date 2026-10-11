@@ -287,6 +287,39 @@ def merge_markets(existing, incoming):
         existing[mid] = new
 
 
+def compare_continuation_signals(original, rebuilt):
+    """Exact ordered economic identity; only bounded score roundoff may differ.
+
+    Score is diagnostic after selection. Eight ULPs covers tiny BLAS reduction
+    differences, but never a different selected row, threshold side or order.
+    Execution consumes the original serialized rows, not the rebuilt scores.
+    """
+    if len(original) != len(rebuilt):
+        raise ValueError("continuation signal population changed: row count")
+    changed, max_abs, max_ulps = 0, 0.0, 0.0
+    for old, new in zip(original, rebuilt):
+        if old.keys() != new.keys() or any(old[k] != new[k] for k in old if k != "score"):
+            raise ValueError("continuation signal population changed: economic fields")
+        if "score" not in old:
+            continue
+        a, b, cut = old["score"], new["score"], old.get("cut")
+        if any(isinstance(x, bool) or not isinstance(x, (int, float)) or not math.isfinite(x)
+               for x in (a, b, cut)):
+            raise ValueError("continuation signal population changed: invalid score/cut")
+        if (a >= cut) != (b >= cut):
+            raise ValueError("continuation signal population changed: threshold side")
+        difference = abs(a - b)
+        ulps = difference / max(math.ulp(a), math.ulp(b))
+        if ulps > 8:
+            raise ValueError("continuation signal population changed: score exceeds 8 ULP")
+        changed += a != b
+        max_abs, max_ulps = max(max_abs, difference), max(max_ulps, ulps)
+    return {"rows": len(original), "economic_fields_and_order_exact": True,
+            "score_roundoff_rows": changed, "score_max_abs_difference": max_abs,
+            "score_max_ulps": max_ulps, "score_tolerance_ulps": 8,
+            "execution_uses_original_signals": True}
+
+
 def verify_continuation(reference, current):
     """Require identical economic inputs before completing a missing rule.
 
@@ -309,13 +342,14 @@ def verify_continuation(reference, current):
         if json.loads((reference/name).read_text()) != json.loads((current/name).read_text()):
             raise ValueError("continuation data mismatch: " + name)
     with gzip.open(reference/'signals.jsonl.gz', 'rt') as a, gzip.open(current/'signals.jsonl.gz', 'rt') as b:
-        if [json.loads(x) for x in a] != [json.loads(x) for x in b]:
-            raise ValueError("continuation signal population changed")
+        signal_audit = compare_continuation_signals([json.loads(x) for x in a], [json.loads(x) for x in b])
     for rule in new['rules']:
         if any(reference.glob(rule + '_*ms_summary.json')):
             raise ValueError("rule already has results; refuse duplicate replay: " + rule)
     return {'verified': True, 'reference_registration_sha256': sha256(reference/'registration.json'),
-            'execution_and_signals_unchanged': True, 'new_oos': False}
+            'execution_and_signals_unchanged': True, 'signal_comparison': signal_audit,
+            'reference_signals_sha256': sha256(reference/'signals.jsonl.gz'),
+            'rebuilt_signals_sha256': sha256(current/'signals.jsonl.gz'), 'new_oos': False}
 
 
 def parse_args(argv=None):
@@ -480,7 +514,18 @@ def main(argv=None):
         write_json(args.out / "run_status.json", {"status": "input_incomplete_no_replay", "result": None})
         return 2
     if args.reference_results:
-        write_json(args.out / "continuation_identity.json", verify_continuation(args.reference_results, args.out))
+        try:
+            identity = verify_continuation(args.reference_results, args.out)
+        except ValueError as exc:
+            write_json(args.out / "run_status.json", {"status": "continuation_identity_failed_no_replay",
+                       "error": str(exc), "result": None, "formal_new_oos_result": None})
+            raise
+        write_json(args.out / "continuation_identity.json", identity)
+        # Preserve rebuilt evidence separately; original signals drive all orders.
+        (args.out / "signals.jsonl.gz").rename(args.out / "signals_rebuilt.jsonl.gz")
+        shutil.copyfile(args.reference_results / "signals.jsonl.gz", args.out / "signals.jsonl.gz")
+        with gzip.open(args.out / "signals.jsonl.gz", "rt") as stream:
+            all_signals = [json.loads(line) for line in stream]
     books = DiskBooks(books_dir, retained_books)
     metrics = []
     for rule in args.rules:

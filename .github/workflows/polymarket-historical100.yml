@@ -44,7 +44,7 @@ jobs:
       - name: Verify causal signals and execution invariants
         working-directory: research/polymarket-5m
         run: python -m pytest test_historical100_signals.py test_historical100_execution.py test_historical100_runner.py -q
-      - name: Complete missing R3 only on identical B and C inputs
+      - name: Complete R3 with exact original signals after audited roundoff comparison
         working-directory: research/polymarket-5m
         run: |
           set -o pipefail
