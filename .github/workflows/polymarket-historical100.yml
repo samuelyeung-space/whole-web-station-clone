@@ -1,0 +1,49 @@
+name: polymarket-historical100
+
+on:
+  push:
+    branches: [codex/btc5m-mine500-20261010]
+    paths: [.github/workflows/polymarket-historical100.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: historical100-bc-frozen
+  cancel-in-progress: false
+
+jobs:
+  replay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    env:
+      OMP_NUM_THREADS: '2'
+      OPENBLAS_NUM_THREADS: '2'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12.14'
+      - name: Install approved frozen-model runtime
+        run: python -m pip install numpy==2.5.3 scikit-learn==1.9.1 joblib==1.6.0 pandas==3.0.6 scipy==1.18.1 pyarrow==25.0.1 requests pytest
+      - name: Verify causal signals and execution invariants
+        working-directory: research/polymarket-5m
+        run: python -m pytest test_historical100_signals.py test_historical100_execution.py test_historical100_runner.py -q
+      - name: Replay all available historical B and C archives
+        working-directory: research/polymarket-5m
+        run: |
+          set -o pipefail
+          mkdir -p "$RUNNER_TEMP/historical100-logs"
+          python -u historical100_runner.py --segments B C --shares 100 --initial-cash 1000 --latencies 500 600 1000 --budget-s 18000 --workdir "$RUNNER_TEMP/historical100-data" --out "$RUNNER_TEMP/historical100-results" 2>&1 | tee "$RUNNER_TEMP/historical100-logs/replay.log"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: historical100-bc-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/historical100-results
+            ${{ runner.temp }}/historical100-logs
+          if-no-files-found: warn
+          retention-days: 30

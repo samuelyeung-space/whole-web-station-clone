@@ -1,0 +1,91 @@
+"""Engineering counterexamples only; not market backtests or OOS evidence."""
+import gzip
+import io
+import json
+from pathlib import Path
+import tarfile
+import tempfile
+import unittest
+
+import historical100_runner as R
+
+
+class RunnerTests(unittest.TestCase):
+    def test_epoch_units_and_invalid_epoch(self):
+        self.assertEqual(R.timestamp_ms(1786900000), 1786900000000.)
+        self.assertEqual(R.timestamp_ms(1786900000000), 1786900000000.)
+        self.assertIsNone(R.timestamp_ms(12345))
+        self.assertIsNone(R.timestamp_ms(float('nan')))
+
+    def test_duplicate_grid_does_not_fabricate_recent_change(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / 'b.gz'
+            def row(t, q):
+                return {'recv_ms': t, 'up': {'bids': [[.4, q]], 'asks': [[.5, 100]]},
+                        'down': {'bids': [[.4, 100]], 'asks': [[.5, 100]]}}
+            R.write_gz(p, [row(100, 100), row(200, 100), row(300, 100), row(300, 90)])
+            self.assertEqual(R.finalise_book(p), 3)
+            with gzip.open(p, 'rt') as f:
+                rows = [json.loads(x) for x in f]
+            self.assertEqual([x['changed_ms'] for x in rows], [100, 100, 300])
+
+    def test_final_resolution_overrides_periodic_label_and_delays_clock(self):
+        import pandas as pd
+        start = 1786924800000
+        mk = pd.DataFrame([dict(market_id='m', slug='btc-updown-5m-1786924800',
+            session_start_ts=start, session_end_ts=start + 300000,
+            chainlink_open_price=1., up_won=1, up_token_id='u', down_token_id='d')])
+        rs = pd.DataFrame([dict(market_id='m', horizon='5m', consistency_check='ok',
+            outcome_direction='down', emitted_at_ts=(start + 500000) // 1000,
+            revision=2)])
+        _, markets, audit = R.official_markets(mk, rs)
+        self.assertEqual(markets['m']['outcome'], 'down')
+        self.assertEqual(markets['m']['outcome_known_ms'], start + 500000.)
+        self.assertFalse(markets['m']['actual_redemption_clock_known'])
+        self.assertEqual(audit['known_emitted_clock'], 1)
+
+    def test_later_missing_resolution_cannot_erase_final(self):
+        old = {'m': {'outcome': 'up', 'outcome_known_ms': 300.}}
+        R.merge_markets(old, {'m': {'outcome': None, 'outcome_known_ms': None}})
+        self.assertEqual(old['m']['outcome'], 'up')
+        with self.assertRaisesRegex(ValueError, 'conflicting'):
+            R.merge_markets(old, {'m': {'outcome': 'down', 'outcome_known_ms': 400.}})
+
+    def test_chunked_tar_reader_preserves_btc5m_depth_and_excludes_other_horizon(self):
+        import pyarrow as pa
+        import pyarrow.parquet as pq
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            books = root / 'books'
+            books.mkdir()
+            rows = []
+            for horizon, mid in [('5m', 'm'), ('15m', 'other')]:
+                rows.append(dict(timestamp_ms=1786924800100, market_id=mid,
+                    slug=f'btc-updown-{horizon}-1786924800', lifecycle_state='active',
+                    observed_halt_flag=False, up_best_bid=.4, up_best_ask=.5,
+                    down_best_bid=.4, down_best_ask=.5,
+                    up_side_bids=[.4, .3], up_bid_sizes=[120., 80.],
+                    up_side_asks=[.5, .6], up_ask_sizes=[100., 50.],
+                    down_side_bids=[.4], down_bid_sizes=[80.],
+                    down_side_asks=[.5], down_ask_sizes=[90.]))
+            raw = io.BytesIO()
+            pq.write_table(pa.Table.from_pylist(rows), raw)
+            arc = root / 'day.tar.gz'
+            with tarfile.open(arc, 'w:gz') as tar:
+                info = tarfile.TarInfo('dataset=polymarket_features_100ms/date=2026-08-17/p.parquet')
+                info.size = len(raw.getvalue())
+                tar.addfile(info, io.BytesIO(raw.getvalue()))
+            feat, _, _, _, counts, mids = R.read_archive(arc, root, books)
+            self.assertEqual(list(feat.market_id), ['m'])
+            self.assertEqual(feat.up_ask_size.iloc[0], 100.)
+            self.assertEqual(mids, {'m'})
+            self.assertEqual(counts['btc5m_feature_rows'], 1)
+            R.finalise_book(R.book_path(books, 'm'))
+            tape = R.DiskBooks(books, {'m'})['m']
+            self.assertEqual(tape[0]['up']['asks'], [[.5, 100.], [.6, 50.]])
+            self.assertTrue(tape[0]['active'])
+            self.assertFalse((root / 'one_member.parquet').exists())
+
+
+if __name__ == '__main__':
+    unittest.main()
