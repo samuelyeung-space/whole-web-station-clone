@@ -11,6 +11,46 @@ import historical100_runner as R
 
 
 class RunnerTests(unittest.TestCase):
+    def test_rule_subset_does_not_change_latency_or_capital(self):
+        args = R.parse_args(['--rules', 'R3', '--workdir', '/tmp/a', '--out', '/tmp/b'])
+        self.assertEqual((args.rules,args.latencies,args.shares,args.initial_cash),(['R3'],[500,600,1000],100,1000))
+        with self.assertRaisesRegex(ValueError, 'duplicate'):
+            R.parse_args(['--rules','R3','R3','--workdir','/tmp/a','--out','/tmp/b'])
+        with self.assertRaisesRegex(ValueError, 'fixes'):
+            R.parse_args(['--shares','20','--workdir','/tmp/a','--out','/tmp/b'])
+
+    def test_continuation_rejects_changed_economics_and_duplicate_rule(self):
+        import copy
+        with tempfile.TemporaryDirectory() as d:
+            ref, cur = Path(d)/'ref', Path(d)/'cur'
+            ref.mkdir(); cur.mkdir()
+            reg = dict(segments=['B','C'], shares=100, initial_cash=1000, latencies_ms=[500,600,1000],
+                archives=[{'name':'day','sha256':'a'}], manifest_sha256='m', frozen_model_identity={'hash':'f'},
+                dependencies_sha256={'cross.py':'c'}, auxiliary_inputs={'factor':'x'},rules=['R3'],
+                code_sha256={'historical100_execution.py':'e','historical100_signals.py':'s'})
+            for root in (ref,cur):
+                R.write_json(root/'registration.json',reg)
+                R.write_json(root/'markets.json',{'m':{'outcome':None}})
+                R.write_json(root/'kline_provenance.json',{'hash':'k'})
+                R.write_gz(root/'signals.jsonl.gz',[{'signal_id':'s','asklimit':.5}])
+            self.assertTrue(R.verify_continuation(ref,cur)['verified'])
+            for field in ('frozen_model_identity','archives','dependencies_sha256','auxiliary_inputs','shares'):
+                bad=copy.deepcopy(reg);bad[field]='changed';R.write_json(cur/'registration.json',bad)
+                with self.assertRaisesRegex(ValueError,'identity mismatch'):R.verify_continuation(ref,cur)
+            R.write_json(cur/'registration.json',reg)
+            bad=copy.deepcopy(reg);bad['code_sha256']['historical100_execution.py']='changed'
+            R.write_json(cur/'registration.json',bad)
+            with self.assertRaisesRegex(ValueError,'engine changed'):R.verify_continuation(ref,cur)
+            R.write_json(cur/'registration.json',reg)
+            R.write_gz(cur/'signals.jsonl.gz',[{'signal_id':'s','asklimit':.6}])
+            with self.assertRaisesRegex(ValueError,'population changed'):R.verify_continuation(ref,cur)
+            R.write_gz(cur/'signals.jsonl.gz',[{'signal_id':'s','asklimit':.5}])
+            R.write_json(cur/'markets.json',{'m':{'outcome':'up'}})
+            with self.assertRaisesRegex(ValueError,'data mismatch'):R.verify_continuation(ref,cur)
+            R.write_json(cur/'markets.json',{'m':{'outcome':None}})
+            R.write_json(ref/'R3_500ms_summary.json',{})
+            with self.assertRaisesRegex(ValueError,'already has results'):R.verify_continuation(ref,cur)
+
     def test_epoch_units_and_invalid_epoch(self):
         self.assertEqual(R.timestamp_ms(1786900000), 1786900000000.)
         self.assertEqual(R.timestamp_ms(1786900000000), 1786900000000.)

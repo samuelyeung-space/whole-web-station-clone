@@ -287,7 +287,38 @@ def merge_markets(existing, incoming):
         existing[mid] = new
 
 
-def main(argv=None):
+def verify_continuation(reference, current):
+    """Require identical economic inputs before completing a missing rule.
+
+    This does not relabel the historical experiment OOS or restore prior cash:
+    each rule/latency has always been a separate account.
+    """
+    reference, current = Path(reference), Path(current)
+    old = json.loads((reference / "registration.json").read_text())
+    new = json.loads((current / "registration.json").read_text())
+    for field in ("segments", "shares", "initial_cash", "latencies_ms", "archives",
+                  "manifest_sha256", "frozen_model_identity", "dependencies_sha256",
+                  "auxiliary_inputs"):
+        if old.get(field) != new.get(field) or field not in old:
+            raise ValueError("continuation identity mismatch: " + field)
+    if old['code_sha256']['historical100_execution.py'] != new['code_sha256']['historical100_execution.py']:
+        raise ValueError("continuation execution engine changed")
+    if old['code_sha256']['historical100_signals.py'] != new['code_sha256']['historical100_signals.py']:
+        raise ValueError("continuation signal engine changed")
+    for name in ('markets.json', 'kline_provenance.json'):
+        if json.loads((reference/name).read_text()) != json.loads((current/name).read_text()):
+            raise ValueError("continuation data mismatch: " + name)
+    with gzip.open(reference/'signals.jsonl.gz', 'rt') as a, gzip.open(current/'signals.jsonl.gz', 'rt') as b:
+        if [json.loads(x) for x in a] != [json.loads(x) for x in b]:
+            raise ValueError("continuation signal population changed")
+    for rule in new['rules']:
+        if any(reference.glob(rule + '_*ms_summary.json')):
+            raise ValueError("rule already has results; refuse duplicate replay: " + rule)
+    return {'verified': True, 'reference_registration_sha256': sha256(reference/'registration.json'),
+            'execution_and_signals_unchanged': True, 'new_oos': False}
+
+
+def parse_args(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--segments", nargs="+", choices=("B", "C"), default=["C"])
     parser.add_argument("--latencies", nargs="+", type=int, default=[500, 600, 1000])
@@ -297,9 +328,18 @@ def main(argv=None):
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--budget-s", type=int, default=18000)
     parser.add_argument("--max-days", type=int)
+    parser.add_argument("--rules", nargs="+", choices=("R1", "R2", "R3"), default=["R1", "R2", "R3"])
+    parser.add_argument("--reference-results", type=Path)
     args = parser.parse_args(argv)
     if args.shares != 100 or args.initial_cash != 1000 or args.latencies != [500, 600, 1000]:
         raise ValueError("this registered experiment fixes 100 shares, $1000 and 500/600/1000ms")
+    if len(args.rules) != len(set(args.rules)):
+        raise ValueError("duplicate rules are not independent scenarios")
+    return args
+
+
+def main(argv=None):
+    args = parse_args(argv)
     if args.out.exists() and any(args.out.iterdir()):
         raise ValueError("output must be empty to prevent replacing evidence")
     args.workdir.mkdir(parents=True, exist_ok=True)
@@ -319,7 +359,7 @@ def main(argv=None):
     registration = {"version": VERSION, "registered_utc": datetime.now(timezone.utc).isoformat(),
         "classification": "historical_capacity_revalidation_NOT_new_untouched_OOS",
         "segments": sorted(set(args.segments)), "shares": args.shares, "initial_cash": args.initial_cash,
-        "latencies_ms": args.latencies, "rules": ["R1", "R2", "R3"],
+        "latencies_ms": args.latencies, "rules": args.rules,
         "cash_accounts": "one continuous account for ALL selected dates per rule/latency; alternatives not additive",
         "training": "none; previously frozen A-trained canonical MIX model only",
         "selection": "all frozen threshold-selected unique decision rows, no future-fill or outcome eligibility filter",
@@ -439,9 +479,11 @@ def main(argv=None):
     if failures:
         write_json(args.out / "run_status.json", {"status": "input_incomplete_no_replay", "result": None})
         return 2
+    if args.reference_results:
+        write_json(args.out / "continuation_identity.json", verify_continuation(args.reference_results, args.out))
     books = DiskBooks(books_dir, retained_books)
     metrics = []
-    for rule in ("R1", "R2", "R3"):
+    for rule in args.rules:
         for latency in args.latencies:
             result = replay(all_markets, books, all_signals, rule_id=rule, latency_ms=latency,
                             initial_cash=args.initial_cash, shares=args.shares, outcome_delay_ms=300000.)
@@ -450,10 +492,16 @@ def main(argv=None):
                 write_gz(args.out / (stem + "_" + key + ".jsonl.gz"), result[key])
             metrics.append({"rule": rule, "latency_ms": latency, **result["summary"]})
             write_json(args.out / (stem + "_summary.json"), {k: result[k] for k in ("summary", "config")})
+            # Atomic progress survives job timeout. Missing scenarios remain absent.
+            write_json(args.out / "metrics.json", metrics)
+            write_json(args.out / "run_status.json", {"status": "historical_capacity_replay_partial",
+                "alternatives": len(metrics), "planned_alternatives": len(args.rules)*len(args.latencies),
+                "formal_new_oos_result": None, "new_qualified_strategies": 0})
             print("SCENARIO " + stem + " " + json.dumps(clean(result["summary"])), flush=True)
     write_json(args.out / "metrics.json", metrics)
     write_json(args.out / "run_status.json", {"status": "historical_capacity_replay_complete",
-        "alternatives": len(metrics), "new_qualified_strategies": 0, "formal_new_oos_result": None,
+        "alternatives": len(metrics), "planned_alternatives": len(args.rules)*len(args.latencies),
+        "new_qualified_strategies": 0, "formal_new_oos_result": None,
         "elapsed_s": time.time() - started, "cash_accounts_not_additive": True})
     write_json(args.out / "MANIFEST.json", {p.name: {"bytes": p.stat().st_size, "sha256": sha256(p)}
                for p in sorted(args.out.iterdir()) if p.is_file() and p.name != "MANIFEST.json"})

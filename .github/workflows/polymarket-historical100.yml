@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: historical100-bc-frozen
@@ -27,17 +28,28 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12.14'
+      - name: Restore immutable partial experiment reference
+        uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '11697369602'
+          merge-multiple: true
+          run-id: '38109476590'
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/historical100-reference
+      - name: Verify original experiment registration
+        run: |
+          printf '%s  %s\n' 'b09662469fe0bba44b4af0a1b3104e5d5b03d76e5ba63c983dbef13ed08643e6' "$RUNNER_TEMP/historical100-reference/historical100-results/registration.json" | sha256sum --check -
       - name: Install approved frozen-model runtime
         run: python -m pip install numpy==2.5.3 scikit-learn==1.9.1 joblib==1.6.0 pandas==3.0.6 scipy==1.18.1 pyarrow==25.0.1 requests pytest
       - name: Verify causal signals and execution invariants
         working-directory: research/polymarket-5m
         run: python -m pytest test_historical100_signals.py test_historical100_execution.py test_historical100_runner.py -q
-      - name: Replay all available historical B and C archives
+      - name: Complete missing R3 only on identical B and C inputs
         working-directory: research/polymarket-5m
         run: |
           set -o pipefail
           mkdir -p "$RUNNER_TEMP/historical100-logs"
-          python -u historical100_runner.py --segments B C --shares 100 --initial-cash 1000 --latencies 500 600 1000 --budget-s 18000 --workdir "$RUNNER_TEMP/historical100-data" --out "$RUNNER_TEMP/historical100-results" 2>&1 | tee "$RUNNER_TEMP/historical100-logs/replay.log"
+          python -u historical100_runner.py --segments B C --rules R3 --reference-results "$RUNNER_TEMP/historical100-reference/historical100-results" --shares 100 --initial-cash 1000 --latencies 500 600 1000 --budget-s 18000 --workdir "$RUNNER_TEMP/historical100-data" --out "$RUNNER_TEMP/historical100-results" 2>&1 | tee "$RUNNER_TEMP/historical100-logs/replay.log"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
