@@ -25,7 +25,7 @@ jobs:
         with:
           python-version: '3.12.14'
       - name: Install exact frozen-model runtime
-        run: python -m pip install numpy==2.5.3 scikit-learn==1.9.1 joblib==1.6.0 pandas scipy pyarrow requests
+        run: python -m pip install numpy==2.5.3 scikit-learn==1.9.1 joblib==1.6.0 pandas==3.0.6 scipy==1.18.1 pyarrow==25.0.1 requests
       - name: Verify model and historical input access
         working-directory: research/polymarket-5m
         run: |
