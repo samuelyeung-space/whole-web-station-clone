@@ -67,6 +67,10 @@ def _write_strict_day(root: Path, day: str) -> Path:
     }
     manifest_path = artifact / "manifest.json"
     manifest_path.write_text(json.dumps(manifest) + "\n", encoding="utf-8")
+    for name in daily.archive_daily.STRICT_FILES:
+        target = artifact / name
+        if target != manifest_path:
+            target.write_text("{}\n", encoding="utf-8")
     rec = _archive_manifest(day, "rec")
     poly = _archive_manifest(day, "poly")
     (day_root / "archive-manifests.json").write_text(
@@ -278,11 +282,11 @@ def test_repeating_an_admitted_day_does_not_append_again(harness):
     assert len((harness["state"] / daily.OBSERVATIONS).read_text().splitlines()) == 1
 
 
-def test_admitted_input_drift_is_rejected(harness):
+def test_admitted_private_input_drift_is_rejected(harness):
     _write_strict_day(harness["strict"], FIRST_DAY)
     s3 = FakeS3()
     _process(harness, FIRST_DAY, s3)
-    snapshot = harness["strict"] / FIRST_DAY / "archive-manifests.json"
+    snapshot = harness["work"] / FIRST_DAY / "archive-manifests.json"
     payload = json.loads(snapshot.read_text(encoding="utf-8"))
     payload["rec"]["files"][0]["sha256"] = "b" * 64
     snapshot.write_text(json.dumps(payload) + "\n", encoding="utf-8")
@@ -313,6 +317,21 @@ def test_s3_upload_failure_never_commits_staged_state(harness):
     staged = harness["work"] / FIRST_DAY / "state-next"
     assert (staged / daily.OBSERVATIONS).is_file()
     assert (harness["work"] / FIRST_DAY / "complete.json").is_file()
+
+
+def test_private_input_survives_shared_gc_after_failed_upload(harness):
+    _write_strict_day(harness["strict"], FIRST_DAY)
+    with pytest.raises(RuntimeError, match="S3 upload failed"):
+        _process(harness, FIRST_DAY, FakeS3(fail_upload=True))
+
+    private = harness["work"] / FIRST_DAY / daily.PRIVATE_ARTIFACT
+    assert private.is_dir()
+    shutil.rmtree(harness["strict"] / FIRST_DAY)
+
+    result = _process(harness, FIRST_DAY, FakeS3())
+
+    assert result["status"] == "complete"
+    assert (harness["state"] / daily.ADMISSION).is_file()
 
 
 def test_partial_state_commit_recovers_from_uploaded_complete(

@@ -33,6 +33,11 @@ STATUS = "status.json"
 VERDICT = "verdict.json"
 ADMISSION = "admission.json"
 STATE_FILES = (OBSERVATIONS, STATUS, VERDICT)
+PRIVATE_ARTIFACT = "input-artifact"
+INPUT_ARTIFACT_FILES = (
+    *archive_daily.STRICT_FILES,
+    archive_daily.ARTIFACT_BINDING,
+)
 _SHA256_RE = re.compile(r"[0-9a-f]{64}")
 
 
@@ -71,12 +76,12 @@ def _finite(value: Any, label: str) -> float:
     return number
 
 
-def _validate_daily_input(
-    strict_root: Path, day: str, cutoff_ms: float
+def _validate_input_paths(
+    artifact: Path,
+    snapshot_path: Path,
+    day: str,
+    cutoff_ms: float,
 ) -> dict[str, Any]:
-    day_root = strict_root / day
-    artifact = day_root / "artifact"
-    snapshot_path = day_root / "archive-manifests.json"
     snapshot = _read_json(snapshot_path, "strict archive snapshot")
     if set(snapshot) != {"rec", "poly"}:
         raise ValueError("strict archive snapshot identity drift")
@@ -135,6 +140,18 @@ def _validate_daily_input(
     }
 
 
+def _validate_daily_input(
+    strict_root: Path, day: str, cutoff_ms: float
+) -> dict[str, Any]:
+    day_root = strict_root / day
+    return _validate_input_paths(
+        day_root / "artifact",
+        day_root / "archive-manifests.json",
+        day,
+        cutoff_ms,
+    )
+
+
 def _input_fingerprint(identity: Mapping[str, Any]) -> dict[str, Any]:
     return {
         key: identity[key]
@@ -159,6 +176,80 @@ def _copy_or_compare(source: Path, destination: Path, label: str) -> None:
     temporary = destination.with_name("." + destination.name + ".tmp")
     shutil.copyfile(source, temporary)
     temporary.replace(destination)
+
+
+def _persist_input_snapshot(
+    day_root: Path,
+    identity: Mapping[str, Any],
+    day: str,
+    cutoff_ms: float,
+) -> dict[str, Any]:
+    """Persist the exact replay input before any fallible evaluation work."""
+    destination = day_root / PRIVATE_ARTIFACT
+    snapshot = day_root / "archive-manifests.json"
+    if destination.exists():
+        if not destination.is_dir():
+            raise ValueError("persisted Family36 input artifact is not a directory")
+        return _validate_input_paths(destination, snapshot, day, cutoff_ms)
+
+    source = Path(identity["artifact"])
+    sources = {name: source / name for name in INPUT_ARTIFACT_FILES}
+    missing = [name for name, path in sources.items() if not path.is_file()]
+    if missing:
+        raise ValueError(
+            "Family36 immutable input snapshot is incomplete: " + ", ".join(missing)
+        )
+    day_root.mkdir(parents=True, exist_ok=True)
+    _copy_or_compare(Path(identity["snapshot_path"]), snapshot, "archive snapshot")
+    before = {name: archive_daily._sha256(path) for name, path in sources.items()}
+    before["archive-manifests.json"] = archive_daily._sha256(
+        Path(identity["snapshot_path"])
+    )
+
+    staging = day_root / f".{PRIVATE_ARTIFACT}.tmp"
+    if staging.exists():
+        shutil.rmtree(staging)
+    staging.mkdir()
+    try:
+        for name, path in sources.items():
+            shutil.copyfile(path, staging / name)
+        after = {name: archive_daily._sha256(path) for name, path in sources.items()}
+        after["archive-manifests.json"] = archive_daily._sha256(
+            Path(identity["snapshot_path"])
+        )
+        copied = {
+            name: archive_daily._sha256(staging / name) for name in INPUT_ARTIFACT_FILES
+        }
+        copied["archive-manifests.json"] = archive_daily._sha256(snapshot)
+        if before != after or copied != before:
+            raise ValueError("Family36 input changed while creating its snapshot")
+        staging.replace(destination)
+    finally:
+        if staging.exists():
+            shutil.rmtree(staging)
+    return _validate_input_paths(destination, snapshot, day, cutoff_ms)
+
+
+def _load_or_persist_input(
+    strict_root: Path,
+    day_root: Path,
+    day: str,
+    cutoff_ms: float,
+) -> dict[str, Any]:
+    private = day_root / PRIVATE_ARTIFACT
+    if private.exists():
+        return _validate_input_paths(
+            private,
+            day_root / "archive-manifests.json",
+            day,
+            cutoff_ms,
+        )
+    return _persist_input_snapshot(
+        day_root,
+        _validate_daily_input(strict_root, day, cutoff_ms),
+        day,
+        cutoff_ms,
+    )
 
 
 def _write_json_or_compare(
@@ -336,6 +427,7 @@ def _validate_complete(
         "strict-input-binding.json",
         "replay-summary.json",
         "replay-rows.jsonl",
+        *(f"{PRIVATE_ARTIFACT}/{name}" for name in INPUT_ARTIFACT_FILES),
         *(
             f"state-next/{name}"
             for name, digest in target.items()
@@ -522,7 +614,7 @@ def process_day(
         )
 
     if complete_path.is_file():
-        identity = _validate_daily_input(strict_root, day, cutoff_ms)
+        identity = _load_or_persist_input(strict_root, day_root, day, cutoff_ms)
         complete = _read_json(complete_path, "completed Family36 day")
         evidence_rows = _validate_complete(
             complete,
@@ -541,11 +633,18 @@ def process_day(
         return complete
 
     day_root.mkdir(parents=True, exist_ok=True)
-    identity = _validate_daily_input(strict_root, day, cutoff_ms)
+    identity = _load_or_persist_input(strict_root, day_root, day, cutoff_ms)
     initial_fingerprint = _input_fingerprint(identity)
     summary_path, rows_path = _persist_replay(day_root, identity, cutoff_ms)
     if (
-        _input_fingerprint(_validate_daily_input(strict_root, day, cutoff_ms))
+        _input_fingerprint(
+            _validate_input_paths(
+                day_root / PRIVATE_ARTIFACT,
+                day_root / "archive-manifests.json",
+                day,
+                cutoff_ms,
+            )
+        )
         != initial_fingerprint
     ):
         raise ValueError("Family36 daily input drifted during replay")
@@ -569,6 +668,7 @@ def process_day(
         day_root / "strict-input-binding.json",
         summary_path,
         rows_path,
+        *(day_root / PRIVATE_ARTIFACT / name for name in INPUT_ARTIFACT_FILES),
         *(
             staged / name
             for name, digest in target_state_hashes.items()
