@@ -509,6 +509,47 @@
       "priority": 21,
       "passes": false,
       "notes": "Family 29's implementation and adversarial preflight are complete before the full outcome replay. Archive metadata and the existing Gamma-validated rule-window fingerprint show that both horizons used point Chainlink before 2026-08-07, differed from 2026-08-07 through 2026-08-13, and both used the 60-second TWAP from 2026-08-14; mismatched days are excluded rather than treated as a deterministic box. The legacy 60-row result had discarded identities, assumed atomic legs and used already-inspected history. The replacement preserves identities and source authority, requires exact live snapshots and scalar-best depth, enforces the five-share one-dollar minimum, replays independent FOK legs and bounded orphan exits, and treats the 67-day result only as an audit screen for a future direct-L2 holdout."
+    },
+    {
+      "id": "US-029",
+      "title": "Test whether current reward subsidies create standalone BTC 5m edge",
+      "description": "As the account owner, I want to know whether liquidity rewards, maker rebates, taker tiers or one-time level bonuses can turn otherwise zero-edge BTC five-minute trading into positive expectancy without hiding spread, fees or volume requirements.",
+      "acceptanceCriteria": [
+        "Bind the analysis to the current official Polymarket fee, maker-rebate, liquidity-reward and taker-tier documentation and record the observation time and current BTC 5m rewards endpoint result",
+        "Derive crypto weighted volume and taker fees from the same shares and entry price, prove the price-independent pre-rounding identity fee_per_wV = 0.07 / 2.3, then apply the documented five-decimal zero-fee quantum over the live price and size grid before drawing any lower-bound conclusion",
+        "For every published taker tier, report threshold weighted volume, gross fee lower bound, cumulative one-time bonuses, net subsidy result, forward rebate rate and residual fee cost after rebate",
+        "Treat qualifying-volume rebates as prospective only, never rebate the volume used to reach a tier, and reject wash trading, self-matching or any inauthentic-volume assumption",
+        "Query at least the current and three subsequent BTC 5m condition IDs; do not impute a liquidity-reward pool when the official market endpoint returns no active configuration",
+        "Do not double-count the 20 percent crypto maker rebate already tested in Family 24; explain that any profitable underlying trade remains evidence for that underlying strategy rather than for a subsidy-only strategy",
+        "Reject without consuming historical or fresh CLOB data if the optimistic arithmetic screen, which sets spread and risk costs to zero without claiming they are zero in trading, is negative at every tier",
+        "No production deployment, wallet access or real order is part of this story",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 22,
+      "passes": true,
+      "notes": "Family 30 completed its deterministic rule and API audit at 2026-10-11T00:21:47Z but does not establish executable profit. Before venue precision, crypto taker fee/wV is price-invariant at 0.07/2.3 = 3.043478 percent. Cold review corrected the raw rewards parser, applied each prior tier's prospective rebate to the next qualification tranche, and caught the decisive official precision rule: fees below 0.00001 are zero rather than conventionally rounded up. Across the live 0.01 price tick and official two-decimal size precision, a genuine 0.01-share partial fill at 0.01 has raw fee 0.00000693 and therefore zero charged fee. This prevents deterministic rejection and leaves the one-time bonuses arithmetically positive under unlimited such fragments. Both native and sponsored=true views still returned zero date-active positive-rate liquidity-reward configurations for the current and next three BTC 5m markets. The arithmetic witness is not executable-capacity evidence because submitted orders require at least five shares and natural non-self-matched dust is not yet shown controllable or sufficient. Family 31 freezes that capacity test; no production access is authorised. Fourteen focused tests pass."
+    },
+    {
+      "id": "US-030",
+      "title": "Measure executable capacity of zero-fee BTC 5m dust-fill tier farming",
+      "description": "As the account owner, I want to know whether naturally occurring fee-free partial fills can generate enough genuine taker weighted volume for tier bonuses and rebates to exceed spread, adverse selection and settlement risk without wash trading or self-matching.",
+      "acceptanceCriteria": [
+        "Freeze the mechanism before inspecting capacity data: BTC 5m orders use the live market tick and minimum size, share amounts have two-decimal precision, and a candidate fill is fee-free only when shares times 0.07 times price times (1-price) is strictly below 0.00001 under the official fee rule",
+        "Use only genuine third-party liquidity; reject self-matching, coordinated counterparties, wash volume, fabricated fragmentation and any assumption that a five-share-or-larger taker order can choose its partial-fill sizes",
+        "Audit at least 30 complete UTC days of public BTC 5m trades when available, preserve legitimate row multiplicity across paginated windows, retain market/token/price/size/receipt or chain time, and report every directly visible theoretically fee-free row plus its weighted volume by market and day; call a fill identity immutable only when chain log index or authenticated trade id is available",
+        "Treat public trade rows only as a diagnostic unless taker side, parent-order grouping, individual match fragments and actual charged fee can be bound from official public order or settlement evidence; aggregation means public rows alone are neither an upper nor a lower bound on fee-free capacity",
+        "Report the number of fee-free fills, their total and daily weighted volume, concentration, shortest observed time to each tier, maximum plausible one-time bonus per fill and per notional dollar, and whether Bronze can be reached inside the rolling 30-day window",
+        "Charge executable entry and exit spread, adverse selection, unresolved inventory and settlement loss; a one-time bonus is not recurring alpha and may not be annualised or counted more than once",
+        "Run direction, price-band and ordinary nonzero-fee controls so any apparent benefit is attributable to the fee quantum rather than a directional or extreme-price anomaly",
+        "Promote only if a conservative controllable lower bound is positive after all costs and fragment-complete observed capacity reaches Bronze; a public-row-only positive result remains unproven and may proceed only to a separately authorised tiny FAK measurement",
+        "No production deployment, wallet access, self-trade or real order is authorised by this story",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 23,
+      "passes": false,
+      "notes": "Family 31 was frozen before capacity data inspection after Family 30 found a documented zero-fee quantum witness: at price 0.01, a 0.01-share partial fill has raw crypto fee 0.00000693 and is charged zero, while earning 0.0002277 weighted-volume dollars. Because a submitted order still requires at least five shares and may also face the existing one-dollar buy-notional floor, this is a fragmentation-capacity hypothesis rather than a profit claim. The first complete-day public-row diagnostic then read all 288 markets and 318,806 taker-only public rows for 2026-10-03. It found 160 directly visible theoretical candidates totalling only 0.029476616 nominal wV; a linear 30-day projection is 0.88429848 wV, 0.044215 percent of Bronze. The rows were 159 SELL versus one BUY, 81.88 percent came from one wallet, and the 160 hold-to-settlement PnL was -$0.00014 before operational cost. Cold review corrected the evidentiary label: a public row may aggregate several independently rounded match fragments, so public rows alone are neither an upper nor lower capacity bound and cannot support formal rejection. The public report now has no manual completeness switch and can only return INCOMPLETE. Existing raw OrderFilled data exposes order_hash and actual fee but the current filtered ETL drops event and parent-order identity; a separate chain manifest must prove 30 complete days, 288 markets per day, unique chain event keys, explicit exchange roles, raw fee presence and Data API aggregate parity before any capacity verdict. The queued 30-day public run remains a concentration diagnostic. No production authority exists."
     }
   ]
 }

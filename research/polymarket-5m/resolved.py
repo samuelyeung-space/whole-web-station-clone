@@ -783,12 +783,14 @@ def slim_trades(url, data):
 def fetch_trades(get, cid, start, page=PAGE, max_offset=MAX_OFFSET, end=None):
     """(records, info): every taker trade of market `cid` with start <= timestamp (<= end if given). get(url) returns a
     slim page (lists in TRADE_FIELDS order, newest first). Offset paging up to max_offset; past it,
-    the next window ends at the oldest timestamp seen (inclusive) and paging restarts; records are
-    merged by key with their largest multiplicity in any one page. info: pages, windows, truncated."""
+    the next window ends at the oldest timestamp seen (inclusive) and paging restarts. Offset pages
+    inside one window are disjoint and summed; overlapping inclusive windows are merged by key using
+    the largest per-window multiplicity. info: pages, windows, truncated."""
     counts, recs = Counter(), {}
     info = {"pages": 0, "windows": 0, "truncated": False, "note": ""}
     while True:
         info["windows"] += 1
+        window_counts = Counter()
         oldest, capped, offset = None, False, 0
         while True:
             url = f"{DATA_API}?market={cid}&limit={page}&offset={offset}&start={int(start)}"
@@ -799,10 +801,7 @@ def fetch_trades(get, cid, start, page=PAGE, max_offset=MAX_OFFSET, end=None):
                 raise RuntimeError(f"unexpected trades page for {cid}: {str(rows)[:200]}")
             info["pages"] += 1
             c = Counter(tuple(r) for r in rows)
-            for k, v in c.items():
-                if v > counts[k]:
-                    counts[k] = v
-                    recs[k] = k
+            window_counts.update(c)
             if rows:
                 lo_ts = min(int(r[0]) for r in rows)
                 oldest = lo_ts if oldest is None else min(oldest, lo_ts)
@@ -812,6 +811,10 @@ def fetch_trades(get, cid, start, page=PAGE, max_offset=MAX_OFFSET, end=None):
                 capped = True
                 break
             offset += page
+        for k, v in window_counts.items():
+            if v > counts[k]:
+                counts[k] = v
+                recs[k] = k
         if not capped:
             break
         if end is not None and oldest is not None and oldest >= end:

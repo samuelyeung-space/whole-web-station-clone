@@ -1,4 +1,4 @@
-# Changing this file runs .github/workflows/polymarket-cross3.yml: "cmd:" is a standalone script
-# (roundtrip_hf.py, mix_hf.py or regime_hf.py) and its arguments; --workdir is added.
-requested: 2026-10-04 16:30 strict-hygiene re-run of the 22 variants that passed roundtrip-hf.md (book changed within 1 s, Binance print received within 1 s)
-cmd: roundtrip_hf.py --frozen real/roundtrip-passed-hf.json --out real/roundtrip-hf-strict.md --fill-change-ms 1000 --max-recv-delay-ms 1000
+# Changing this file runs .github/workflows/polymarket-cross3.yml: "cmd:" is a standalone
+# market-data-only script and its arguments; --workdir is added by the workflow.
+requested: 2026-10-11 Family31 frozen 30-complete-day zero-fee dust public-row diagnostic
+cmd: reward_dust.py --start 2026-09-11 --days 30 --out real/reward-dust.md --csv-out real/reward-dust.csv.gz --workers 2 --rate 2

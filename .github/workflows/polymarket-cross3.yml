@@ -33,13 +33,13 @@ jobs:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: research/polymarket-5m/requirements.txt
-      - run: pip install -r requirements.txt
+      - run: pip install -r requirements.txt "certifi>=2024.8.30"
       - name: Run the requested script
         run: |
           cmd=$(sed -n 's/^cmd: *//p' ci/cross3.request | head -1)
           script=${cmd%% *}
           case "$script" in
-            roundtrip_hf.py|mix_hf.py|regime_hf.py) ;;
+            roundtrip_hf.py|mix_hf.py|regime_hf.py|reward_dust.py) ;;
             *) echo "script not allowed: $script"; exit 1 ;;
           esac
           python $cmd --workdir "$RUNNER_TEMP/x"
@@ -50,8 +50,6 @@ jobs:
           git add real 2>/dev/null || true
           git diff --cached --quiet && exit 0
           git commit -q -m "research: $(sed -n 's/^cmd: *//p' ci/cross3.request | head -1 | cut -d' ' -f1) results" \
-            -m "Workflow run ${{ github.run_id }}." \
-            -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>" \
-            -m "Claude-Session: https://claude.ai/code/session_01PoRFRP2cwNX83uNbBzTS2M" || exit 0
+            -m "Workflow run ${{ github.run_id }}." || exit 0
           for i in 1 2 3 4 5; do git pull -q --rebase && git push -q && exit 0; sleep $((2 ** i)); done
           exit 1

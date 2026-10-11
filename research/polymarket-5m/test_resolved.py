@@ -260,6 +260,21 @@ def test_identical_records_kept_by_multiplicity():
     assert len(recs) == 3
 
 
+def test_identical_records_on_distinct_offset_pages_are_all_kept():
+    row = [7, "SELL", "tok", 0.999, 5.0, 0, "0xa", "w"]
+
+    class AcrossPages:
+        def __call__(self, url):
+            query = dict(part.split("=", 1) for part in url.split("?", 1)[1].split("&"))
+            offset = int(query.get("offset", 0))
+            return [list(row) for _ in range(10 if offset < 20 else 5)]
+
+    recs, info = R.fetch_trades(AcrossPages(), "x", start=0, page=10, max_offset=30)
+
+    assert len(recs) == 25
+    assert info["pages"] == 3 and not info["truncated"]
+
+
 def test_http_cache_retry_and_rate(tmp_path):
     calls, sleeps = [], []
 
