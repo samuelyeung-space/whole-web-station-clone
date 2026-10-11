@@ -186,6 +186,27 @@ def test_market_fetch_fails_closed_when_gamma_omits_one_slot():
         dust.fetch_btc5m_markets(FakeHttp(), start, batch=100)
 
 
+def test_market_fetch_recovers_a_transient_partial_batch_with_singleton_lookup():
+    start = 1_791_590_400
+    omitted = start + 287 * 300
+    calls = []
+
+    class FakeHttp:
+        def get(self, url):
+            calls.append(url)
+            slugs = parse_qs(urlparse(url).query)["slug"]
+            rows = [_event(int(slug.rsplit("-", 1)[1])) for slug in slugs]
+            if len(slugs) > 1:
+                return [row for row in rows if int(row["slug"].rsplit("-", 1)[1]) != omitted]
+            return rows
+
+    markets = dust.fetch_btc5m_markets(FakeHttp(), start, batch=100)
+
+    assert len(markets) == 288
+    assert len(calls) == 4
+    assert markets[-1].start_s == omitted
+
+
 def test_certified_json_get_passes_an_explicit_ca_context(monkeypatch):
     seen = {}
 

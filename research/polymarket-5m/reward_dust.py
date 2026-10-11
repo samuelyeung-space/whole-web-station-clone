@@ -583,6 +583,24 @@ def fetch_btc5m_markets(http: Any, day_start_s: int, *, batch: int = 100) -> lis
     raw: list[dict[str, Any]] = []
     for offset in range(0, len(slugs), batch):
         raw.extend(pm_outcomes.fetch_batch(slugs[offset:offset + batch], get=http.get))
+
+    # Gamma occasionally returns a successful but incomplete multi-slug response.  Retry only the
+    # omitted slots through distinct singleton URLs so a cached partial batch cannot silently turn
+    # a complete historical day into a source failure.  Persistent omissions still fail closed.
+    by_start: dict[int, dict[str, Any]] = {}
+    for row in raw:
+        start = int(row["T"])
+        previous = by_start.setdefault(start, row)
+        if previous != row:
+            raise ValueError(f"conflicting Gamma identity for {row.get('slug')}")
+    for start in sorted(set(expected) - set(by_start)):
+        recovered = pm_outcomes.fetch_batch([pm_outcomes.slug("5m", start)], get=http.get)
+        for row in recovered:
+            recovered_start = int(row["T"])
+            previous = by_start.setdefault(recovered_start, row)
+            if previous != row:
+                raise ValueError(f"conflicting Gamma identity for {row.get('slug')}")
+    raw = list(by_start.values())
     validate_complete_day(day_start_s, [int(row["T"]) for row in raw])
     markets: list[MarketMeta] = []
     for row in sorted(raw, key=lambda item: int(item["T"])):
