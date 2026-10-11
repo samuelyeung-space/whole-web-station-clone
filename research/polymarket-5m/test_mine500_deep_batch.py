@@ -182,6 +182,21 @@ def test_coverage_count_is_not_historical_multiple_testing_count():
     assert corrected['denominator_audit'][0]['missing_runner_summaries']==0
 
 
+def test_reference_registry_contains_original500_and_all_existing220_unchanged():
+    original = batch.old.make_candidates()
+    supplement = batch.old.make_supplementary_candidates()
+    reference = batch.make_reference_candidates()
+    assert reference == original + supplement
+    assert [candidate['id'] for candidate in reference] == [f'M500-{n:03d}' for n in range(1, 721)]
+    assert len({candidate['rule_fingerprint'] for candidate in reference}) == 720
+
+
+def test_reference_registry_refuses_silent500_only_regression(monkeypatch):
+    monkeypatch.setattr(batch.old, 'make_supplementary_candidates', lambda: [])
+    with pytest.raises(ValueError, match='M500-001..720'):
+        batch.make_reference_candidates()
+
+
 def test_registration_precedes_any_model_fit_or_result(tmp_path,monkeypatch):
     source=tape(tmp_path,'a')
     out=tmp_path/'out'
@@ -189,6 +204,13 @@ def test_registration_precedes_any_model_fit_or_result(tmp_path,monkeypatch):
     def fit(*args,**kwargs):
         registration=json.loads((out/'registration.json').read_text())
         assert len(registration['candidates'])==registration['new_trials']==40
+        assert registration['existing_reference_trials'] == len(registration['reference_candidate_ids']) == 720
+        assert registration['reference_enabled'] is False
+        assert registration['reference_candidates_scheduled'] == registration['expected_reference_candidate_scenarios'] == 0
+        assert registration['expected_new_candidate_scenarios'] == 40*3*len(batch.SCENARIOS)
+        assert registration['current_batch_reference_and_new'] == 760
+        assert registration['cumulative_mine500_trial_lower_bound'] >= 772
+        assert registration['known_multiplicity_lower_bound_including_zoo100'] >= 873
         assert registration['formal_oos_results'] is None
         assert not (out/'new_candidate_metrics.json').exists()
         raise StopAfterRegistration
@@ -198,7 +220,8 @@ def test_registration_precedes_any_model_fit_or_result(tmp_path,monkeypatch):
     with pytest.raises(FileExistsError):batch.run([source],out,include_reference=False)
 
 
-def test_v2_statistics_and_panel_end_to_end_synthetic_only(tmp_path):
+@pytest.mark.parametrize('include_reference', [False, True])
+def test_v2_statistics_and_panel_end_to_end_synthetic_only(tmp_path, include_reference):
     def book(t):
         return dict(type='book',market_id='m',recv_ms=t,up_recv_ms=t,down_recv_ms=t,
                     healthy=True,up_asks=[[.4,10]],down_asks=[[.7,10]],fee_rate=.07)
@@ -210,14 +233,47 @@ def test_v2_statistics_and_panel_end_to_end_synthetic_only(tmp_path):
                   winner='Up',source='gamma')]
     source=tape(tmp_path,'a',end=DAY+2500,records=records)
     out=tmp_path/'run'
-    batch.run([source],out,include_reference=False)
+    batch.run([source],out,include_reference=include_reference)
     done=json.loads((out/'completion.json').read_text())
     assert done['new_candidate_scenarios']==40*3*8
+    assert done['reference_candidate_scenarios'] == (720*3 if include_reference else 0)
+    assert done['reference_candidates_replayed'] == (720 if include_reference else 0)
+    assert done['complete_candidate_latency_coverage'] is True
     assert done['formal_oos_result'] is None
+    coverage = json.loads((out/'coverage_audit.json').read_text())
+    assert sum(row['actual_summary_rows'] for row in coverage['new_scenarios']) == done['new_candidate_scenarios']
+    if include_reference:
+        reference = json.loads((out/'reference720_replay.json').read_text())
+        assert len(reference['summary']) == coverage['reference']['actual_summary_rows'] == 2160
+        assert {row['candidate_id'] for row in reference['summary']} == {f'M500-{n:03d}' for n in range(1, 721)}
+    else:
+        assert coverage['reference'] is None
+        assert not (out/'reference720_replay.json').exists()
     result=json.loads((out/'size5_replay.json').read_text())
     stats=json.loads((out/'size5_statistics.json').read_text())
+    assert stats['historical_multiplicity_lower_bound'] >= 873
     by_key={(r['candidate_id'],r['latency_ms']):r for r in result['summary']}
     for row in stats['results']:
         assert row['net_pnl_usd']==pytest.approx(by_key[row['candidate_id'],row['latency_ms']]['net_pnl_usd'])
         assert row['qualified'] is False
     assert stats['results']
+
+
+def test_500_only_reference_summaries_cannot_publish720_completion(tmp_path, monkeypatch):
+    source = tape(tmp_path, 'only_header')
+    out = tmp_path/'partial_reference'
+    original_replay = batch.execution.replay_events
+    monkeypatch.setattr(batch, 'SCENARIOS', ())
+    def incomplete_replay(events, candidates, signal_fn, config):
+        assert len(candidates) == 720
+        registration = json.loads((out/'registration.json').read_text())
+        assert registration['expected_reference_candidate_scenarios'] == 2160
+        result = original_replay(events, candidates, signal_fn, config)
+        result['summary'] = [row for row in result['summary'] if int(row['candidate_id'].split('-')[-1]) <= 500]
+        assert len(result['summary']) == 1500
+        return result
+    monkeypatch.setattr(batch.execution, 'replay_events', incomplete_replay)
+    with pytest.raises(ValueError, match='missing=660'):
+        batch.run([source], out, include_reference=True)
+    assert not (out/'completion.json').exists()
+    assert not (out/'reference720_replay.json').exists()

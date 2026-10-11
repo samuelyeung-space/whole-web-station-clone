@@ -22,11 +22,16 @@ import mine500_catalog as old
 import mine500_path_candidates as path
 import mine500_probability_models as probability
 import mine500_replay_v2 as execution
+import mine500_reference_supplement as reference_audit
 from mine500_shared_portfolio import first_signal_per_market, simulate_shared_cash
 from mine500_statistics import analyze
 
-VERSION = "mine500-deep-development-v1"
+VERSION = "mine500-deep-development-v2-reference-coverage"
 CONSUMED_DAYS = ("2026-10-07", "2026-10-08", "2026-10-09")
+# Historical attempts remain in the denominator even when this runner only
+# replays 40 new rules. The separate tree12 and joint52 panel have been tried.
+KNOWN_MINE500_TRIAL_LOWER_BOUND = 772
+KNOWN_MULTIPLICITY_LOWER_BOUND = 873
 SCENARIOS = (
     ("size5", {"shares": 5.}),
     ("size10", {"shares": 10.}),
@@ -271,21 +276,47 @@ def correct_current_coverage_denominator(stats, candidate_count, multiplicity_lo
     return stats
 
 
+def make_reference_candidates():
+    """Return every existing rule; a 500-only replay cannot claim 720 coverage."""
+    candidates = old.make_candidates() + old.make_supplementary_candidates()
+    ids = [candidate["id"] for candidate in candidates]
+    if ids != [f"M500-{number:03d}" for number in range(1, 721)]:
+        raise ValueError("reference registry must contain ordered M500-001..720 exactly once")
+    if len({candidate["rule_fingerprint"] for candidate in candidates}) != len(ids):
+        raise ValueError("duplicate reference rule fingerprint")
+    return candidates
+
+
 def run(inputs, output, include_reference=True):
     output = Path(output)
     output.mkdir(parents=True, exist_ok=False)
     events, inputs_audit = combine_inputs(inputs, materialize_output=output/"combined_input.jsonl.gz")
     candidates = path.make_candidates() + probability.make_candidates()
+    reference_candidates = make_reference_candidates()
+    reference_config = execution.ReplayConfig()
+    scenario_configs = [(name, execution.ReplayConfig(**parameters)) for name, parameters in SCENARIOS]
+    new_count, existing_count = len(candidates), len(reference_candidates)
+    multiplicity_lower_bound = max(KNOWN_MULTIPLICITY_LOWER_BOUND,
+                                   new_count + existing_count + 100)
     modules = [Path(__file__), Path(path.__file__), Path(probability.__file__), Path(execution.__file__),
-               Path(old.__file__), *[Path(__file__).with_name(name) for name in
+               Path(old.__file__), Path(reference_audit.__file__), *[Path(__file__).with_name(name) for name in
                    ("mine500_constraints.py", "mine500_statistics.py", "mine500_shared_portfolio.py",
                     "mine500_constraint_extract.py")]]
     registration = {"schema": VERSION, "registered_at_utc": datetime.now(timezone.utc).isoformat(),
-        "candidates": candidates, "new_trials": 40, "existing_reference_trials": 720,
-        "cumulative_mine500_trial_lower_bound": 760,
-        "known_multiplicity_lower_bound_including_zoo100": 860,
+        "candidates": candidates, "new_trials": new_count, "existing_reference_trials": existing_count,
+        "reference_candidate_ids": [candidate["id"] for candidate in reference_candidates],
+        "reference_execution_config": asdict(reference_config),
+        "reference_enabled": include_reference,
+        "reference_candidates_scheduled": existing_count if include_reference else 0,
+        "expected_reference_candidate_scenarios": existing_count*len(reference_config.latencies_ms) if include_reference else 0,
+        "expected_new_candidate_scenarios": sum(new_count*len(config.latencies_ms) for _, config in scenario_configs),
+        "current_batch_reference_and_new": new_count + existing_count,
+        "cumulative_mine500_trial_lower_bound": max(KNOWN_MINE500_TRIAL_LOWER_BOUND,
+                                                     new_count + existing_count),
+        "known_multiplicity_lower_bound_including_zoo100": multiplicity_lower_bound,
+        "other_known_registered_specs_outside_runner": {"tree_trials": 12, "joint52_panel": 1},
         "other_historical_adaptive_trials": "additional; not erased or claimed fully enumerated",
-        "scenarios": [{"name": n, "config": asdict(execution.ReplayConfig(**kw))} for n,kw in SCENARIOS],
+        "scenarios": [{"name": name, "config": asdict(config)} for name,config in scenario_configs],
         "input_hashes": inputs_audit["input_hashes"],
         "code_hashes": {p.name:digest(p) for p in modules},
         "consumed_decision_days": CONSUMED_DAYS, "formal_oos_results": None,
@@ -297,7 +328,7 @@ def run(inputs, output, include_reference=True):
             "Three UTC dates do not justify a day-cluster significance claim."]}
     write_json(output/"registration.json", registration)
     write_json(output/"input_audit.json", inputs_audit)
-    print("registered 40 new trials before fitting/replay", flush=True)
+    print(f"registered {new_count} new trials before fitting/replay", flush=True)
     fit_audit, scores = probability.train_forward_days(events, consumed_days=CONSUMED_DAYS,
                                                      input_hashes=inputs_audit["input_hashes"])
     write_json(output/"probability_folds.json", fit_audit)
@@ -306,15 +337,19 @@ def run(inputs, output, include_reference=True):
     enriched = ReplayTape(enriched_path, enriched_count)
     del scores  # Joined values are now on the tape; do not retain the score-map cache.
     all_summary, all_daily, panels = [], [], []
-    for name, parameters in SCENARIOS:
+    coverage_audit = {"new_scenarios": [], "reference": None}
+    for name, config in scenario_configs:
         print("replaying " + name, flush=True)
-        doc = execution.replay_events(enriched, candidates, signal, execution.ReplayConfig(**parameters))
+        doc = execution.replay_events(enriched, candidates, signal, config)
+        coverage = reference_audit.validate_summary_coverage(candidates, doc["summary"], config.latencies_ms)
+        coverage_audit["new_scenarios"].append(dict(coverage, scenario=name))
         daily = describe(doc)
-        panel, intent_doc = panel_intent_results(enriched, candidates, signal, execution.ReplayConfig(**parameters))
+        panel, intent_doc = panel_intent_results(enriched, candidates, signal, config)
         panels.append({"scenario": name, "results": panel})
         write_gzip(output/(name+"_panel_intent_attempts.jsonl.gz"), intent_doc.pop("attempts"))
         write_json(output/(name+"_panel_intent_replay.json"), intent_doc)
-        stats = correct_current_coverage_denominator(analyze(doc, family_tests=860), len(candidates), 860)
+        stats = correct_current_coverage_denominator(analyze(doc, family_tests=multiplicity_lower_bound),
+                                                     new_count, multiplicity_lower_bound)
         write_json(output/(name+"_statistics.json"), stats)
         write_gzip(output/(name+"_attempts.jsonl.gz"), doc.pop("attempts"))
         write_json(output/(name+"_replay.json"), doc)
@@ -324,11 +359,14 @@ def run(inputs, output, include_reference=True):
     write_json(output/"new_candidate_daily.json", all_daily)
     write_json(output/"shared_cash_panels.json", panels)
     if include_reference:
-        print("replaying existing720 reference; not 720 new trials", flush=True)
-        doc = execution.replay_events(events, old.make_candidates(), old.signal, execution.ReplayConfig())
+        print(f"replaying existing {existing_count} reference rules; zero new trials", flush=True)
+        doc = execution.replay_events(events, reference_candidates, old.signal, reference_config)
+        coverage_audit["reference"] = reference_audit.validate_summary_coverage(
+            reference_candidates, doc["summary"], reference_config.latencies_ms)
         write_json(output/"reference720_daily.json", describe(doc))
         write_gzip(output/"reference720_attempts.jsonl.gz", doc.pop("attempts"))
         write_json(output/"reference720_replay.json", doc)
+    write_json(output/"coverage_audit.json", coverage_audit)
     code_changed = {p.name:digest(p) for p in modules} != registration["code_hashes"]
     input_changed = {filename:digest(filename) for filename in registration["input_hashes"]} != registration["input_hashes"]
     if code_changed or input_changed:
@@ -337,8 +375,11 @@ def run(inputs, output, include_reference=True):
                                                    "formal_oos_result": None})
         raise ValueError("registered code or input changed during execution; preserve outputs as invalidated")
     write_json(output/"completion.json", {"completed_at_utc": datetime.now(timezone.utc).isoformat(),
-        "new_candidate_scenarios": len(all_summary), "reference_candidate_scenarios": 2160 if include_reference else 0,
-        "new_registered_trials": 40, "simulations_only": True, "formal_oos_result": None,
+        "new_candidate_scenarios": sum(audit["actual_summary_rows"] for audit in coverage_audit["new_scenarios"]),
+        "reference_candidate_scenarios": coverage_audit["reference"]["actual_summary_rows"] if include_reference else 0,
+        "reference_candidates_replayed": coverage_audit["reference"]["actual_candidate_count"] if include_reference else 0,
+        "complete_candidate_latency_coverage": True,
+        "new_registered_trials": new_count, "simulations_only": True, "formal_oos_result": None,
         "confirmed_strategies": 0, "observed_hours": inputs_audit["dataset"]["observed_hours"]})
     print("completed; no OOS qualification", flush=True)
 
