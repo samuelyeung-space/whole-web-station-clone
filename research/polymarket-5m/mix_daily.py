@@ -136,6 +136,14 @@ def _mix_manifest(s3: Any, bucket: str, day: str) -> dict[str, Any]:
     return manifest
 
 
+def _partial_rec_manifest(s3: Any, bucket: str, day: str) -> dict[str, Any]:
+    """Load a pre-roll rec day without falsely requiring 24-hour non-DVOL coverage."""
+    response = s3.get_object(Bucket=bucket, Key=f"rec/{day}/MANIFEST.json")
+    manifest = json.loads(response["Body"].read())
+    _validate_manifest_files(manifest, day, "rec")
+    return manifest
+
+
 def aggregate_source_items(
     manifest: Mapping[str, Any], day: str, hours: set[int],
 ) -> list[Mapping[str, Any]]:
@@ -501,7 +509,7 @@ def process_day(
         return complete
 
     previous_day = _next_day(day, -1)
-    previous_rec = archive_daily._archive_manifest(s3, bucket, previous_day, "rec")
+    previous_rec = _partial_rec_manifest(s3, bucket, previous_day)
     current_rec = archive_daily._archive_manifest(s3, bucket, day, "rec")
     current_poly = archive_daily._archive_manifest(s3, bucket, day, "poly")
     previous_mix = _mix_manifest(s3, bucket, previous_day)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import gzip
+import io
 import json
 from pathlib import Path
 
@@ -71,6 +72,27 @@ def test_dvol_source_selection_requires_every_requested_hour():
     manifest["files"].pop()
     with pytest.raises(ValueError, match="DVOL route coverage"):
         daily.dvol_source_items(manifest, DAY, {0, 23})
+
+
+def test_previous_rec_manifest_allows_partial_day_but_validates_files():
+    class S3:
+        def __init__(self, manifest):
+            self.manifest = manifest
+
+        def get_object(self, **_kwargs):
+            return {"Body": io.BytesIO(json.dumps(self.manifest).encode())}
+
+    manifest = {
+        "day": PREVIOUS, "group": "rec", "files": [{
+            "file": f"deribit_vol.{PREVIOUS}T23.txt.gz", "uploaded_ok": True,
+            "gzip_ok": True, "size": 1, "sha256": "a" * 64,
+        }],
+    }
+
+    assert daily._partial_rec_manifest(S3(manifest), "bucket", PREVIOUS) == manifest
+    manifest["files"][0]["gzip_ok"] = False
+    with pytest.raises(ValueError, match="unverified file"):
+        daily._partial_rec_manifest(S3(manifest), "bucket", PREVIOUS)
 
 
 def test_build_aggregate_tape_keeps_first_copy_and_records_identity(tmp_path):
@@ -182,7 +204,7 @@ def test_stage_is_not_committed_before_evidence_upload(tmp_path, monkeypatch):
 def test_evaluator_freeze_binds_dependencies(tmp_path):
     frozen, digest = daily.load_evaluator_freeze()
 
-    assert digest == "d99d215325772cedb30786666790947288d7c46eb3bf282dfb6ed932e898d66b"
+    assert digest == "9a084d31171fc6418736eb87ca35974f0d55213f6eeb18bc4f7584e6da30aeb8"
     assert frozen["control_protocol_sha256"] == (
         "28588718bd3a944595fc8a786beeb6fb1b54d3bd51a2246775995c31cdfe8b45"
     )
@@ -274,6 +296,10 @@ def _install_daily_fakes(tmp_path, monkeypatch, calls):
     monkeypatch.setattr(
         daily, "_mix_manifest",
         lambda _s3, _bucket, day: {"day": day, "group": "mix", "files": []},
+    )
+    monkeypatch.setattr(
+        daily, "_partial_rec_manifest",
+        lambda _s3, _bucket, day: {"day": day, "group": "rec", "files": []},
     )
     monkeypatch.setattr(daily.archive_daily, "validate_local_archive", lambda *args: None)
     monkeypatch.setattr(daily, "aggregate_source_items", lambda *args: [])

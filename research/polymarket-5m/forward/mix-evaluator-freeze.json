@@ -14,7 +14,7 @@
     "h_replay_archive.py": "a977dc5d7dc7d96fdd931eaed57e1523e5031f5d6e5dc826ab91f4d8314f497e",
     "mix-runtime-requirements.txt": "e2005b0162723b93601c3a0fc3f5ab2538e186a8afc676d39e26bf66fa6f946e",
     "mix_agg_rec.py": "12abe8cd1a6e556170cc2e5dd164b9a9674cbd17ee15b358bd05cc6ab18c443c",
-    "mix_daily.py": "68bd6d531bb0a9dce428d218927d41feaaba4d74ad0180acd07175bee0726690",
+    "mix_daily.py": "d2fc65fa09614bb0351e6e098c6258eb13568fb22e3d9c0b08c02560f482b0f6",
     "mix_dvol.py": "95ba409649e077e9e012b02a34cd4f3b800912295321441565684598bcdd3c69",
     "mix_forward.py": "e1bdc7774bef55bfe33d8b7c66d3916708b73fb5b4930dc1d8261ebb338e8dcc",
     "mix_hf.py": "be5ee28d60d463795e7a2f58f4a0abe514071ffae7dd1bac8587556f31803d40",
