@@ -1031,9 +1031,19 @@ def market_table(mk, rs):
                 "resolution_price_source", "oracle_source", "open_boundary_source",
                 "close_boundary_source", "open_boundary_fallback_used",
                 "close_boundary_fallback_used", "usable_for_backtest", "consistency_check",
+                "final_outcome_fields",
             ):
                 if c in latest:
                     out[f"resolution_{c}" if c in out else c] = latest[c].reindex(out.index)
+            # Stable authority aliases: collision-dependent destination names above are
+            # retained for compatibility, while consumers can distinguish the oracle
+            # named by the resolution record from its numerical boundary fallback.
+            if "oracle_source" in latest:
+                out["resolution_oracle_source"] = latest["oracle_source"].reindex(out.index)
+            if "resolution_price_source" in latest:
+                out["resolution_resolution_price_source"] = latest[
+                    "resolution_price_source"
+                ].reindex(out.index)
             rs_source_columns = [
                 c for c in ("resolution_price_source", "oracle_source") if c in latest
             ]
@@ -2475,7 +2485,10 @@ def probe_ali(out, ds=ALI):
     import json
     import pandas as pd
     base = f"https://huggingface.co/datasets/{ds}/resolve/main/"
-    ms = lambda v: "" if v is None else f"{pd.Timestamp(int(v), unit='ms'):%Y-%m-%d %H:%M:%S}"
+
+    def ms(v):
+        return "" if v is None else f"{pd.Timestamp(int(v), unit='ms'):%Y-%m-%d %H:%M:%S}"
+
     L = [f"# 数据探查：{ds}（BTC 5m，8 月 29 日之后）", ""]
     meta = json.loads(_get(f"https://huggingface.co/api/datasets/{ds}?blobs=true"))
     files = [(f["rfilename"], f.get("size") or 0) for f in meta.get("siblings", [])]

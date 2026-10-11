@@ -95,8 +95,9 @@ def _documented_source(market: pd.Series) -> str | None:
 def _source(market: pd.Series) -> tuple[str | None, str | None, bool]:
     exact = None
     for column in (
-        "resolution_source",
+        "resolution_oracle_source",
         "oracle_source",
+        "resolution_source",
     ):
         exact = _normalize_exact_source(market.get(column))
         if exact is not None:
@@ -120,6 +121,101 @@ def _explicitly_unusable(value: Any, *, consistency: bool = False) -> bool:
     if consistency:
         return text in {"false", "fail", "failed", "invalid", "inconsistent", "mismatch"}
     return text in {"false", "0", "no", "fail", "failed", "invalid", "unusable"}
+
+
+def _flag(value: Any) -> bool:
+    if value is None or pd.isna(value):
+        return False
+    if isinstance(value, (bool, np.bool_)):
+        return bool(value)
+    return str(value).strip().lower() in {"true", "1", "yes", "used"}
+
+
+def _known_binary_outcome(market: pd.Series) -> bool:
+    try:
+        return float(market.get("up_won")) in (0.0, 1.0)
+    except (TypeError, ValueError):
+        return False
+
+
+def _official_closed_outcome(market: pd.Series) -> bool:
+    if not _known_binary_outcome(market):
+        return False
+    from jump2s_hf import _closed_01
+
+    direction = "UP" if float(market.get("up_won")) == 1.0 else "DOWN"
+    return _closed_01(market.get("final_outcome_fields"), direction)
+
+
+def _close_price_missing_is_harmless(market: pd.Series) -> bool:
+    """True only when payout is authoritative and merely the numeric close is absent."""
+    exact_authority = _normalize_exact_source(
+        market.get("resolution_oracle_source")
+    ) is not None
+    documented_official = (
+        _official_closed_outcome(market) and _documented_source(market) is not None
+    )
+    if not exact_authority and not documented_official:
+        return False
+    if not _known_binary_outcome(market):
+        return False
+    consistency = {
+        str(market.get(column)).strip().lower()
+        for column in (
+            "resolution_consistency",
+            "consistency_check",
+            "resolution_consistency_check",
+        )
+        if market.get(column) is not None and not pd.isna(market.get(column))
+    }
+    if "chainlink_resolution_price_missing" not in consistency:
+        return False
+    allowed = {
+        "chainlink_resolution_price_missing",
+        "ok",
+        "pass",
+        "passed",
+        "true",
+        "valid",
+        "consistent",
+    }
+    return consistency <= allowed
+
+
+def _settlement_metadata_valid(market: pd.Series) -> bool:
+    open_fallback = any(
+        _flag(market.get(column))
+        for column in (
+            "open_boundary_fallback_used",
+            "resolution_open_boundary_fallback_used",
+        )
+    )
+    if open_fallback or not _known_binary_outcome(market):
+        return False
+    inconsistent = any(
+        _explicitly_unusable(market.get(column), consistency=True)
+        for column in (
+            "resolution_consistency",
+            "consistency_check",
+            "resolution_consistency_check",
+        )
+    )
+    if inconsistent:
+        return False
+    close_fallback = any(
+        _flag(market.get(column))
+        for column in (
+            "close_boundary_fallback_used",
+            "resolution_close_boundary_fallback_used",
+        )
+    )
+    unusable = any(
+        _explicitly_unusable(market.get(column))
+        for column in ("usable_for_backtest", "resolution_usable_for_backtest")
+    )
+    if not close_fallback and not unusable:
+        return True
+    return _close_price_missing_is_harmless(market)
 
 
 def _base_row(
@@ -150,6 +246,8 @@ def _base_row(
         "upper_raw_resolution_source": upper.get("resolution_price_source"),
         "lower_raw_oracle_source": lower.get("oracle_source"),
         "upper_raw_oracle_source": upper.get("oracle_source"),
+        "lower_resolution_oracle_source": lower.get("resolution_oracle_source"),
+        "upper_resolution_oracle_source": upper.get("resolution_oracle_source"),
         "lower_strike": float(lower["k"]),
         "upper_strike": float(upper["k"]),
         "end_ms": int(lower["end"]),
@@ -335,30 +433,11 @@ def replay_same_expiry_boxes(
                     for column in ("settlement_conflict", "resolution_source_conflict")
                     if not pd.isna(market.get(column, False))
                 )
-                fallback_used = any(
-                    bool(market.get(column, False))
+                settlement_invalid = any(
+                    not _settlement_metadata_valid(market)
                     for market in (lower, upper)
-                    for column in (
-                        "open_boundary_fallback_used", "close_boundary_fallback_used",
-                        "resolution_open_boundary_fallback_used",
-                        "resolution_close_boundary_fallback_used",
-                    )
-                    if not pd.isna(market.get(column, False))
                 )
-                unusable = any(
-                    _explicitly_unusable(market.get(column))
-                    for market in (lower, upper)
-                    for column in ("usable_for_backtest", "resolution_usable_for_backtest")
-                )
-                inconsistent = any(
-                    _explicitly_unusable(market.get(column), consistency=True)
-                    for market in (lower, upper)
-                    for column in (
-                        "resolution_consistency", "consistency_check",
-                        "resolution_consistency_check",
-                    )
-                )
-                if authority_conflict or fallback_used or unusable or inconsistent:
+                if authority_conflict or settlement_invalid:
                     rows.append(_diagnostic(
                         lower, upper, "settlement_authority_conflict", config
                     ))
@@ -1019,6 +1098,9 @@ def run(
         local = Path(cross.fetch(name, root / name))
         try:
             feat, raw_markets, resolutions = cross.read_day(local)
+            from jump2s_hf import final_resolution
+
+            resolutions, _provisional_only = final_resolution(resolutions)
             markets = cross.market_table(raw_markets, resolutions)
             rows = replay_same_expiry_boxes(feat, markets)
             parts.append(rows)

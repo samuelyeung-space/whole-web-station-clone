@@ -411,6 +411,122 @@ def test_generic_snapshot_source_does_not_conflict_with_exact_authority():
     assert row.resolution_source == SOURCE
 
 
+def test_market_table_keeps_authoritative_oracle_separate_from_boundary_measurement():
+    final_fields = {"closed": True, "outcomePrices": '["1", "0"]'}
+    raw = _raw_markets().iloc[[0]].copy()
+    resolutions = pd.DataFrame([{
+        "market_id": "m5",
+        "outcome_direction": "Up",
+        "revision": 1,
+        "resolution_price_source": "lifecycle.next_market_open_price",
+        "oracle_source": SOURCE,
+        "final_outcome_fields": final_fields,
+    }])
+
+    row = cross.market_table(raw, resolutions).iloc[0]
+
+    assert row.resolution_source == "lifecycle.next_market_open_price"
+    assert row.resolution_oracle_source == SOURCE
+    assert row.final_outcome_fields == final_fields
+
+
+def test_exact_oracle_and_official_outcome_admit_close_price_missing_box():
+    markets = _markets(source_5m=None, source_15m=None)
+    markets["resolution_source"] = "lifecycle.next_market_open_price"
+    markets["resolution_oracle_source"] = SOURCE
+    markets["close_boundary_fallback_used"] = True
+    markets["usable_for_backtest"] = False
+    markets["consistency_check"] = "chainlink_resolution_price_missing"
+
+    row = box.replay_same_expiry_boxes(
+        _books(),
+        markets,
+        config=box.BoxBatchConfig(latencies_ms=(200,)),
+    ).iloc[0]
+
+    assert row.status == "paired"
+    assert row.resolution_source == "chainlink_btc_usd_twap_60s"
+    assert row.source_basis == "archive_exact"
+    assert row.execution_valid
+
+
+def test_close_price_missing_exception_never_admits_open_boundary_fallback():
+    markets = _markets(source_5m=None, source_15m=None)
+    markets["resolution_source"] = "lifecycle.next_market_open_price"
+    markets["resolution_oracle_source"] = SOURCE
+    markets["open_boundary_fallback_used"] = [True, False]
+    markets["close_boundary_fallback_used"] = True
+    markets["usable_for_backtest"] = False
+    markets["consistency_check"] = "chainlink_resolution_price_missing"
+
+    row = box.replay_same_expiry_boxes(
+        _books(),
+        markets,
+        config=box.BoxBatchConfig(latencies_ms=(200,)),
+    ).iloc[0]
+
+    assert row.status == "settlement_authority_conflict"
+    assert row.signal_count == 0 and not row.execution_valid
+
+
+def test_close_price_missing_exception_requires_resolved_official_outcomes():
+    markets = _markets(source_5m=None, source_15m=None)
+    markets["resolution_source"] = "lifecycle.next_market_open_price"
+    markets["resolution_oracle_source"] = SOURCE
+    markets["close_boundary_fallback_used"] = True
+    markets["usable_for_backtest"] = False
+    markets["consistency_check"] = "chainlink_resolution_price_missing"
+    markets.loc[0, "up_won"] = np.nan
+
+    row = box.replay_same_expiry_boxes(
+        _books(),
+        markets,
+        config=box.BoxBatchConfig(latencies_ms=(200,)),
+    ).iloc[0]
+
+    assert row.status == "settlement_authority_conflict"
+    assert row.signal_count == 0 and not row.execution_valid
+
+
+def test_official_closed_outcome_and_documented_rule_admit_missing_close_price():
+    markets = _documented_markets("2026-08-20 00:15:00")
+    markets["resolution_oracle_source"] = "self_resolved:lifecycle.next_market_open_price"
+    markets["close_boundary_fallback_used"] = True
+    markets["usable_for_backtest"] = False
+    markets["consistency_check"] = "chainlink_resolution_price_missing"
+    markets["final_outcome_fields"] = [
+        {"closed": True, "outcomePrices": '["1", "0"]'},
+        {"closed": True, "outcomePrices": '["1", "0"]'},
+    ]
+
+    row = box.replay_same_expiry_boxes(
+        _books(),
+        markets,
+        config=box.BoxBatchConfig(latencies_ms=(200,)),
+    ).iloc[0]
+
+    assert row.status == "paired"
+    assert row.resolution_source == "chainlink_btc_usd_twap_60s"
+    assert row.source_basis == "documented_gamma_regime"
+
+
+def test_self_resolved_outcome_without_official_closed_fields_stays_rejected():
+    markets = _documented_markets("2026-08-20 00:15:00")
+    markets["resolution_oracle_source"] = "self_resolved:lifecycle.next_market_open_price"
+    markets["close_boundary_fallback_used"] = True
+    markets["usable_for_backtest"] = False
+    markets["consistency_check"] = "chainlink_resolution_price_missing"
+
+    row = box.replay_same_expiry_boxes(
+        _books(),
+        markets,
+        config=box.BoxBatchConfig(latencies_ms=(200,)),
+    ).iloc[0]
+
+    assert row.status == "settlement_authority_conflict"
+    assert row.signal_count == 0 and not row.execution_valid
+
+
 def test_latest_resolution_record_is_authoritative_and_conflicts_are_preserved():
     raw = _raw_markets().iloc[[0]].copy()
     resolutions = pd.DataFrame([
