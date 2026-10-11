@@ -52,10 +52,21 @@ jobs:
             latency) echo "mode=latency" ;;
             momentum5s) echo "mode=momentum5s" ;;
             dustchain) echo "mode=dustchain" ;;
+            walletlead) echo "mode=walletlead" ;;
             cross) echo "mode=cross"; echo "cross=$(sed -n 's/^cross: *//p' ci/kacho.request | head -1)" ;;
             onchain|makers|rules) echo "mode=$mode"; echo "later=$(sed -n 's/^later: *//p' ci/kacho.request | head -1)" ;;
             *) echo "mode=btc" ;;
           esac >> "$GITHUB_OUTPUT"
+
+      - name: "Family 32: test, lint and typecheck"
+        if: steps.mode.outputs.mode == 'walletlead'
+        run: |
+          python -m pip install "mypy>=1.13,<2" "ruff>=0.8,<1"
+          python -m pytest -q test_wallet_lead.py test_wallet_lead_scan.py
+          mypy --ignore-missing-imports --follow-imports=skip --check-untyped-defs \
+            wallet_lead.py wallet_lead_scan.py
+          ruff check wallet_lead.py wallet_lead_scan.py \
+            test_wallet_lead.py test_wallet_lead_scan.py
 
       - name: Survey Hugging Face datasets
         if: steps.mode.outputs.mode == 'survey'
@@ -163,6 +174,14 @@ jobs:
             --out real/reward-dust-chain.md \
             --evidence-out real/reward-dust-chain.json.gz
 
+      - name: "Family 32: receipt-causal informed-wallet audit"
+        if: steps.mode.outputs.mode == 'walletlead'
+        run: |
+          timeout 19800 python wallet_lead_scan.py \
+            --workdir "$RUNNER_TEMP/wallet-lead" \
+            --out real/wallet-lead.md \
+            --csv-out real/wallet-lead.csv.gz
+
       - name: Keep the filtered September fills between runs
         if: steps.mode.outputs.mode == 'onchain' || steps.mode.outputs.mode == 'makers' || steps.mode.outputs.mode == 'rules'
         uses: actions/cache@v4
@@ -196,7 +215,7 @@ jobs:
             --delay-json real/onchain-delay.json
 
       - name: "Stage ${{ steps.mode.outputs.mode }}: download, resolve and test"
-        if: steps.mode.outputs.mode != 'btc' && steps.mode.outputs.mode != 'survey' && steps.mode.outputs.mode != 'onchain' && steps.mode.outputs.mode != 'makers' && steps.mode.outputs.mode != 'rules' && steps.mode.outputs.mode != 'replay' && steps.mode.outputs.mode != 'latency' && steps.mode.outputs.mode != 'momentum5s' && steps.mode.outputs.mode != 'cross' && steps.mode.outputs.mode != 'dustchain'
+        if: steps.mode.outputs.mode != 'btc' && steps.mode.outputs.mode != 'survey' && steps.mode.outputs.mode != 'onchain' && steps.mode.outputs.mode != 'makers' && steps.mode.outputs.mode != 'rules' && steps.mode.outputs.mode != 'replay' && steps.mode.outputs.mode != 'latency' && steps.mode.outputs.mode != 'momentum5s' && steps.mode.outputs.mode != 'cross' && steps.mode.outputs.mode != 'dustchain' && steps.mode.outputs.mode != 'walletlead'
         run: |
           mkdir -p "$RUNNER_TEMP/kacho"
           for c in ${{ steps.mode.outputs.coins }}; do
@@ -245,7 +264,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add real/kacho-* real/hf-*.md real/onchain-* real/makers-* real/rules-* real/forward-replay.md real/latency-* real/cross-* real/momentum5s-* real/reward-dust-chain.* 2>/dev/null || true
+          git add real/kacho-* real/hf-*.md real/onchain-* real/makers-* real/rules-* real/forward-replay.md real/latency-* real/cross-* real/momentum5s-* real/reward-dust-chain.* real/wallet-lead.* 2>/dev/null || true
           git commit -q -m "research: kacho.io ${{ steps.mode.outputs.mode }} results" \
             -m "Workflow run ${{ github.run_id }}." \
             -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>" \
