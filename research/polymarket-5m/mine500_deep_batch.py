@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import argparse
 from collections import Counter, defaultdict
-from dataclasses import asdict, replace
+from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
 import gzip
 import hashlib
@@ -54,10 +54,26 @@ def write_json(filename, value):
 
 def write_gzip(filename, rows):
     # Deterministic compressed bytes, independent of wall clock and output name.
+    count = 0
     with Path(filename).open("wb") as raw:
         with gzip.GzipFile(filename="", mode="wb", fileobj=raw, mtime=0) as f:
             for row in rows:
                 f.write((json.dumps(row, separators=(",", ":"), allow_nan=False) + "\n").encode())
+                count += 1
+    return count
+
+
+@dataclass(frozen=True)
+class ReplayTape:
+    """Reentrant on-disk event sequence; no market record cache is retained."""
+    path: Path
+    count: int
+
+    def __iter__(self):
+        return execution.read_jsonl(self.path)
+
+    def __len__(self):
+        return self.count
 
 
 def _finite_clock(value):
@@ -77,7 +93,7 @@ def _validated_stream(iterator, start, end, initial_recv, filename):
         yield event
 
 
-def combine_inputs(filenames):
+def combine_inputs(filenames, materialize_output=None):
     """Merge disjoint observed intervals, retaining label receipt times and gaps."""
     if not filenames:
         raise ValueError("at least one development input required")
@@ -116,24 +132,36 @@ def combine_inputs(filenames):
         "provenance": {"source": "authorized_GitHub_Actions_consumed_development", "inputs": provenance},
         "gaps": "unobserved time is never interpolated or counted as observed hours",
         "full_tick_change_stream_preserved": all(h.get("full_tick_change_stream_preserved") is True for h in headers)}
-    result, decisions, counts = [header], set(), Counter()
-    previous = header["recv_ms"]
-    for event in heapq.merge(*streams, key=lambda e: e["recv_ms"]):
-        if event["recv_ms"] < previous:
-            raise ValueError("input stream regressed")
-        previous = event["recv_ms"]
-        if event["type"] == "dataset":
-            raise ValueError("embedded dataset header")
-        if event["type"] == "decision":
-            day = datetime.fromtimestamp(event["recv_ms"]/1000, timezone.utc).date().isoformat()
-            if day not in CONSUMED_DAYS:
-                raise ValueError("unconsumed date; old frozen windows must remain untouched")
-            key = event["market_id"], event["recv_ms"]
-            if key in decisions:
-                raise ValueError("duplicate decision across archives")
-            decisions.add(key)
-        counts[event["type"]] += 1
-        result.append(event)
+    decisions, counts = set(), Counter()
+
+    def validated_merge():
+        yield header
+        previous = header["recv_ms"]
+        for event in heapq.merge(*streams, key=lambda e: e["recv_ms"]):
+            if event["recv_ms"] < previous:
+                raise ValueError("input stream regressed")
+            previous = event["recv_ms"]
+            if event["type"] == "dataset":
+                raise ValueError("embedded dataset header")
+            if event["type"] == "decision":
+                day = datetime.fromtimestamp(event["recv_ms"]/1000, timezone.utc).date().isoformat()
+                if day not in CONSUMED_DAYS:
+                    raise ValueError("unconsumed date; old frozen windows must remain untouched")
+                key = event["market_id"], event["recv_ms"]
+                if key in decisions:
+                    raise ValueError("duplicate decision across archives")
+                decisions.add(key)
+            counts[event["type"]] += 1
+            yield event
+
+    if materialize_output is None:
+        result = list(validated_merge())
+    else:
+        destination = Path(materialize_output)
+        if destination.resolve() in {Path(filename).resolve() for filename in filenames}:
+            raise ValueError("materialized tape cannot overwrite an input")
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        result = ReplayTape(destination, write_gzip(destination, validated_merge()))
     return result, {"headers": headers, "input_hashes": {p["file"]:p["sha256"] for p in provenance},
                     "record_counts": dict(counts), "dataset": header}
 
@@ -246,7 +274,7 @@ def correct_current_coverage_denominator(stats, candidate_count, multiplicity_lo
 def run(inputs, output, include_reference=True):
     output = Path(output)
     output.mkdir(parents=True, exist_ok=False)
-    events, inputs_audit = combine_inputs(inputs)
+    events, inputs_audit = combine_inputs(inputs, materialize_output=output/"combined_input.jsonl.gz")
     candidates = path.make_candidates() + probability.make_candidates()
     modules = [Path(__file__), Path(path.__file__), Path(probability.__file__), Path(execution.__file__),
                Path(old.__file__), *[Path(__file__).with_name(name) for name in
@@ -273,8 +301,10 @@ def run(inputs, output, include_reference=True):
     fit_audit, scores = probability.train_forward_days(events, consumed_days=CONSUMED_DAYS,
                                                      input_hashes=inputs_audit["input_hashes"])
     write_json(output/"probability_folds.json", fit_audit)
-    enriched = list(probability.attach_scores(path.augment_events(events), scores))
-    write_gzip(output/"enriched_development_events.jsonl.gz", enriched)
+    enriched_path = output/"enriched_development_events.jsonl.gz"
+    enriched_count = write_gzip(enriched_path, probability.attach_scores(path.augment_events(events), scores))
+    enriched = ReplayTape(enriched_path, enriched_count)
+    del scores  # Joined values are now on the tape; do not retain the score-map cache.
     all_summary, all_daily, panels = [], [], []
     for name, parameters in SCENARIOS:
         print("replaying " + name, flush=True)

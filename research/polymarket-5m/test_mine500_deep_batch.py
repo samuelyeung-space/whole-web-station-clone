@@ -35,6 +35,44 @@ def test_overlap_not_deduplicated_silently(tmp_path):
     with pytest.raises(ValueError,match='overlapping'):batch.combine_inputs([a,b])
 
 
+def test_streamed_merge_is_reentrant_and_serialized_event_identical(tmp_path):
+    records=[dict(type='market',market_id='m',recv_ms=DAY,start_ms=DAY,end_ms=DAY+300000,label_source='gamma'),
+        dict(type='book',market_id='m',recv_ms=DAY+1000,up_asks=[[.4,10]],down_asks=[[.7,10]],fee_rate=.07),
+        dict(type='decision',market_id='m',recv_ms=DAY+1000,features={'tau_s':299,'mid_up':.6},
+             feature_available_ms={'tau_s':DAY+1000,'mid_up':DAY+1000}),
+        dict(type='outcome',market_id='m',recv_ms=DAY+400000,resolved_ms=DAY+300000,winner='Up',source='gamma')]
+    source=tape(tmp_path,'source',records=records)
+    old,old_audit=batch.combine_inputs([source])
+    streamed,streamed_audit=batch.combine_inputs([source],materialize_output=tmp_path/'streamed.jsonl.gz')
+    assert isinstance(streamed,batch.ReplayTape)
+    assert len(streamed)==len(old)
+    # JSON canonicalization turns only the internal header interval tuples into
+    # JSON arrays, exactly as the old write_gzip path already did.
+    expected=[json.loads(json.dumps(row)) for row in old]
+    assert list(streamed)==expected
+    assert list(streamed)==expected
+    assert streamed_audit==old_audit
+    batch.write_gzip(tmp_path/'old.jsonl.gz',old)
+    assert batch.digest(tmp_path/'old.jsonl.gz')==batch.digest(tmp_path/'streamed.jsonl.gz')
+    old_enriched=list(batch.probability.attach_scores(batch.path.augment_events(old),{}))
+    count=batch.write_gzip(tmp_path/'enriched.jsonl.gz',batch.probability.attach_scores(batch.path.augment_events(streamed),{}))
+    enriched=batch.ReplayTape(tmp_path/'enriched.jsonl.gz',count)
+    assert list(enriched)==[json.loads(json.dumps(row)) for row in old_enriched]
+    assert len(enriched)==len(old_enriched)
+    batch.write_gzip(tmp_path/'old_enriched.jsonl.gz',old_enriched)
+    assert batch.digest(tmp_path/'old_enriched.jsonl.gz')==batch.digest(tmp_path/'enriched.jsonl.gz')
+
+
+def test_streaming_still_validates_records_and_never_overwrites_source(tmp_path):
+    source=tape(tmp_path,'source',records=[dict(type='book',market_id='m',recv_ms=DAY+3000)])
+    before=batch.digest(source)
+    with pytest.raises(ValueError,match='overwrite'):
+        batch.combine_inputs([source],materialize_output=source)
+    assert batch.digest(source)==before
+    with pytest.raises(ValueError,match='own recording'):
+        batch.combine_inputs([source],materialize_output=tmp_path/'bad.jsonl.gz')
+
+
 def test_duplicate_decision_rejected(tmp_path):
     d=dict(type='decision',market_id='m',recv_ms=DAY+1000)
     a=tape(tmp_path,'a',records=[d,d])

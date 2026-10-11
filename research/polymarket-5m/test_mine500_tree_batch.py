@@ -28,6 +28,7 @@ def test_registration_is_on_disk_before_fit_and_overwrite_refused(tmp_path, monk
     class AfterRegistration(Exception):
         pass
     def stop(*args, **kwargs):
+        assert isinstance(args[0], batch.common.ReplayTape)
         registration = json.loads((out / "registration.json").read_text())
         assert len(registration["candidates"]) == registration["new_trials"] == 12
         assert registration["cumulative_mine500_trial_lower_bound"] == 772
@@ -36,6 +37,7 @@ def test_registration_is_on_disk_before_fit_and_overwrite_refused(tmp_path, monk
         assert len(registration["scenarios"]) == 4
         assert not (out / "fit_folds.json").exists()
         assert registration["input_hashes"]
+        assert registration['combined_tape']['sha256'] == batch.common.digest(out/'combined_input.jsonl.gz')
         assert set(batch.DEPENDENCY_NAMES) == set(registration["code_hashes"])
         raise AfterRegistration
     monkeypatch.setattr(batch.tree, "train_forward_days", stop)
@@ -128,3 +130,32 @@ def test_input_mutation_invalidates_outputs_without_completion(tmp_path, monkeyp
         batch.run([source], out)
     assert (out / "invalidated_run.json").exists()
     assert not (out / "completion.json").exists()
+
+
+def test_streamed_enrichment_all_content_equals_list_reference_and_is_reentrant(tmp_path):
+    source = tape(tmp_path)
+    reference, _ = batch.common.combine_inputs([source])
+    materialized, _ = batch.common.combine_inputs(
+        [source], materialize_output=tmp_path/'combined.jsonl.gz')
+    model = batch.tree.MODEL_IDS[0]
+    scores = {('m', DAY+1000, model): {
+        'p_up': .6, 'model_fit_ms': DAY, 'feature_available_ms': DAY+1000}}
+    # JSON preserves interval tuples as arrays; compare the complete wire data.
+    expected = json.loads(json.dumps(list(batch.tree.attach_scores(reference, scores))))
+    actual = batch.materialize_enrichment(materialized, scores, tmp_path/'enriched.jsonl.gz')
+    assert isinstance(actual, batch.common.ReplayTape)
+    assert len(actual) == len(reference)
+    assert list(actual) == expected
+    assert list(actual) == expected  # replay can re-open without caching events
+    batch.common.write_gzip(tmp_path/'reference.jsonl.gz', expected)
+    assert (tmp_path/'reference.jsonl.gz').read_bytes() == (tmp_path/'enriched.jsonl.gz').read_bytes()
+
+
+def test_materialized_count_cannot_hide_truncated_event_sequence(tmp_path):
+    source = tape(tmp_path)
+    reference, _ = batch.common.combine_inputs([source])
+    reference = json.loads(json.dumps(reference))
+    batch.common.write_gzip(tmp_path/'truncated.jsonl.gz', reference[:-1])
+    forged_count = batch.common.ReplayTape(tmp_path/'truncated.jsonl.gz', len(reference))
+    with pytest.raises(ValueError, match='actual event count'):
+        batch.validate_enrichment(reference, forged_count)

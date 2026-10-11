@@ -11,6 +11,7 @@ import csv
 from dataclasses import asdict
 from datetime import datetime, timezone
 import importlib.metadata
+from itertools import zip_longest
 import math
 from pathlib import Path
 
@@ -76,13 +77,28 @@ def validate_scores(events, scores, candidates):
 def validate_enrichment(events, enriched):
     if len(events) != len(enriched):
         raise ValueError("score attachment changed event count")
-    for original, attached in zip(events, enriched):
+    sentinel = object()
+    observed = 0
+    for original, attached in zip_longest(events, enriched, fillvalue=sentinel):
+        if original is sentinel or attached is sentinel:
+            raise ValueError("score attachment changed actual event count")
+        observed += 1
         if original["type"] != "decision":
             if original != attached:
                 raise ValueError("score attachment changed a nondecision event")
         elif any(attached.get(k) != v for k, v in original.items()
                  if k not in ("features", "feature_available_ms")):
             raise ValueError("score attachment changed decision identity")
+    if observed != len(events):
+        raise ValueError("materialized tape count disagrees with actual events")
+
+
+def materialize_enrichment(events, scores, path):
+    """Persist one event at a time, then validate by two bounded-memory readers."""
+    count = common.write_gzip(path, tree.attach_scores(events, scores))
+    enriched = common.ReplayTape(path, count)
+    validate_enrichment(events, enriched)
+    return enriched
 
 
 def write_metrics_csv(filename, rows):
@@ -97,7 +113,8 @@ def write_metrics_csv(filename, rows):
 def run(inputs, output):
     output = Path(output)
     output.mkdir(parents=True, exist_ok=False)
-    events, input_audit = common.combine_inputs(inputs)
+    combined_path = output / "combined_input.jsonl.gz"
+    events, input_audit = common.combine_inputs(inputs, materialize_output=combined_path)
     candidates = tree.make_candidates()
     if (len(candidates) != 12 or len({c["id"] for c in candidates}) != 12
             or any(not c["id"].startswith("MPT") for c in candidates)):
@@ -113,6 +130,9 @@ def run(inputs, output):
                       for name, params in SCENARIOS],
         "input_hashes": input_audit["input_hashes"], "code_hashes": code_hashes(),
         "dependency_versions": dependency_versions(), "consumed_decision_days": CONSUMED_DAYS,
+        "event_storage": "reentrant_gzip_disk_tapes_without_full_event_lists",
+        "combined_tape": {"path": str(combined_path.resolve()), "events": len(events),
+                          "sha256": common.digest(combined_path)},
         "formal_oos_results": None, "existing_holdout_protocols_modified": False,
         "shared_panel_policy": "earliest signal among all twelve from uncensored intents; candidate ID breaks ties; failed first consumes market; shared $1000 ledger",
         "intent_generation_cash_ceiling_usd": 1e12,
@@ -128,9 +148,15 @@ def run(inputs, output):
                                             input_hashes=input_audit["input_hashes"])
     common.write_json(output / "fit_folds.json", folds)
     common.write_json(output / "score_audit.json", validate_scores(events, scores, candidates))
-    enriched = list(tree.attach_scores(events, scores))
-    validate_enrichment(events, enriched)
-    common.write_gzip(output / "enriched_development_events.jsonl.gz", enriched)
+    enriched_path = output / "enriched_development_events.jsonl.gz"
+    enriched = materialize_enrichment(events, scores, enriched_path)
+    materialized_hashes = {str(combined_path.resolve()): registration["combined_tape"]["sha256"],
+                          str(enriched_path.resolve()): common.digest(enriched_path)}
+    common.write_json(output / "materialization_audit.json", {
+        "storage": "streamed_reentrant_gzip_tapes", "combined_events": len(events),
+        "enriched_events": len(enriched), "sha256": materialized_hashes,
+        "event_identity_and_nondecision_content_verified": True})
+    del scores, folds
     metrics, daily, panels = [], [], []
     for name, params in SCENARIOS:
         print("tree replay: " + name, flush=True)
@@ -155,7 +181,8 @@ def run(inputs, output):
     common.write_json(output / "shared_cash_panels.json", panels)
     current_inputs = {filename: common.digest(filename) for filename in input_audit["input_hashes"]}
     if (code_hashes() != registration["code_hashes"] or current_inputs != registration["input_hashes"]
-            or dependency_versions() != registration["dependency_versions"]):
+            or dependency_versions() != registration["dependency_versions"]
+            or any(common.digest(path) != sha for path, sha in materialized_hashes.items())):
         common.write_json(output / "invalidated_run.json", {"reason": "registered_code_input_or_dependency_changed",
                                                               "formal_oos_result": None})
         raise ValueError("registered code, input or dependency changed during execution")
