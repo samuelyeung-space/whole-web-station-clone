@@ -2,7 +2,7 @@
 
 事先写死（10 月 1 日 02:00 UTC，数据还没录）：2026-10-01 02:30 UTC 起开始的 BTC 5m 市场；规则同检验 F（币安逐笔成交 2σ 触发、0.3 秒后按卖一、公平价 − 卖一 − 手续费 ≥ 12¢、每个市场第一笔、持有到结算），另外：触发前 2 秒内 Up 中间价已经朝要买的方向动了 3¢ 或更多（或 2 秒前没有报价）就跳过这个候选。这个条件在 5 月 25 日–7 月 15 日上定（没动的 +5.5¢、已动的 +0.4¢），之后两段核对（B +7.8/+6.1¢，C +13.1/+3.1¢）。按触发时间取前 600 笔判定一次，EV > 0 且精确 p < 0.025 才算通过。数据处理同检验 C、D、F。
 
-录制段 34 个，成交 365 笔。
+录制段 42 个，成交 444 笔。
 
 录制段备注（跳过的和断线检查）：
 
@@ -36,9 +36,17 @@
 - btc 37586562398: 9755 candidates dropped because the CLOB socket closed between the quote and the order (289 disconnects in the recording; test C counts its judged lag only)
 - btc 37621711008: 6329 candidates dropped because the CLOB socket closed between the quote and the order (356 disconnects in the recording; test C counts its judged lag only)
 - btc 37663361030: 1813 candidates dropped because the CLOB socket closed between the quote and the order (260 disconnects in the recording; test C counts its judged lag only)
+- btc 37702189414: 1448 candidates dropped because the CLOB socket closed between the quote and the order (230 disconnects in the recording; test C counts its judged lag only)
+- btc 37729957174: 2242 candidates dropped because the CLOB socket closed between the quote and the order (230 disconnects in the recording; test C counts its judged lag only)
+- btc 37764001551: 5094 candidates dropped because the CLOB socket closed between the quote and the order (361 disconnects in the recording; test C counts its judged lag only)
+- btc 37806403126: 3877 candidates dropped because the CLOB socket closed between the quote and the order (338 disconnects in the recording; test C counts its judged lag only)
+- btc 37847134073: 1855 candidates dropped because the CLOB socket closed between the quote and the order (240 disconnects in the recording; test C counts its judged lag only)
+- btc 37875151310: 1763 candidates dropped because the CLOB socket closed between the quote and the order (235 disconnects in the recording; test C counts its judged lag only)
+- btc 37903011520: 3499 candidates dropped because the CLOB socket closed between the quote and the order (236 disconnects in the recording; test C counts its judged lag only)
+- btc 37938384834: 2773 candidates dropped because the CLOB socket closed between the quote and the order (231 disconnects in the recording; test C counts its judged lag only)
 
 | 笔数 | 胜率 | 平均价 | EV | p | 卖一数量中位 |
 |---|---|---|---|---|---|
-| 365 | 50.7% | 0.390 | +10.43¢ | 0.0000 | 49 |
+| 444 | 51.4% | 0.386 | +11.50¢ | 0.0000 | 49 |
 
-检验 G（前 600 笔）：目前 365 笔，不到 600 笔，不判定。
+检验 G（前 600 笔）：目前 444 笔，不到 600 笔，不判定。
