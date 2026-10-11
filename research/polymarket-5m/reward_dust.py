@@ -594,7 +594,13 @@ def fetch_btc5m_markets(http: Any, day_start_s: int, *, batch: int = 100) -> lis
         if previous != row:
             raise ValueError(f"conflicting Gamma identity for {row.get('slug')}")
     for start in sorted(set(expected) - set(by_start)):
-        recovered = pm_outcomes.fetch_batch([pm_outcomes.slug("5m", start)], get=http.get)
+        slug = pm_outcomes.slug("5m", start)
+        event = http.get(f"{pm_outcomes.GAMMA}/slug/{slug}")
+        recovered = (
+            [pm_outcomes.parse_event(event)]
+            if isinstance(event, dict) and event.get("markets")
+            else []
+        )
         for row in recovered:
             recovered_start = int(row["T"])
             previous = by_start.setdefault(recovered_start, row)

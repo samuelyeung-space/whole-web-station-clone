@@ -178,6 +178,8 @@ def test_market_fetch_fails_closed_when_gamma_omits_one_slot():
 
     class FakeHttp:
         def get(self, url):
+            if "/slug/" in url:
+                return {}
             slugs = parse_qs(urlparse(url).query)["slug"]
             rows = [_event(int(slug.rsplit("-", 1)[1])) for slug in slugs]
             return rows[1:] if len(slugs) < 100 else rows
@@ -194,6 +196,8 @@ def test_market_fetch_recovers_a_transient_partial_batch_with_singleton_lookup()
     class FakeHttp:
         def get(self, url):
             calls.append(url)
+            if "/slug/" in url:
+                return _event(int(url.rsplit("-", 1)[1]))
             slugs = parse_qs(urlparse(url).query)["slug"]
             rows = [_event(int(slug.rsplit("-", 1)[1])) for slug in slugs]
             if len(slugs) > 1:

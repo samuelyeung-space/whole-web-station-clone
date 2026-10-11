@@ -9,5 +9,5 @@
 #       | momentum5s (frozen zoo100 #27 on every retained post-freeze BTC recording)
 #       | dustchain (Family 31 parent-order upper bound from pinned raw V2 chain events)
 #       | cross (cross.py on BTC 5m/15m/1h books from Hugging Face; "cross: probe" lists the tables first)
-requested: 2026-10-11T04:13:11Z retry conservative Family 31 after recovering Gamma's transient partial multi-slug responses
+requested: 2026-10-11T04:17:25Z retry conservative Family 31 with Gamma's independent slug endpoint for missing historical markets
 mode: dustchain
