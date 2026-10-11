@@ -1,0 +1,54 @@
+name: polymarket-historical100-preflight
+
+on:
+  push:
+    branches: [codex/btc5m-mine500-20261010]
+    paths: [.github/workflows/polymarket-historical100-preflight.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: historical100-preflight
+  cancel-in-progress: false
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12.14'
+      - name: Install exact frozen-model runtime
+        run: python -m pip install numpy==2.5.3 scikit-learn==1.9.1 joblib==1.6.0 pandas scipy pyarrow requests
+      - name: Verify model and historical input access
+        working-directory: research/polymarket-5m
+        run: |
+          mkdir -p "$RUNNER_TEMP/historical100-preflight"
+          python - <<'PY'
+          from pathlib import Path
+          import os, json, hashlib, sys
+          import mix_forward, mix_hf, cross
+          out=Path(os.environ['RUNNER_TEMP'])/'historical100-preflight'
+          manifest=cross.fetch('MANIFEST.txt')
+          (out/'MANIFEST.txt').write_bytes(manifest)
+          arcs=cross.archives(manifest.decode())
+          selected=[(n,s) for n,s in arcs if '2026-07-16' <= n[len('market_parquet_'):len('market_parquet_')+10] <= '2026-08-29']
+          scorer=mix_forward.load_scorer('real/cross-mix-frozen.json')
+          result=dict(model_loaded=True,python=sys.version,archives=len(arcs),test_archives=selected,
+              manifest_sha256=hashlib.sha256(manifest).hexdigest(),new_backtests=0)
+          (out/'preflight.json').write_text(json.dumps(result,indent=2))
+          print(json.dumps(result,indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: historical100-preflight-${{ github.run_id }}
+          path: ${{ runner.temp }}/historical100-preflight
+          if-no-files-found: warn
+          retention-days: 30
