@@ -133,6 +133,9 @@ jobs:
             > "$RUNNER_TEMP/paper/bundle-btc/strict/current-h-audit.json"
           python h_source_race.py --archive "$RUNNER_TEMP/paper/bundle-btc" \
             > "$RUNNER_TEMP/paper/bundle-btc/strict/current-h-source-race.json"
+          python complement_queue_lag.py --archive "$RUNNER_TEMP/paper/bundle-btc" \
+            --rows-out "$RUNNER_TEMP/paper/bundle-btc/strict/complement-queue-lag-rows.jsonl" \
+            > "$RUNNER_TEMP/paper/bundle-btc/strict/complement-queue-lag.json"
           configured=" ${{ steps.cfg.outputs.coins }} "
           cross_asset_ready=true
           for c in btc eth sol xrp doge; do
