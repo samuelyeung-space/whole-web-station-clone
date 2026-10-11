@@ -15,14 +15,17 @@ from __future__ import annotations
 import argparse
 import gzip
 import hashlib
+import json
 import math
+import ssl
 import urllib.request
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, Iterable, Mapping
+from typing import Any, Callable, Iterable, Mapping
 
+import certifi
 import numpy as np
 import pandas as pd
 
@@ -45,6 +48,13 @@ MAX_SNAPSHOT_LAG_MS = 100
 BOOK_CHANGE_WINDOW_MS = 2_000
 MULTIPLE_TESTS = 100
 ALPHA = 0.01
+CONDITIONAL_TOKENS_ADDRESS = "0x4D97DCd97eC945f40cF65F87097ACe5EA0476045"
+PAYOUT_DENOMINATOR_SELECTOR = "0xdd34de67"
+PAYOUT_NUMERATORS_SELECTOR = "0x0504c814"
+POLYGON_RPC_URLS = (
+    "https://polygon-bor-rpc.publicnode.com",
+    "https://polygon.drpc.org",
+)
 BOOK_DATASET = cross.DS
 BOOK_START = "2026-07-02"
 BOOK_END = "2026-08-29"
@@ -339,11 +349,104 @@ def dedupe_parent_buys(events: Iterable[wl.ParentBuy]) -> list[wl.ParentBuy]:
     )
 
 
-def fetch_token_maps(http: Any) -> dict[date, dict[str, wl.TokenMeta]]:
+def certified_json_post(url: str, payload: Mapping[str, Any]) -> Any:
+    request = urllib.request.Request(
+        url,
+        data=json.dumps(payload, separators=(",", ":")).encode(),
+        headers={
+            "Content-Type": "application/json",
+            "User-Agent": "polymarket-wallet-lead/1.0",
+        },
+    )
+    context = ssl.create_default_context(cafile=certifi.where())
+    with urllib.request.urlopen(request, timeout=30, context=context) as response:
+        return json.loads(response.read())
+
+
+def _eth_call(
+    post: Callable[[str, Mapping[str, Any]], Any],
+    rpc_url: str,
+    data: str,
+) -> int:
+    payload = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "eth_call",
+        "params": [
+            {"to": CONDITIONAL_TOKENS_ADDRESS, "data": data},
+            "latest",
+        ],
+    }
+    response = post(rpc_url, payload)
+    if not isinstance(response, Mapping) or response.get("error") is not None:
+        raise ValueError("Polygon RPC returned an eth_call error")
+    result = response.get("result")
+    if not isinstance(result, str) or not result.startswith("0x"):
+        raise ValueError("Polygon RPC returned an invalid eth_call result")
+    return int(result, 16)
+
+
+def resolve_condition_up(
+    condition_id: str,
+    up_index: int,
+    *,
+    post: Callable[[str, Mapping[str, Any]], Any] = certified_json_post,
+    rpc_urls: tuple[str, ...] = POLYGON_RPC_URLS,
+) -> bool | None:
+    """Resolve a stale Gamma binary outcome from official CTF payouts."""
+    condition_hex = condition_id.removeprefix("0x")
+    if len(condition_hex) != 64 or any(
+        character not in "0123456789abcdefABCDEF" for character in condition_hex
+    ):
+        raise ValueError("condition id must be bytes32 hex")
+    if up_index not in (0, 1):
+        raise ValueError("Up outcome index must be 0 or 1")
+    condition_word = condition_hex.lower()
+    last_error: Exception | None = None
+    for rpc_url in rpc_urls:
+        try:
+            denominator = _eth_call(
+                post,
+                rpc_url,
+                PAYOUT_DENOMINATOR_SELECTOR + condition_word,
+            )
+            if denominator == 0:
+                return None
+            payouts = tuple(
+                _eth_call(
+                    post,
+                    rpc_url,
+                    PAYOUT_NUMERATORS_SELECTOR
+                    + condition_word
+                    + f"{index:064x}",
+                )
+                for index in (0, 1)
+            )
+            if sum(payouts) != denominator:
+                raise ValueError("binary CTF payouts do not sum to denominator")
+            if payouts[up_index] == denominator:
+                return True
+            if payouts[up_index] == 0:
+                return False
+            return None
+        except Exception as exc:
+            last_error = exc
+    raise RuntimeError("all Polygon payout RPC endpoints failed") from last_error
+
+
+def fetch_token_maps(
+    http: Any,
+    *,
+    outcome_resolver: Callable[[str, int], bool | None] | None = None,
+) -> dict[date, dict[str, wl.TokenMeta]]:
     result: dict[date, dict[str, wl.TokenMeta]] = {}
     for offset in range(DAYS + 1):
         day = HISTORY_SEED_DAY + timedelta(days=offset)
-        markets = reward_dust.fetch_btc5m_markets(http, _day_start(day))
+        markets = reward_dust.fetch_btc5m_markets(
+            http,
+            _day_start(day),
+            resolve_unsettled=outcome_resolver,
+        )
         tokens: dict[str, wl.TokenMeta] = {}
         for market in markets:
             token_sides: tuple[tuple[str, wl.Side], ...] = (
@@ -669,6 +772,7 @@ def render_report(
     chain_manifest_sha256: str,
     book_manifest_sha256: str,
     book_files: int,
+    onchain_outcome_fallbacks: int = 0,
 ) -> str:
     passed, reason = promotion_verdict(summary, chain_finalized=chain_finalized)
     lines = [
@@ -717,6 +821,7 @@ def render_report(
         "## 来源与审计边界",
         "",
         f"- 链事件：{CHAIN_DATASET} 原始逐日 OrderFilled，固定 revision {chain_revision}，{chain_files} 个 Parquet；LFS 清单 SHA-256 {chain_manifest_sha256}；远程实际读取 {chain_fetched_bytes / 1e6:.1f} MB。",
+        f"- Gamma 未终结但 CTF 已终结的市场：{onchain_outcome_fallbacks} 个；结果由官方 Conditional Tokens payout numerator/denominator 恢复。",
         "- 吃单身份只认 CTF Exchange V2 parent 行：taker 为交易所合约、maker_direction=BUY；逐 maker 成交行不作钱包信号。",
         f"- 链源最终性账本：{'通过' if chain_finalized else '未证明；结果因此只能作历史诊断'}。",
         f"- 盘口：{BOOK_DATASET}，{book_files} 个逐日档；MANIFEST SHA-256 {book_manifest_sha256}。",
@@ -741,7 +846,18 @@ def run_audit(workdir: Path, out: Path, csv_out: Path) -> pd.DataFrame:
         opener=reward_dust.certified_json_get,
         tries=7,
     )
-    token_maps = fetch_token_maps(http)
+    payout_outcomes: dict[tuple[str, int], bool] = {}
+
+    def resolve_outcome(condition_id: str, up_index: int) -> bool | None:
+        key = (condition_id, up_index)
+        if key not in payout_outcomes:
+            outcome = resolve_condition_up(condition_id, up_index)
+            if outcome is None:
+                return None
+            payout_outcomes[key] = outcome
+        return payout_outcomes[key]
+
+    token_maps = fetch_token_maps(http, outcome_resolver=resolve_outcome)
 
     metadata = reward_dust.certified_json_get(
         f"{CHAIN_API}/{CHAIN_DATASET}/revision/{CHAIN_REVISION}?blobs=true"
@@ -830,6 +946,7 @@ def run_audit(workdir: Path, out: Path, csv_out: Path) -> pd.DataFrame:
         chain_manifest_sha256=chain_manifest_sha256,
         book_manifest_sha256=book_manifest_sha256,
         book_files=len(book_files),
+        onchain_outcome_fallbacks=len(payout_outcomes),
     )
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(report, encoding="utf-8")

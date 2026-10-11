@@ -577,7 +577,13 @@ def validate_complete_day(day_start_s: int, market_starts: list[int]) -> list[in
     return expected
 
 
-def fetch_btc5m_markets(http: Any, day_start_s: int, *, batch: int = 100) -> list[MarketMeta]:
+def fetch_btc5m_markets(
+    http: Any,
+    day_start_s: int,
+    *,
+    batch: int = 100,
+    resolve_unsettled: Callable[[str, int], bool | None] | None = None,
+) -> list[MarketMeta]:
     expected = list(range(day_start_s, day_start_s + SECONDS_PER_DAY, MARKET_SECONDS))
     slugs = [pm_outcomes.slug("5m", start) for start in expected]
     raw: list[dict[str, Any]] = []
@@ -616,6 +622,13 @@ def fetch_btc5m_markets(http: Any, day_start_s: int, *, batch: int = 100) -> lis
         up = row.get("up")
         if not condition_id or not token_up or not token_down:
             raise ValueError(f"incomplete Gamma identity for {row.get('slug')}")
+        if up not in (0.0, 1.0) and resolve_unsettled is not None:
+            resolved_up = resolve_unsettled(
+                str(condition_id),
+                int(row.get("up_index", -1)),
+            )
+            if isinstance(resolved_up, bool):
+                up = float(resolved_up)
         if up not in (0.0, 1.0):
             raise ValueError(f"unresolved Gamma outcome for {row.get('slug')}")
         markets.append(

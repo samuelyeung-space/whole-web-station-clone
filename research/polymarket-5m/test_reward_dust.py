@@ -211,6 +211,36 @@ def test_market_fetch_recovers_a_transient_partial_batch_with_singleton_lookup()
     assert markets[-1].start_s == omitted
 
 
+def test_market_fetch_uses_authoritative_fallback_for_stale_gamma_outcome():
+    start = 1_791_590_400
+    stale = start + 17 * 300
+    resolved = []
+
+    class FakeHttp:
+        def get(self, url):
+            slugs = parse_qs(urlparse(url).query)["slug"]
+            rows = [_event(int(slug.rsplit("-", 1)[1])) for slug in slugs]
+            for row in rows:
+                if int(row["slug"].rsplit("-", 1)[1]) == stale:
+                    row["markets"][0]["outcomePrices"] = json.dumps(["0.005", "0.995"])
+            return rows
+
+    def resolve_unsettled(condition_id, up_index):
+        resolved.append((condition_id, up_index))
+        return True
+
+    markets = dust.fetch_btc5m_markets(
+        FakeHttp(),
+        start,
+        batch=100,
+        resolve_unsettled=resolve_unsettled,
+    )
+
+    assert len(markets) == 288
+    assert markets[17].up_won is True
+    assert resolved == [(f"condition-{stale}", 1)]
+
+
 def test_certified_json_get_passes_an_explicit_ca_context(monkeypatch):
     seen = {}
 

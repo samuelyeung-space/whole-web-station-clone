@@ -293,6 +293,29 @@ def test_unfinalized_chain_source_can_never_promote():
     assert "finality" in reason
 
 
+def test_ctf_payout_resolver_recovers_up_outcome_from_binary_condition():
+    calls = []
+
+    def post(url, payload):
+        calls.append((url, payload))
+        data = payload["params"][0]["data"]
+        if data.startswith(scan.PAYOUT_DENOMINATOR_SELECTOR):
+            return {"jsonrpc": "2.0", "id": 1, "result": hex(1)}
+        index = int(data[-64:], 16)
+        return {"jsonrpc": "2.0", "id": 1, "result": hex(1 if index == 0 else 0)}
+
+    up_won = scan.resolve_condition_up(
+        "0x" + "ab" * 32,
+        0,
+        post=post,
+        rpc_urls=("https://polygon.example",),
+    )
+
+    assert up_won is True
+    assert len(calls) == 3
+    assert all(call[1]["method"] == "eth_call" for call in calls)
+
+
 def test_book_manifest_requires_and_preserves_every_frozen_day():
     lines = ["# file sha256 bytes"]
     for offset in range(scan.DAYS):
