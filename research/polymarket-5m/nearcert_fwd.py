@@ -61,21 +61,21 @@ undetermined and retried, while Gamma gives none):
 Side and entry
 - The token whose model probability is in [0.95, 0.99); none if the favourite is below 0.95 or at or
   above 0.99.
-- Bought at te = t + 0.5 s (exchange time) at the best ask of the token's book row as of te (the last
-  row stamped <= te; no later row is read), if the ask is in [0.02, 0.98] with >= 5 shares there;
+- Bought at te = t + 0.5 s on the local receipt clock at the best ask of the token's last book row
+  received <= te; exchange timestamps are audit-only. No row received later is read. The ask must be
+  in [0.02, 0.98] with >= 5 shares there;
   taker fee uses that market's recorded fee rate (0.07 fallback) times p (1 - p); one share per entry
   (equal weight).
 - (*) "Book state at most 5 s old and feed alive": the recorder writes a row only when a token's top
   of book changes, so a token's own last row may be minutes old and still the exchange's state; what
-  must be fresh is the feed: from the time the recorder last had that state confirmed to te the feed
+  must be fresh is the feed: from the time the recorder received that state to te the feed
   never went more than 5 s without a book row of any token, the last at most 5 s before te, and no
-  CLOB disconnect (recorder clock) in [te - 10 s, te + 1 s]; else stale. Confirmed = the row's own time,
-  or its receipt time when it arrived more than 5 s after its exchange stamp (the snapshot sent on
-  (re)subscribing carries the time of the book's last change, up to half an hour before the
-  connection), raised to the first book row after the latest CLOB disconnect before te (the
-  resubscription snapshot: a book that did not change produces no new row, its old row is then
-  confirmed). A state received after te is stale. Every row's time in the feed-silence check is that
-  same confirmed time. The entries whose own row was <= 5 s old are reported apart.
+  CLOB disconnect (recorder clock) in [te - 10 s, te + 1 s]; else stale. Confirmation starts at the
+  row's local receipt time and is raised to the first locally received book row after the latest CLOB
+  disconnect before te (the resubscription snapshot: a book that did not change produces no new row,
+  its old row is then confirmed). A state received after te is unavailable. Every row's time in the
+  feed-silence check is its local receipt time. The entries whose own row was received <= 5 s earlier
+  are reported apart.
 - Held to the official result: Gamma /markets?closed=true&condition_ids=... once the market has
   ended; a closed market's outcomePrices (umaResolutionStatus "resolved" when given; 50-50 pays 0.5).
   Not yet closed or resolved: pending, counted. Per-share pnl = result - ask - fee; means with
@@ -136,7 +136,6 @@ FEE = 0.07                  # fallback only; each market's recorded rate takes p
 SIGMA_S = 3600
 SPOT_ALIVE = 5.0          # last Binance trade before t at most this old
 FEED_AGE = 5.0            # CLOB feed: no silence longer than this from the token's row to te
-SNAP_LAG = 5.0            # a book row received this long after its exchange stamp counts from its receipt
 CLOSE_WIN = (10.0, 1.0)   # no CLOB disconnect in [te - 10, te + 1]
 HIT_GAP = 30.0            # hit coverage: longest allowed hole (pre_at -> first trade, between trades)
 N_VERDICT = 300
@@ -470,7 +469,7 @@ class Klines:
 # ===================================================================== one recording
 
 class Rec:
-    """One built recording: receipt-time Binance trades, exchange-time token books, and feed health."""
+    """One built recording: receipt-ordered Binance trades and token books, plus feed health."""
 
     def __init__(self, name, books, markets, spot, closes=None):
         self.name, self.markets = name, markets
@@ -498,16 +497,16 @@ class Rec:
             self.c2 = np.r_[0.0, np.cumsum(lr * lr)]
             self.ch = np.r_[0, np.cumsum(self.have)]
             self.n = n
-        # when the recorder had each book row's state: its exchange stamp, or its receipt when it came more
-        # than SNAP_LAG later (the (re)subscription snapshot carries the time of the book's last change)
-        ts_all = books["ts"].to_numpy(float) if len(books) else np.array([])
-        recv = pd.to_numeric(books["recv"], errors="coerce").to_numpy(float) if "recv" in books else ts_all
-        eff = np.where(np.isfinite(recv) & (recv - ts_all > SNAP_LAG), recv, ts_all)
+        recv = pd.to_numeric(books["recv"], errors="coerce") if "recv" in books else \
+            pd.Series(NAN, index=books.index)
+        ordered_books = books.assign(_recv=recv)
+        ordered_books = ordered_books[np.isfinite(ordered_books["_recv"])] \
+            .sort_values("_recv", kind="stable")
         self.toks = {}
-        for tok, g in books.assign(_eff=eff).groupby("market_id", sort=False):
-            self.toks[str(tok)] = (g["ts"].to_numpy(float), g["ask"].to_numpy(float), g["ask_size"].to_numpy(float),
-                                   g["_eff"].to_numpy(float))
-        self.all_ts = np.sort(eff)
+        for tok, g in ordered_books.groupby("market_id", sort=False):
+            self.toks[str(tok)] = (g["_recv"].to_numpy(float), g["ask"].to_numpy(float),
+                                   g["ask_size"].to_numpy(float))
+        self.all_ts = ordered_books["_recv"].to_numpy(float)
         # time of the row ending the latest feed silence > FEED_AGE, up to each row
         gap_end = np.where(np.r_[False, np.diff(self.all_ts) > FEED_AGE], self.all_ts, -np.inf)
         self.silence = np.maximum.accumulate(gap_end) if len(gap_end) else gap_end
@@ -572,18 +571,17 @@ class Rec:
         """(status, ask, ask size, age of the token's row) for a buy at the ask as of te."""
         if tok not in self.toks:
             return "no_book", NAN, NAN, NAN
-        ts, ask, size, eff = self.toks[tok]
-        i = np.searchsorted(ts, te, "right") - 1
+        recv, ask, size = self.toks[tok]
+        i = np.searchsorted(recv, te, "right") - 1
         if i < 0:
             return "no_book", NAN, NAN, NAN
-        p, q, age = float(ask[i]), float(size[i]), float(te - ts[i])
-        seen = float(eff[i])                          # when the recorder had this state
-        stale = seen > te                             # a snapshot received only after te
+        p, q, age = float(ask[i]), float(size[i]), float(te - recv[i])
+        seen = float(recv[i])
         k = np.searchsorted(self.resync, te, "right") - 1
         if k >= 0 and self.resync[k] > seen:          # reconfirmed by the latest resubscription before te
             seen = float(self.resync[k])
         b = np.searchsorted(self.all_ts, te, "right")
-        stale = stale or b == 0 or te - self.all_ts[b - 1] > FEED_AGE or self.silence[b - 1] > seen
+        stale = b == 0 or te - self.all_ts[b - 1] > FEED_AGE or self.silence[b - 1] > seen
         if len(self.closes):
             stale |= np.searchsorted(self.closes, te - CLOSE_WIN[0], "left") != \
                 np.searchsorted(self.closes, te + CLOSE_WIN[1], "right")
@@ -990,7 +988,8 @@ def report(cp, entries, verdict, recs_meta, since, notes=(), dev=None, checks=CH
           "日/周/月和描述（ET 零点起，或市场创建起），年度等其他窗口剔除；用反射原理，窗口里时点前的最高/最低价 = 窗口开头到事件"
           "startDate 的官方 1 分钟 K 线 + 录制开始时取的 1 分钟 K 线 + 录制的逐笔成交，覆盖不全的跳过。"
           "录制里时点前不足 1 小时币安数据的跳过并计数。",
-          f"- 买入：模型概率在 [{BAND[0]:.2f}, {BAND[1]:.2f}) 的一边，时点后 {ENTRY_LAG:g} 秒的卖一（只看那一刻及之前的盘口），"
+          f"- 买入：模型概率在 [{BAND[0]:.2f}, {BAND[1]:.2f}) 的一边，时点后 {ENTRY_LAG:g} 秒的卖一"
+          "（按记录机本地接收顺序，只看那一刻及之前收到的盘口），"
           f"≥ {MIN_SIZE:g} 份、{ASK_BAND[0]:.2f}–{ASK_BAND[1]:.2f}，按市场记录的吃单费率（缺失才用 {FEE:g}）付费，每次 1 份；"
           f"盘口要“新鲜”：从记录机最后一次确认该代币盘口（它的变化，或重新订阅时的快照）到下单，录制的盘口流从没静默超过 "
           f"{FEED_AGE:g} 秒，下单前后没有断线。",

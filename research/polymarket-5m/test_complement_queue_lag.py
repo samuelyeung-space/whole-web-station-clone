@@ -76,6 +76,54 @@ def test_base_signal_uses_lagging_direct_token_and_exact_400_500ms_execution():
     assert counters["base_signals"] == 1
 
 
+def test_signal_persists_exact_decision_depth_used_for_vwap_and_fee():
+    events = base_events()
+    events[2] = snapshot(
+        DOWN,
+        1,
+        2,
+        [(0.46, 10)],
+        [(0.47, 2), (0.48, 3), (0.49, 10)],
+    )
+    events[-1] = change(DOWN, 100_100, 6, "SELL", 0.48, 3)
+
+    rows, _ = lag.replay(
+        events, mapping(), {MARKET: "Down"}, segment_end_ms=101_000,
+    )
+
+    base = [row for row in rows if row["variant"] == "base"]
+    expected_levels = [
+        {"price": 0.47, "shares": 2.0},
+        {"price": 0.48, "shares": 3.0},
+    ]
+    assert base
+    assert all(row.get("decision_levels") == expected_levels for row in base)
+    assert all(row["decision_vwap"] == pytest.approx(0.476) for row in base)
+    assert all(
+        row["decision_fee"]
+        == pytest.approx(lag._charged_fee([(0.47, 2.0), (0.48, 3.0)], 0.07))
+        for row in base
+    )
+
+
+def test_signal_persists_source_clocks_for_artifact_binding():
+    events = base_events()
+    events[3]["source_ts_ms"] = 99_997.0
+    events[4]["source_ts_ms"] = 99_998.0
+    events[5]["source_ts_ms"] = 99_999.0
+    events[6]["source_ts_ms"] = 100_050.0
+
+    rows, _ = lag.replay(
+        events, mapping(), {MARKET: "Down"}, segment_end_ms=101_000,
+    )
+
+    base = [row for row in rows if row["variant"] == "base"]
+    assert base
+    assert all(row.get("exhausted_source_ms") == 99_999.0 for row in base)
+    assert all(row.get("decision_source_ms") == 100_050.0 for row in base)
+    assert all(row.get("book_source_ms") == 100_050.0 for row in base)
+
+
 def test_same_receipt_complement_update_is_diagnostic_and_never_traded():
     rows, counters = lag.replay(
         base_events(include_same_batch_y=True), mapping(), {MARKET: "Down"},
@@ -321,6 +369,48 @@ def test_physical_reader_rejects_unmarked_logical_price_change(tmp_path):
         }) + "\n")
 
     with pytest.raises(ValueError, match="missing physical_batch_id"):
+        list(lag.iter_physical_clob_events(path))
+
+
+@pytest.mark.parametrize(
+    "protected",
+    [
+        "kind",
+        "recv_ms",
+        "source_ts_ms",
+        "connection_epoch",
+        "seq",
+        "connection_id",
+        "market_id",
+        "physical_batch_id",
+    ],
+)
+def test_physical_reader_rejects_nested_batch_identity_overrides(
+    tmp_path, protected,
+):
+    path = tmp_path / "malicious-batch.jsonl.gz"
+    change_row = {
+        "asset_id": UP,
+        "price": 0.4,
+        "size": 5,
+        "side": "BUY",
+        protected: "forged",
+    }
+    physical = {
+        "kind": "clob_price_change_batch",
+        "recv_ms": 2.0,
+        "source_ts_ms": 2.0,
+        "connection_epoch": 1,
+        "seq": 0,
+        "connection_id": 7,
+        "market_id": MARKET,
+        "physical_batch_id": "real-frame",
+        "changes": [change_row],
+    }
+    with gzip.open(path, "wt", encoding="utf-8") as stream:
+        stream.write(json.dumps(physical) + "\n")
+
+    with pytest.raises(ValueError, match="protected batch field"):
         list(lag.iter_physical_clob_events(path))
 
 

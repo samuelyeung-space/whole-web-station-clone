@@ -64,8 +64,9 @@ def sigma_np(spot, t, w=3600):
     return float(np.diff(np.log(grid.loc[t - w - 1:t - 1].to_numpy())).std(ddof=1))
 
 
-def row(tok, ts, ask, size=100.0, bid=None):
-    return [tok, ts, ts + 0.05, (ask - 0.01) if bid is None else bid, ask, 50.0, size, 0.01, np.nan, np.nan]
+def row(tok, ts, ask, size=100.0, bid=None, recv=None):
+    return [tok, ts, ts + 0.05 if recv is None else recv, (ask - 0.01) if bid is None else bid, ask, 50.0, size,
+            0.01, np.nan, np.nan]
 
 
 def filler(t0, t1, step=1.0):
@@ -319,7 +320,7 @@ def test_entry_uses_only_the_book_as_of_entry_time(tmp_path):
     K = strike(0.97, T10, TAU10, SPOT)
     ms = [mkt(c, "above", lo=K) for c in ("A1", "A2", "A3", "A4", "A5")]
     books = [row("A1Y", T10 - 30, 0.96), row("A1Y", TE + 0.001, 0.50),     # a later row is not read
-             row("A2Y", T10 - 30, 0.96), row("A2Y", TE, 0.97),             # a row stamped at te is
+             row("A2Y", T10 - 30, 0.96), row("A2Y", TE, 0.97, recv=TE),    # a row received at te is
              row("A3Y", TE + 0.2, 0.96),                                   # nothing before te
              row("A4Y", T10 - 30, 0.985),                                   # above 0.98
              row("A5Y", T10 - 30, 0.96, size=4.0)]                          # under 5 shares
@@ -327,12 +328,34 @@ def test_entry_uses_only_the_book_as_of_entry_time(tmp_path):
     got = {c: (at10(rows, c)["status"], at10(rows, c)["ask"]) for c in ("A1", "A2", "A4", "A5")}
     assert got == {"A1": ("trade", 0.96), "A2": ("trade", 0.97), "A4": ("ask_band", 0.985), "A5": ("ask_size", 0.96)}
     assert at10(rows, "A3")["status"] == "no_book"
-    assert at10(rows, "A1")["age"] == pytest.approx(30.5)
+    assert at10(rows, "A1")["age"] == pytest.approx(30.45)
     # the same entries with every book row after te removed
     cut = pd.read_csv(tmp_path / "r1" / "built" / "books.csv.gz", dtype={"market_id": str})
-    rec2 = nf.Rec("cut", cut[cut["ts"] <= TE], rec.markets, SPOT)
+    rec2 = nf.Rec("cut", cut[cut["recv"] <= TE], rec.markets, SPOT)
     for c in ("A1", "A2", "A3", "A4", "A5"):
         assert rec2.entry(c + "Y", TE)[:3] == pytest.approx(rec.entry(c + "Y", TE)[:3], nan_ok=True)
+
+
+def test_book_update_received_after_entry_horizon_is_unavailable():
+    books = [row("AY", T10 - 1.0, 0.96, size=11.0),
+             row("AY", TE - 0.001, 0.97, size=7.0, recv=TE + 0.001)]
+    rec = nf.Rec("late", pd.DataFrame(books, columns=COLS), pd.DataFrame(), SPOT)
+
+    status, ask, size, age = rec.entry("AY", TE)
+
+    assert status == "trade"
+    assert (ask, size, age) == pytest.approx((0.96, 11.0, 1.45))
+
+
+def test_book_update_received_before_entry_horizon_is_available():
+    books = [row("AY", T10 - 1.0, 0.96, size=11.0),
+             row("AY", TE - 0.002, 0.97, size=7.0, recv=TE - 0.001)]
+    rec = nf.Rec("early", pd.DataFrame(books, columns=COLS), pd.DataFrame(), SPOT)
+
+    status, ask, size, age = rec.entry("AY", TE)
+
+    assert status == "trade"
+    assert (ask, size, age) == pytest.approx((0.97, 7.0, 0.001), abs=1e-6)
 
 
 def test_stale_feed_and_disconnect(tmp_path):
@@ -366,7 +389,7 @@ def test_snapshot_rows_and_resubscription_confirm_a_quiet_book(tmp_path):
                                   [], SPOT, closes=[T10 - 199]))
     assert rec.entry("AY", TE)[:2] == ("trade", 0.96)
     assert rec.entry("CY", TE)[0] == "trade"                 # reconfirmed by the resubscription
-    assert rec.entry("DY", TE)[0] == "stale"                 # its state reached the recorder only after te
+    assert rec.entry("DY", TE)[0] == "no_book"               # its state reached the recorder only after te
     # the same quiet stretch without a disconnect: nothing reconfirms the book -> stale, as before
     rec2 = nf.Rec.load(write_built(tmp_path / "s2" / "built", books + feed + filler(T10 - 400, T10 - 200), [], SPOT))
     assert rec2.entry("CY", TE)[0] == "stale"

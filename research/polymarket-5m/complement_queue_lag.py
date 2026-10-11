@@ -22,6 +22,18 @@ from typing import Any
 import h_replay_archive as archive
 
 _EPS = 1e-9
+_BATCH_ENVELOPE_FIELDS = frozenset(
+    {
+        "kind",
+        "recv_ms",
+        "source_ts_ms",
+        "connection_epoch",
+        "seq",
+        "connection_id",
+        "market_id",
+        "physical_batch_id",
+    }
+)
 _FEE_QUANTUM = Decimal("0.00001")
 _FEE_RATE_072_UNTIL_MS = 1_782_864_000_000
 
@@ -222,6 +234,7 @@ class _Watch:
     exhausted_asset_id: str
     buy_asset_id: str
     exhausted_ms: float
+    exhausted_source_ms: float
     exhausted_order: int
     deadline_ms: float
     fair: float
@@ -241,11 +254,14 @@ class _Signal:
     decision_ms: float
     remaining_s: float
     exhausted_ms: float
+    exhausted_source_ms: float
     exhausted_asset_id: str
     buy_asset_id: str
     buy_side: str
     fair: float
+    decision_source_ms: float
     decision_vwap: float
+    decision_levels: tuple[tuple[float, float], ...]
     fixed_limit: float
     decision_fee: float
     net_edge: float
@@ -387,6 +403,12 @@ def iter_physical_clob_events(path: str | Path) -> Iterable[dict[str, Any]]:
             for offset, change in enumerate(changes):
                 if not isinstance(change, Mapping):
                     raise TypeError(f"{source.name}:{line_number}: invalid price-change item")
+                protected = _BATCH_ENVELOPE_FIELDS & change.keys()
+                if protected:
+                    raise ValueError(
+                        f"{source.name}:{line_number}: nested change overrides "
+                        f"protected batch field(s): {', '.join(sorted(protected))}"
+                    )
                 yield {
                     "kind": "clob_price_change",
                     "recv_ms": receive_ms,
@@ -479,11 +501,14 @@ def replay(
             decision_ms=decision_ms,
             remaining_s=state.slot + 300.0 - decision_ms / 1_000.0,
             exhausted_ms=watch.exhausted_ms,
+            exhausted_source_ms=watch.exhausted_source_ms,
             exhausted_asset_id=watch.exhausted_asset_id,
             buy_asset_id=watch.buy_asset_id,
             buy_side=state.side(watch.buy_asset_id),
             fair=watch.fair,
+            decision_source_ms=book.source_ms,
             decision_vwap=notional / cfg.target_shares,
+            decision_levels=levels,
             fixed_limit=fixed_limit,
             decision_fee=fee,
             net_edge=edge,
@@ -534,12 +559,21 @@ def replay(
         )
         rows.append({
             **asdict(signal),
+            "decision_levels": [
+                {"price": price, "shares": shares}
+                for price, shares in signal.decision_levels
+            ],
             "paper_only": True,
             "ordering_clock": "local_receipt_ms",
             "match_book_clock": "local_receipt_ms",
             "evaluation_ms": item.evaluation_ms,
             "evaluation_recv_ms": item.due_ms,
             "book_recv_ms": book.recv_ms if book is not None and math.isfinite(book.recv_ms) else None,
+            "book_source_ms": (
+                book.source_ms
+                if book is not None and math.isfinite(book.source_ms)
+                else None
+            ),
             "target_shares": cfg.target_shares,
             "filled_shares": filled,
             "fill_vwap": notional / filled if did_fill else None,
@@ -779,6 +813,7 @@ def replay(
                 if other_book is None or not other_book.ready:
                     counters["complement_book_unavailable"] += 1
                     continue
+                assert after_book is not None
                 fair = 1.0 - after.midpoint
                 watch = _Watch(
                     market_id=market_id,
@@ -786,6 +821,7 @@ def replay(
                     exhausted_asset_id=asset_id,
                     buy_asset_id=buy_asset,
                     exhausted_ms=receive_ms,
+                    exhausted_source_ms=after_book.source_ms,
                     exhausted_order=batch_order,
                     deadline_ms=receive_ms + cfg.confirmation_ms,
                     fair=fair,

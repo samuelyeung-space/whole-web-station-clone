@@ -7,16 +7,15 @@ import fcntl
 import hashlib
 import json
 import shutil
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
 import boto3
-
 import eu_strict
 import h_replay_archive as archive
 import source_race_daily as daily
-
 
 DEFAULT_ROOT = "/home/ubuntu/rec/formal/strict-days"
 FORMAL_CUTOFF_DAY = "20261010"
@@ -26,6 +25,8 @@ FORMAL_CUTOFF_DAY = "20261010"
 class Lane:
     state: Path
     terminal_files: tuple[str, ...]
+    progress_format: str = "admission"
+    cutoff_day: str | None = None
 
 
 DEFAULT_LANES = {
@@ -42,6 +43,12 @@ DEFAULT_LANES = {
     "absorption": Lane(
         Path("/home/ubuntu/rec/formal/absorption-state"), ("verdict.json",),
     ),
+    "complement_queue_lag": Lane(
+        Path("/home/ubuntu/rec/formal/complement-queue-lag-state"),
+        (),
+        progress_format="family34_generation",
+        cutoff_day="20261012",
+    ),
 }
 
 
@@ -55,7 +62,7 @@ def raw_archive_identity(rec: Mapping[str, Any], poly: Mapping[str, Any]) -> str
 
 
 def _previous_utc_day() -> str:
-    return (dt.datetime.now(dt.timezone.utc).date() - dt.timedelta(days=1)).strftime("%Y%m%d")
+    return (dt.datetime.now(dt.UTC).date() - dt.timedelta(days=1)).strftime("%Y%m%d")
 
 
 def _next_day(day: str) -> str:
@@ -70,12 +77,46 @@ def read_lane_progress(
         raise ValueError("formal cutoff day must be YYYYMMDD")
     progress: dict[str, dict[str, Any]] = {}
     for name, lane in lanes.items():
+        lane_cutoff = lane.cutoff_day or cutoff_day
+        if not lane_cutoff.isdigit() or len(lane_cutoff) != 8:
+            raise ValueError(f"{name} cutoff day drift")
+        if lane.progress_format == "family34_generation":
+            import complement_queue_lag_daily as queue_daily
+
+            if not lane.state.exists():
+                generation_day = None
+                generation_terminal = False
+            else:
+                frozen = queue_daily._read_json(queue_daily.FREEZE_PATH)
+                protocol = queue_daily._validate_config(frozen)
+                current = queue_daily._load_current(lane.state, protocol)
+                if current is None:
+                    generation_day = None
+                    generation_terminal = False
+                else:
+                    latest = current.committed["days"][-1]
+                    generation_day = str(latest["day"]).replace("-", "")
+                    generation_terminal = (
+                        latest["forward_status"].get("status") != "collecting"
+                    )
+            progress[name] = {
+                "admitted_day": generation_day,
+                "next_day": None if generation_terminal else (
+                    lane_cutoff
+                    if generation_day is None
+                    else _next_day(generation_day)
+                ),
+                "terminal": generation_terminal,
+            }
+            continue
+        if lane.progress_format != "admission":
+            raise ValueError(f"{name} progress format drift")
         admission_path = lane.state / "admission.json"
         admitted_day: str | None = None
         if admission_path.is_file():
             admission = json.loads(admission_path.read_text(encoding="utf-8"))
             admitted_day = str(admission.get("day") or "")
-            if not admitted_day.isdigit() or len(admitted_day) != 8 or admitted_day < cutoff_day:
+            if not admitted_day.isdigit() or len(admitted_day) != 8 or admitted_day < lane_cutoff:
                 raise ValueError(f"{name} admission day drift")
         terminal = bool(lane.terminal_files) and all(
             (lane.state / filename).is_file() for filename in lane.terminal_files
@@ -85,7 +126,7 @@ def read_lane_progress(
         progress[name] = {
             "admitted_day": admitted_day,
             "next_day": None if terminal else (
-                cutoff_day if admitted_day is None else _next_day(admitted_day)
+                lane_cutoff if admitted_day is None else _next_day(admitted_day)
             ),
             "terminal": terminal,
         }
@@ -156,7 +197,7 @@ def run_phase(
 ) -> dict[str, Any]:
     if phase not in {"source", "clob", "finalize"}:
         raise ValueError(f"unknown strict prebuild phase: {phase}")
-    if day >= dt.datetime.now(dt.timezone.utc).strftime("%Y%m%d"):
+    if day >= dt.datetime.now(dt.UTC).strftime("%Y%m%d"):
         raise ValueError("strict prebuild day is not a closed UTC day")
     day_root = Path(root) / day
     day_root.mkdir(parents=True, exist_ok=True)
@@ -229,7 +270,7 @@ def main() -> None:
                 "removed_artifacts": removed,
             }, sort_keys=True))
             return
-        if args.day >= dt.datetime.now(dt.timezone.utc).strftime("%Y%m%d"):
+        if args.day >= dt.datetime.now(dt.UTC).strftime("%Y%m%d"):
             print(json.dumps({
                 "status": "skipped",
                 "day": args.day,

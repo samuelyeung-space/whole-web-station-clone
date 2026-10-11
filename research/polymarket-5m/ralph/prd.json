@@ -634,6 +634,27 @@
       "priority": 27,
       "passes": false,
       "notes": "Family 35 is frozen before outcome replay. Its economic claim is hysteresis after a deep adverse path, not a high terminal probability, static fair-value gap or one-step momentum signal. The endpoint and last-step matched shallow control is mandatory: without incremental performance over that control, the candidate is not economically independent. Previously inspected data can exercise causality and implementation only; a formal verdict requires untouched post-freeze receipt data."
+    },
+    {
+      "id": "US-035",
+      "title": "Test zero-wait cross-venue confirmation of current-H",
+      "description": "As the account owner, I want to know whether early Deribit and Binance-futures observations are more useful as a receipt-causal veto on the existing H trigger than as additional order triggers, improving executable quality without adding decision latency.",
+      "acceptanceCriteria": [
+        "Keep the frozen current-H signal, fair-value, fixed-limit, five-share FAK and direct-book execution rules unchanged; only spot_trade and futures_book_ticker may originate an order decision, and every clock used for source racing, decision and matching is local receipt time",
+        "Maintain receipt-causal candidate states for futures_trade at the current two-sigma threshold and Deribit quote at three sigmas; admit a primary H trigger only when at least one secondary candidate of the same direction was received during the preceding 120 milliseconds and no opposite secondary candidate was received in that window, with no wait after the primary trigger",
+        "Consume the same first eligible primary trigger per market whether confirmed or vetoed, so a later convenient signal cannot replace it; preserve the global one-order-per-minute rule and fail closed across source or CLOB disconnects, stale references, sequence gaps and equal-receipt ambiguity",
+        "Replay independent baseline and confirmation-veto state machines on strict receipt-ordered source events and direct Up and Down L2 books at 400 and 500 milliseconds, require at least five directly executable shares, freeze the decision limit, charge the exact historical taker fee and score to authoritative settlement",
+        "Report intention-to-trade PnL per eligible primary opportunity as well as PnL per filled share, fill rate, loss rate and source attribution; include vetoed, blocked and unfilled opportunities as zero PnL rather than conditioning on fills",
+        "Use the original primary-only H arm as the control and a receipt-time-shifted secondary-confirmation placebo that preserves source intensity but cannot inform the primary event; evaluate both arms at one common earliest stopping timestamp",
+        "Treat every artifact ending before 2026-10-11T16:46:02Z as development only and never use the two already-inspected source-race blocks for promotion; freeze all thresholds and a multiplicity denominator of at least 874 before reading later outcomes",
+        "Promote only after both 400 and 500 millisecond candidate arms have at least 1000 resolved full-five-share fills across seven UTC days, positive net EV per share and per primary opportunity, positive one-sided 99 percent UTC-day lower bounds, multiplicity-corrected one-sided p below 0.01, lower loss rate than primary-only H and higher common-opportunity PnL than both controls",
+        "No production deployment, wallet access or real order is part of this story",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 28,
+      "passes": false,
+      "notes": "Family 36 is a depth-first repair of the observed source-race result, not another threshold search. Two inspected blocks showed that allowing futures_trade and Deribit to originate orders increased executable volume but reduced per-share EV and worsened loss rate. This family freezes their role as already-arrived confirmation or veto information while leaving the primary current-H send time unchanged. The 120 millisecond receipt window is fixed before any later artifact is read; all earlier data is development-only."
     }
   ]
 }

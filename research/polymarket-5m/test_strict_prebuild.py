@@ -1,10 +1,9 @@
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
-
 import strict_prebuild as prebuild
-
 
 DAY = "20261008"
 
@@ -170,3 +169,58 @@ def test_default_lanes_wait_for_absorption_admission() -> None:
         "/home/ubuntu/rec/formal/absorption-state"
     )
     assert absorption.terminal_files == ("verdict.json",)
+
+
+def test_default_lanes_retain_artifacts_for_family34_generation_state() -> None:
+    lane = prebuild.DEFAULT_LANES["complement_queue_lag"]
+
+    assert lane.state == Path(
+        "/home/ubuntu/rec/formal/complement-queue-lag-state"
+    )
+    assert lane.progress_format == "family34_generation"
+    assert lane.cutoff_day == "20261012"
+
+
+def test_family34_generation_progress_controls_shared_artifact_gc(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    import complement_queue_lag_daily as queue_daily
+
+    state = tmp_path / "family34"
+    state.mkdir()
+    current = SimpleNamespace(
+        committed={
+            "days": [
+                {
+                    "day": "2026-10-12",
+                    "forward_status": {"status": "collecting"},
+                }
+            ]
+        }
+    )
+    monkeypatch.setattr(queue_daily, "_read_json", lambda _path: {})
+    monkeypatch.setattr(queue_daily, "_validate_config", lambda _frozen: object())
+    monkeypatch.setattr(
+        queue_daily,
+        "_load_current",
+        lambda actual_state, _protocol: current if actual_state == state else None,
+    )
+    lanes = {
+        "family34": prebuild.Lane(
+            state,
+            (),
+            progress_format="family34_generation",
+            cutoff_day="20261012",
+        )
+    }
+
+    progress = prebuild.read_lane_progress(lanes, "20261010")
+
+    assert progress == {
+        "family34": {
+            "admitted_day": "20261012",
+            "next_day": "20261013",
+            "terminal": False,
+        }
+    }
