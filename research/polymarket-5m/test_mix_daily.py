@@ -182,7 +182,7 @@ def test_stage_is_not_committed_before_evidence_upload(tmp_path, monkeypatch):
 def test_evaluator_freeze_binds_dependencies(tmp_path):
     frozen, digest = daily.load_evaluator_freeze()
 
-    assert digest == "d817435e5382fd6cc71fda0496ae029419588ca77d745b4a97454f43fb7cf8ec"
+    assert digest == "d99d215325772cedb30786666790947288d7c46eb3bf282dfb6ed932e898d66b"
     assert frozen["control_protocol_sha256"] == (
         "28588718bd3a944595fc8a786beeb6fb1b54d3bd51a2246775995c31cdfe8b45"
     )
@@ -219,6 +219,7 @@ def test_mix_service_uses_frozen_isolated_runtime():
     assert requirements["pyarrow"] == frozen_runtime["runtime"]["pyarrow"]
     assert requirements["scikit-learn"] == frozen_runtime["runtime"]["sklearn"]
     assert requirements["joblib"] == frozen_runtime["runtime"]["joblib"]
+    assert requirements["websockets"] == "15.0.1"
     assert frozen_runtime["runtime"]["python"] == "3.12.14"
     evaluator, _digest = daily.load_evaluator_freeze()
     assert "mix_runtime.py" in evaluator["dependencies_sha256"]

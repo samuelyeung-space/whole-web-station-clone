@@ -72,5 +72,14 @@ def verify_runtime(
     }
 
 
+def verify_entrypoint() -> str:
+    """Import the formal runner now so missing operational packages fail before replay."""
+    import mix_daily
+
+    return str(Path(mix_daily.__file__).resolve())
+
+
 if __name__ == "__main__":
-    print(json.dumps(verify_runtime(), sort_keys=True))
+    result = verify_runtime()
+    result["entrypoint"] = verify_entrypoint()
+    print(json.dumps(result, sort_keys=True))

@@ -17,3 +17,4 @@ scipy==1.18.1
 six==1.17.0
 threadpoolctl==3.7.0
 urllib3==2.8.0
+websockets==15.0.1
