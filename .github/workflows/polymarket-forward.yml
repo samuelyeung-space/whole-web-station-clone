@@ -192,6 +192,14 @@ jobs:
             --rows-out "$RUNNER_TEMP/paper/bundle-btc/strict/complement-queue-lag-rows.jsonl" \
             > "$RUNNER_TEMP/paper/bundle-btc/strict/complement-queue-lag.json"
 
+      - name: Family 35 adverse-reclaim development audit
+        if: always() && steps.cfg.outputs.enabled == 'true'
+        continue-on-error: true
+        run: |
+          python adverse_reclaim.py --archive "$RUNNER_TEMP/paper/bundle-btc" \
+            --rows-out "$RUNNER_TEMP/paper/bundle-btc/strict/adverse-reclaim-rows.jsonl" \
+            > "$RUNNER_TEMP/paper/bundle-btc/strict/adverse-reclaim.json"
+
       - name: Keep the converted bundles (the raw messages run to gigabytes)
         if: always() && steps.cfg.outputs.enabled == 'true'
         run: |
