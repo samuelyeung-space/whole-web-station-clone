@@ -33,6 +33,29 @@ class LedgerTests(unittest.TestCase):
         self.assertAlmostEqual(a["cost_usd"], 20.7)
         self.assertAlmostEqual(out["summary"]["net_pnl_usd"], 19.3)
 
+    def test_full100_policy_rejects_partial_without_consuming_depth(self):
+        tape = [book(1000, ask_qty=120), book(1500, ask_qty=120)]
+        sigs = [signal("a"), signal("b")]
+        out = self.run_one(tape, sigs, entry_fill_policy="full100_or_zero")
+        self.assertEqual([a["filled_shares"] for a in out["attempts"]], [100, 0])
+        self.assertEqual(out["attempts"][1]["status"],
+                         "rejected_full100_depth_or_limit")
+        self.assertEqual(out["summary"]["partial_fills"], 0)
+
+    def test_failed_full100_order_does_not_consume_displayed_depth(self):
+        tape = [book(1000, ask_qty=80), book(1500, ask_qty=80),
+                book(1600, ask_qty=100)]
+        sigs = [signal("a"), signal("b", t=1100)]
+        out = self.run_one(tape, sigs, entry_fill_policy="full100_or_zero")
+        self.assertEqual([a["filled_shares"] for a in out["attempts"]], [0, 100])
+        self.assertEqual(out["attempts"][0]["status"],
+                         "rejected_full100_depth_or_limit")
+
+    def test_invalid_entry_fill_policy_rejected(self):
+        with self.assertRaisesRegex(ValueError, "entry fill policy"):
+            self.run_one([book(1000), book(1500)],
+                         entry_fill_policy="request100_but_partial")
+
     def test_ask_rise_after_decision_is_failed_fixed_order(self):
         out = self.run_one([book(1000), book(1500, ask=.51)])
         a = out["attempts"][0]

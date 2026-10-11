@@ -14,7 +14,7 @@ import itertools
 import math
 
 
-VERSION = "historical100-receipt-book-ledger-v1"
+VERSION = "historical100-receipt-book-ledger-v2"
 HOLD_MS = {"R1": None, "R2": 60_000., "R3": 30_000.}
 EPS = 1e-8
 
@@ -36,7 +36,8 @@ def fee(quantity, price, rate):
 
 
 def replay(markets, books, signals, *, rule_id, latency_ms,
-           initial_cash=1000., shares=100., outcome_delay_ms=300_000., max_age_ms=1000.):
+           initial_cash=1000., shares=100., outcome_delay_ms=300_000., max_age_ms=1000.,
+           entry_fill_policy="partial_fak"):
     """Replay one rule/latency in one continuous cash account across all days.
 
     ``markets[id]``: end_ms, outcome(up/down), outcome_known_ms(optional),
@@ -57,6 +58,8 @@ def replay(markets, books, signals, *, rule_id, latency_ms,
         raise ValueError("invalid rule or latency")
     if initial_cash <= 0 or shares <= 0 or outcome_delay_ms < 0:
         raise ValueError("invalid capital, quantity or outcome delay")
+    if entry_fill_policy not in {"partial_fak", "full100_or_zero"}:
+        raise ValueError("invalid entry fill policy")
     markets = {str(k): dict(v) for k, v in markets.items()}
     # books may be a disk-backed Mapping; never materialize all daily tapes.
     tape_cache = OrderedDict()
@@ -167,9 +170,9 @@ def replay(markets, books, signals, *, rule_id, latency_ms,
 
     # Multiple orders cannot each consume the same displayed snapshot depth.
     consumed = {}
-    def sweep(mid, side, qinfo, direction, limit, requested):
+    def sweep(mid, side, qinfo, direction, limit, requested, *, require_full=False):
         idx, snap, levels, generations = qinfo
-        fills, left = [], requested
+        fills, left, planned = [], requested, []
         name = "asks" if direction == "buy" else "bids"
         for price, quantity in levels[name]:
             if (direction == "buy" and price > limit + EPS) or (direction == "sell" and price < limit - EPS):
@@ -180,10 +183,14 @@ def replay(markets, books, signals, *, rule_id, latency_ms,
             qty = min(left, remaining)
             if qty > EPS:
                 fills.append([price, qty])
-                consumed[key] = consumed.get(key, 0.) + qty
+                planned.append((key, qty))
                 left -= qty
             if left <= EPS:
                 break
+        if require_full and left > EPS:
+            return []
+        for key, qty in planned:
+            consumed[key] = consumed.get(key, 0.) + qty
         return fills
 
     attempts, exits, cash_events = [], [], []
@@ -266,7 +273,9 @@ def replay(markets, books, signals, *, rule_id, latency_ms,
             elif qinfo is None:
                 a["status"] = "rejected_match_" + reason
             else:
-                fills = sweep(mid, side, qinfo, "buy", a["limit_price"], shares)
+                require_full = entry_fill_policy == "full100_or_zero"
+                fills = sweep(mid, side, qinfo, "buy", a["limit_price"], shares,
+                              require_full=require_full)
                 a["entry_levels"] = fills
                 a["match_book_recv_ms"] = qinfo[1]["recv_ms"]
                 qty = math.fsum(q for p, q in fills)
@@ -277,7 +286,10 @@ def replay(markets, books, signals, *, rule_id, latency_ms,
                 if a["cost_usd"] > a["reservation_usd"] + EPS:
                     raise AssertionError("fixed-limit fill exceeded reserved cash")
                 cash -= a["cost_usd"]
-                a["status"] = "full_fill" if qty >= shares - EPS else "partial_fill" if qty > EPS else "no_fill_limit_or_depth"
+                a["status"] = ("full_fill" if qty >= shares - EPS else
+                               "partial_fill" if qty > EPS else
+                               "rejected_full100_depth_or_limit" if require_full else
+                               "no_fill_limit_or_depth")
                 if qty > EPS:
                     positions[a["attempt_id"]] = dict(attempt=a, remaining_shares=qty,
                                                      remaining_cost_usd=a["cost_usd"])
@@ -402,6 +414,7 @@ def replay(markets, books, signals, *, rule_id, latency_ms,
                             max_age_ms=max_age_ms, total_latency_includes_venue_wait=True,
                             depth_replenishment_assumption="only an observed change of quantity at a price level replenishes that level; unchanged snapshot repeats do not",
                             cash_release_assumption="official outcome receipt or explicit end-time imputation; redemption not observed",
-                            rule_signals_unchanged=True, fee_rounding="unrounded formula; per-market coefficient"),
+                            rule_signals_unchanged=True, entry_fill_policy=entry_fill_policy,
+                            fee_rounding="unrounded formula; per-market coefficient"),
                 attempts=attempts, exits=exits, cash_events=cash_events,
                 summary=summary)

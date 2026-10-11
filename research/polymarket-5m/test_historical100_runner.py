@@ -41,7 +41,8 @@ class RunnerTests(unittest.TestCase):
 
     def test_rule_subset_does_not_change_latency_or_capital(self):
         args = R.parse_args(['--rules', 'R3', '--workdir', '/tmp/a', '--out', '/tmp/b'])
-        self.assertEqual((args.rules,args.latencies,args.shares,args.initial_cash),(['R3'],[500,600,1000],100,1000))
+        self.assertEqual((args.rules,args.latencies,args.shares,args.initial_cash,args.entry_fill_policy),
+                         (['R3'],[500,600,1000],100,1000,'full100_or_zero'))
         with self.assertRaisesRegex(ValueError, 'duplicate'):
             R.parse_args(['--rules','R3','R3','--workdir','/tmp/a','--out','/tmp/b'])
         with self.assertRaisesRegex(ValueError, 'fixes'):
@@ -69,6 +70,12 @@ class RunnerTests(unittest.TestCase):
             bad=copy.deepcopy(reg);bad['code_sha256']['historical100_execution.py']='changed'
             R.write_json(cur/'registration.json',bad)
             with self.assertRaisesRegex(ValueError,'engine changed'):R.verify_continuation(ref,cur)
+            bad['entry_fill_policy']='full100_or_zero'
+            R.write_json(cur/'registration.json',bad)
+            audit=R.verify_continuation(ref,cur)
+            self.assertTrue(audit['signals_and_economic_inputs_unchanged'])
+            self.assertFalse(audit['execution_and_signals_unchanged'])
+            self.assertEqual(audit['execution_revision']['entry_fill_policy'],'full100_or_zero')
             R.write_json(cur/'registration.json',reg)
             R.write_gz(cur/'signals.jsonl.gz',[{'signal_id':'s','asklimit':.6}])
             with self.assertRaisesRegex(ValueError,'population changed'):R.verify_continuation(ref,cur)

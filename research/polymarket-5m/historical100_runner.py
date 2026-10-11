@@ -28,7 +28,7 @@ import traceback
 
 HERE = Path(__file__).resolve().parent
 SEGMENTS = {"B": ("2026-07-16", "2026-08-16"), "C": ("2026-08-16", "2026-08-30")}
-VERSION = "historical100-verified-archive-runner-v1"
+VERSION = "historical100-verified-archive-runner-v2"
 
 
 def sha256(path):
@@ -334,8 +334,11 @@ def verify_continuation(reference, current):
                   "auxiliary_inputs"):
         if old.get(field) != new.get(field) or field not in old:
             raise ValueError("continuation identity mismatch: " + field)
-    if old['code_sha256']['historical100_execution.py'] != new['code_sha256']['historical100_execution.py']:
-        raise ValueError("continuation execution engine changed")
+    old_execution = old['code_sha256']['historical100_execution.py']
+    new_execution = new['code_sha256']['historical100_execution.py']
+    execution_same = old_execution == new_execution
+    if not execution_same and new.get('entry_fill_policy') != 'full100_or_zero':
+        raise ValueError("continuation execution engine changed without strict full100 policy")
     if old['code_sha256']['historical100_signals.py'] != new['code_sha256']['historical100_signals.py']:
         raise ValueError("continuation signal engine changed")
     for name in ('markets.json', 'kline_provenance.json'):
@@ -346,8 +349,14 @@ def verify_continuation(reference, current):
     for rule in new['rules']:
         if any(reference.glob(rule + '_*ms_summary.json')):
             raise ValueError("rule already has results; refuse duplicate replay: " + rule)
+    revision = None if execution_same else {
+        'reason': 'replace partial FAK entries with exact 100-share-or-zero entries',
+        'old_sha256': old_execution, 'new_sha256': new_execution,
+        'entry_fill_policy': new['entry_fill_policy']}
     return {'verified': True, 'reference_registration_sha256': sha256(reference/'registration.json'),
-            'execution_and_signals_unchanged': True, 'signal_comparison': signal_audit,
+            'execution_and_signals_unchanged': execution_same,
+            'signals_and_economic_inputs_unchanged': True,
+            'execution_revision': revision, 'signal_comparison': signal_audit,
             'reference_signals_sha256': sha256(reference/'signals.jsonl.gz'),
             'rebuilt_signals_sha256': sha256(current/'signals.jsonl.gz'), 'new_oos': False}
 
@@ -364,6 +373,8 @@ def parse_args(argv=None):
     parser.add_argument("--max-days", type=int)
     parser.add_argument("--rules", nargs="+", choices=("R1", "R2", "R3"), default=["R1", "R2", "R3"])
     parser.add_argument("--reference-results", type=Path)
+    parser.add_argument("--entry-fill-policy", choices=("full100_or_zero",),
+                        default="full100_or_zero")
     args = parser.parse_args(argv)
     if args.shares != 100 or args.initial_cash != 1000 or args.latencies != [500, 600, 1000]:
         raise ValueError("this registered experiment fixes 100 shares, $1000 and 500/600/1000ms")
@@ -397,7 +408,8 @@ def main(argv=None):
         "cash_accounts": "one continuous account for ALL selected dates per rule/latency; alternatives not additive",
         "training": "none; previously frozen A-trained canonical MIX model only",
         "selection": "all frozen threshold-selected unique decision rows, no future-fill or outcome eligibility filter",
-        "price_limit": "decision ask fixed; FAK partial/failure; full request cash reserve; no borrowing/resizing/retry",
+        "price_limit": "decision ask fixed; entry must fill exactly 100 shares or zero; full request cash reserve; no borrowing/resizing/retry",
+        "entry_fill_policy": args.entry_fill_policy,
         "dataset": cross.DS, "download_integrity": "every archive exact MANIFEST byte size and SHA256 mandatory",
         "fee_assumption": "0.07 * filled_shares * p * (1-p); historical per-market fee unverified",
         "cash_release_assumption": "recorded final emitted_at_ts when available, else market end + 300s; not actual redeem",
@@ -531,7 +543,8 @@ def main(argv=None):
     for rule in args.rules:
         for latency in args.latencies:
             result = replay(all_markets, books, all_signals, rule_id=rule, latency_ms=latency,
-                            initial_cash=args.initial_cash, shares=args.shares, outcome_delay_ms=300000.)
+                            initial_cash=args.initial_cash, shares=args.shares,
+                            outcome_delay_ms=300000., entry_fill_policy=args.entry_fill_policy)
             stem = f'{rule}_{latency}ms'
             for key in ("attempts", "exits", "cash_events"):
                 write_gz(args.out / (stem + "_" + key + ".jsonl.gz"), result[key])
