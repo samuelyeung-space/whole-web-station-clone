@@ -655,6 +655,86 @@
       "priority": 28,
       "passes": false,
       "notes": "Family 36 is a depth-first repair of the observed source-race result, not another threshold search. Two inspected blocks showed that allowing futures_trade and Deribit to originate orders increased executable volume but reduced per-share EV and worsened loss rate. This family freezes their role as already-arrived confirmation or veto information while leaving the primary current-H send time unchanged. The 120 millisecond receipt window is fixed before any formal day is read; all earlier data is development-only. The final freeze SHA-256 is 6439ca54b8aab637809f6097acf4d5b11bdca2b33931c2d507e265127e91ad30 and binds the raw recorders, outcome generator, UTC rollover, archive identity, strict conversion, replay, persistent private daily input, atomic admission and evaluator. The GitHub-hosted recorder is audit-only because its collector region is unknown; only the eu-west daily lane may enter the formal ledger. Independent forward evidence has not started, so passes remains false."
+    },
+    {
+      "id": "US-036",
+      "title": "Test terminal-favorite probability-calibration bias",
+      "description": "As the account owner, I want to know whether model-implied 85 to 99 percent favorites are persistently underpriced in slower BTC markets after conditioning on executable asks, rather than merely exhibiting a high nominal win rate.",
+      "acceptanceCriteria": [
+        "Treat NEARCERT, CALIB, FAV, Theta30, Cronos50 and fixed-time favorite grids as one economic family; freeze one causal rule before reading another holdout and count every prior grid in the global multiplicity correction",
+        "Use official market definitions and settlement, receipt-causal external prices and volatility, direct token asks received before decision time, a frozen five-share limit, measured execution latency and exact fees; never condition on a favorable trade printed after the signal",
+        "Report calibration error, net EV per share and per opportunity, fill rate, daily capital, tail loss, concentration and maximum drawdown, with price-, time- and market-type-matched controls",
+        "Promote only after at least 1000 resolved executable full-target fills across seven UTC days, positive one-sided 99 percent day-cluster lower bounds and a global multiplicity-adjusted one-sided p below 0.01",
+        "No production deployment, wallet access or real order is part of this story",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 29,
+      "passes": false,
+      "notes": "Historical evidence is positive but not executable proof: NEARCERT reported +2.282c/share after the recorded fee across 275 markets, and CALIB found one 85-95 percent validation cell at +5.88c, but the direct-ask NEARCERT forward lane had zero qualifying entries across 283 markets and 65.9 hours, while Theta30 forward was -5.39c across nine fills. US-004 remains the search umbrella; this story is the explicit economic family and prevents those grids from being counted as separate strategies."
+    },
+    {
+      "id": "US-037",
+      "title": "Test known-outcome settlement-lag arbitrage",
+      "description": "As the account owner, I want to know whether a winning token remains executable below one dollar after the contractually authoritative candle or touch event has already fixed the result but before Polymarket closes or settles the market.",
+      "acceptanceCriteria": [
+        "Restrict the family to markets whose outcome can be reconstructed exactly from the authoritative source and rule; distinguish a deterministically known result from US-013's forecast of an unfinished settlement average",
+        "Timestamp the first locally observable proof of the final outcome, reject ambiguous or revised source data, and use only direct winning-token depth received after that proof",
+        "Replay fixed-limit FAK execution at predeclared receipt-clock horizons with at least five shares, exact fees, any venue delay, capital lock and settlement or redemption costs; public trade volume is capacity context only",
+        "Report opportunity count, fill rate, net cents per share, dollars per day, concentration and the conservative controllable capacity lower bound, with pre-finality and wrong-side placebos",
+        "Promote only when both statistical and capacity gates remain positive on untouched forward data under the global multiplicity correction",
+        "No production deployment, wallet access or real order is part of this story",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 30,
+      "passes": false,
+      "notes": "A 201-day historical scan found market-wide T*+5s volume averaging 1,354 shares and $38.7 nominal profit per day at prices no higher than 0.995; seller-initiated volume averaged 770 shares and $9.8 nominal profit. Daily median notional was only $23.6 overall and $8.8 seller-initiated, so the result is a concentrated upper bound until direct-book and queue evidence exists."
+    },
+    {
+      "id": "US-038",
+      "title": "Measure logical-payoff and complete-set parity arbitrage",
+      "description": "As the account owner, I want to know whether deterministic payout identities across same-universe ladders or complementary tokens leave positive executable value after all legs, fees, atomicity risk and capital costs.",
+      "acceptanceCriteria": [
+        "Enumerate only contractually exact payoff identities for above, range and touch ladders plus native complementary-token split, merge and redemption parity; keep US-028's non-atomic cross-expiry box separate",
+        "Deduplicate overlapping baskets and replay every required leg against direct receipt-causal depth at fixed decision and delayed horizons, charging exact fees, gas, failed-leg exposure and capital lock",
+        "Report immediately executable and delayed opportunity counts, conservative dollars per day, depth concentration and orphan-leg loss; trade prints or synthetic complementary prices cannot establish fills",
+        "Promote only if an untouched direct-book sample has a positive conservative capacity lower bound and positive net EV after the global multiplicity correction",
+        "No production deployment, wallet access or real order is part of this story",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 31,
+      "passes": false,
+      "notes": "Existing evidence indicates real but tiny capacity: strict deduplicated ladder baskets produced about $0.57/day immediately and $0.44/day after 500ms; clean complete-set scans produced about $0.31, $0.43 and $0.60/day for 5m, 15m and 60m data, while the independent kacho sample found zero clean opportunities."
+    },
+    {
+      "id": "US-039",
+      "title": "Reject opening-TWAP reference mispricing",
+      "description": "As a researcher, I want the opening-reference hypothesis recorded as a distinct completed family so its weak uncorrected cells are not repeatedly rediscovered or mixed with closing-settlement proxy alpha.",
+      "acceptanceCriteria": [
+        "Use the official strike or opening reference and preserve receipt-causal timing",
+        "Apply family-wise correction across all opening-window cells and require consistency across neighboring horizons",
+        "Record the rejection without promoting its best post-selected cell",
+        "Tests pass"
+      ],
+      "priority": 32,
+      "passes": true,
+      "notes": "Closed rejection. Three-second cells showed +4.79c and +6.15c with uncorrected p near 0.04, but failed multiplicity and the 10-second and 30-second variants were negative. Asian180 collapsed to +0.22c, p=0.48 after using the official strike."
+    },
+    {
+      "id": "US-040",
+      "title": "Reject single-sided maker queue capture",
+      "description": "As a researcher, I want the passive single-sided maker hypothesis recorded separately from complementary maker pairs so its adverse-selection result is not mistaken for an untested execution improvement.",
+      "acceptanceCriteria": [
+        "Evaluate passive fills with queue ordering, adverse selection, cancellation timing and settlement rather than assuming displayed-touch execution",
+        "Keep single-sided maker capture distinct from US-023 complementary pairs and from source-confirmed taker execution",
+        "Record the validation rejection and do not recycle the selected cells",
+        "Tests pass"
+      ],
+      "priority": 33,
+      "passes": true,
+      "notes": "Closed rejection. None of ten selected maker cells passed validation, and even fills without a preceding adverse jump lost 2.55c/share."
     }
   ]
 }
