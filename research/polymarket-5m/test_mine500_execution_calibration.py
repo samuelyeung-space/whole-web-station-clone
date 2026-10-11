@@ -1,112 +1,121 @@
-import math
-
+"""Regression counterexamples for receipt calibration, never market backtests."""
+from dataclasses import replace
 import pytest
-
 import mine500_execution_calibration as cal
 
 
-def row(identifier, *, paper=5.0, actual=5.0, status="filled_full", pnl=0.1,
-        decision=0.0, send=100.0, match=500.0, response=550.0, hold=150.0):
-    return {
-        "attempt_id": identifier,
-        "market_id": f"m-{identifier}",
-        "decision_ms": decision,
-        "send_ms": send,
-        "match_ms": match,
-        "response_ms": response,
-        "requested_shares": 5.0,
-        "paper_fill_shares": paper,
-        "actual_fill_shares": actual,
-        "actual_status": status,
-        "receipt_source": "private_order_response",
-        "venue_hold_ms": hold,
-        "net_pnl_per_share": pnl,
-    }
+def row(identifier='a',**updates):
+    value=dict(attempt_id=identifier,market_id='m-'+identifier,decision_ms=0,send_ms=100,
+        match_ms=500,response_ms=550,requested_shares=5,paper_fill_shares=5,
+        actual_fill_shares=5,actual_status='filled_full',receipt_source='private_order_response',
+        limit_price=.65,paper_fill_vwap=.4,paper_fees_usd=.084,actual_fill_vwap=.6,
+        actual_fees_usd=.084,settlement_payout_per_share=1,venue_hold_ms=150,
+        match_time_source='measured_clock_aligned_venue',match_clock_error_bound_ms=1)
+    value.update(updates); return value
 
 
-def test_clock_contract_uses_measured_match_without_adding_hold_twice():
-    attempt = cal.parse_attempt(row("a", decision=1000, send=1100, match=1500, response=1550))
-    result = cal.calibrate([attempt])
-    assert result["latency_ms"]["decision_to_match_p50"] == 500
-    assert result["latency_ms"]["send_to_match_p50"] == 400
-    assert result["latency_ms"]["venue_hold_is_already_in_match_clock"] is True
-    with pytest.raises(ValueError, match="shorter than venue_hold"):
-        cal.parse_attempt(row("b", send=100, match=200, hold=150))
+def no_match(identifier,status):
+    return row(identifier,actual_status=status,actual_fill_shares=None if status=='unknown' else 0,
+        actual_fill_vwap=None,actual_fees_usd=None,match_ms=None,
+        match_time_source=None,match_clock_error_bound_ms=None,response_ms=None if status=='unknown' else 550)
 
 
-@pytest.mark.parametrize(
-    "updates,message",
-    [
-        ({"receipt_source": "paper_replay"}, "private_order_response"),
-        ({"actual_status": "killed", "actual_fill_shares": 1}, "cannot contain a fill"),
-        ({"actual_status": "unknown", "actual_fill_shares": 1}, "cannot be imputed"),
-        ({"actual_status": "filled_partial", "actual_fill_shares": 5}, "strict partial"),
-        ({"send_ms": 600}, "clocks must satisfy"),
-    ],
-)
-def test_ambiguous_or_inconsistent_private_receipts_fail_closed(updates, message):
-    value = row("a")
-    value.update(updates)
-    with pytest.raises(ValueError, match=message):
-        cal.parse_attempt(value)
+def test_actual_economics_use_actual_price_and_fees_not_paper_price():
+    result=cal.calibrate([cal.parse_attempt(row())])
+    assert result['economics']['paper_pnl_usd']==pytest.approx(2.916)
+    assert result['economics']['actual_pnl_usd']==pytest.approx(1.916)
+    assert result['adverse_selection']['actual_pnl_usd']==pytest.approx(1.916)
 
 
-def test_unknown_is_reported_but_never_imputed_as_kill_or_fill():
-    result = cal.calibrate([cal.parse_attempt(row("u", actual=0, status="unknown"))])
-    assert result["known_outcomes"] == 0
-    assert result["unknown_outcomes"] == 1
-    assert result["paper_full_predictions_known"] == 0
-    assert result["paper_full_realization_rate"] is None
+def test_partial_actual_pnl_uses_actual_quantity_and_total_actual_fee():
+    a=cal.parse_attempt(row(actual_status='filled_partial',actual_fill_shares=2,actual_fees_usd=.031))
+    assert cal.calibrate([a])['economics']['actual_pnl_usd']==pytest.approx(.769)
 
 
-def test_partial_full_kill_and_public_false_negative_are_separate():
-    attempts = [
-        cal.parse_attempt(row("full")),
-        cal.parse_attempt(row("partial", actual=2, status="filled_partial")),
-        cal.parse_attempt(row("kill", actual=0, status="killed")),
-        cal.parse_attempt(row("hidden", paper=0, actual=1, status="filled_partial")),
-    ]
-    result = cal.calibrate(attempts)
-    assert result["paper_full_predictions_known"] == 3
-    assert result["actual_full_fills_among_paper_full"] == 1
-    assert result["actual_any_fills_among_paper_full"] == 2
-    assert result["paper_false_positive_full_count"] == 2
-    assert result["paper_false_negative_any_count"] == 1
-    assert result["actual_fill_shares_known"] == 8
-    assert result["paper_fill_shares_known"] == 15
+def test_v1_shared_pnl_is_explicitly_invalid():
+    with pytest.raises(ValueError,match='invalid_for_evidence'):
+        cal.parse_attempt(row(net_pnl_per_share=.4))
 
 
-def test_exact_interval_and_latency_buckets_are_reported_without_fake_precision():
-    attempts = [
-        cal.parse_attempt(row("a", match=499)),
-        cal.parse_attempt(row("b", actual=0, status="killed", match=500)),
-        cal.parse_attempt(row("c", match=700, response=750)),
-        cal.parse_attempt(row("d", actual=0, status="rejected", match=1000, response=1050)),
-    ]
-    result = cal.calibrate(attempts)
-    lo, hi = result["paper_full_realization_exact_99pct_interval"]
-    assert 0 < lo < 0.5 < hi < 1
-    assert set(result["by_total_decision_to_match_bucket"]) == {
-        "lt500ms", "500_599ms", "600_999ms", "ge1000ms"
-    }
-    assert result["by_total_decision_to_match_bucket"]["500_599ms"]["actual_full_rate"] == 0
+@pytest.mark.parametrize('status',['unknown','killed','rejected'])
+def test_no_trade_match_time_preserves_failed_unknown_denominators(status):
+    result=cal.calibrate([cal.parse_attempt(no_match('x',status))])
+    assert result['attempts']==1
+    assert result['paper_full_predictions_all']==1
+    assert result['latency_ms']['decision_to_match_p50'] is None
+    assert result['by_total_decision_to_match_bucket']['unobserved_match_clock']['attempts']==1
+    assert result['economics']['actual_pnl_usd']==(None if status=='unknown' else 0)
 
 
-def test_adverse_selection_uses_actual_shares_and_fee_inclusive_pnl_only():
-    attempts = [
-        cal.parse_attempt(row("loss-fill", pnl=-0.2)),
-        cal.parse_attempt(row("loss-miss", actual=0, status="killed", pnl=-0.2)),
-        cal.parse_attempt(row("profit-fill", pnl=0.1)),
-        cal.parse_attempt(row("profit-miss", actual=0, status="killed", pnl=0.1)),
-    ]
-    result = cal.calibrate(attempts)["adverse_selection"]
-    assert result["loss_fill_miss_profit_fill_miss"] == [1, 1, 1, 1]
-    assert math.isclose(result["paper_pnl_usd"], -1.0)
-    assert math.isclose(result["actual_pnl_usd"], -0.5)
-    assert 0 <= result["one_sided_fisher_p_value"] <= 1
+def test_unknown_not_imputed_zero_and_selection_bounds_include_it():
+    result=cal.calibrate([cal.parse_attempt(row()),cal.parse_attempt(no_match('u','unknown'))])
+    assert result['known_only_realization_rate']==1
+    assert result['all_prediction_missing_outcome_bounds']==[.5,1]
+    assert result['paper_full_realization_cluster_99pct_interval']['status']=='unresolved_outcomes'
+    with pytest.raises(ValueError,match='must be null'):
+        cal.parse_attempt({**no_match('u','unknown'),'actual_fill_shares':0})
 
 
-def test_duplicate_attempts_are_rejected_even_for_programmatic_callers():
-    attempt = cal.parse_attempt(row("dup"))
-    with pytest.raises(ValueError, match="unique"):
-        cal.calibrate([attempt, attempt])
+def test_replicating_one_market_never_creates_precise_ci():
+    rows=[cal.parse_attempt(row(str(i),market_id='same')) for i in range(1000)]
+    result=cal.calibrate(rows)
+    assert result['unique_markets']==1
+    assert result['paper_full_realization_exact_99pct_interval'] is None
+    assert result['paper_full_realization_cluster_99pct_interval']['interval'] is None
+    assert result['adverse_selection']['one_sided_fisher_p_value'] is None
+
+
+def test_whole_day_clusters_prevent_within_day_duplication_precision():
+    rows=[]
+    for day in range(7):
+        for m in range(3):
+            for order in range(10):
+                t=day*86400000
+                data=row(f'{day}-{m}-{order}',market_id=f'{day}-{m}',decision_ms=t,send_ms=t+100,
+                         match_ms=t+500,response_ms=t+550)
+                if day%2:
+                    data.update(actual_status='killed',actual_fill_shares=0,actual_fill_vwap=None,
+                        actual_fees_usd=None,match_ms=None,match_time_source=None,match_clock_error_bound_ms=None)
+                rows.append(cal.parse_attempt(data))
+    full=cal.calibrate(rows,bootstrap_reps=500)
+    reduced=cal.calibrate(rows[::10],bootstrap_reps=500)
+    assert full['paper_full_realization_cluster_99pct_interval']==reduced['paper_full_realization_cluster_99pct_interval']
+    assert full['paper_full_realization_cluster_99pct_interval']['status']=='descriptive_only'
+
+
+def test_missing_fill_economics_stays_null_not_zero():
+    result=cal.calibrate([cal.parse_attempt(row(actual_fill_vwap=None,actual_fees_usd=None))])
+    assert result['economics']['actual_pnl_usd'] is None
+    assert result['economics']['actual_economics_missing_rows']==1
+
+
+def test_match_hold_is_not_added_twice_and_match_provenance_is_required():
+    result=cal.calibrate([cal.parse_attempt(row())])
+    assert result['latency_ms']['decision_to_match_p50']==500
+    assert result['latency_ms']['send_to_match_p50']==400
+    with pytest.raises(ValueError,match='provenance'):
+        cal.parse_attempt(row(match_time_source='local_response_timestamp'))
+    with pytest.raises(ValueError,match='shorter than venue_hold'):
+        cal.parse_attempt(row(match_ms=200))
+
+
+@pytest.mark.parametrize('updates',[
+    {'limit_price':.5}, {'actual_fill_vwap':.7}, {'actual_fees_usd':-1},
+    {'actual_status':'filled_partial'}, {'send_ms':600}, {'paper_fill_shares':True},
+    {'settlement_payout_per_share':.5}, {'receipt_source':'paper'},
+    {'market_id':None}, {'match_clock_error_bound_ms':None},
+])
+def test_invalid_inputs_fail_closed(updates):
+    with pytest.raises(ValueError):cal.parse_attempt(row(**updates))
+
+
+def test_programmatic_dataclass_calls_are_revalidated_and_ids_unique():
+    attempt=cal.parse_attempt(row())
+    with pytest.raises(ValueError,match='unique'):cal.calibrate([attempt,attempt])
+    with pytest.raises(ValueError,match='final outcome'):cal.calibrate([replace(attempt,actual_fill_shares=100)])
+
+
+def test_empty_input_is_not_a_zero_pnl_strategy_result():
+    result=cal.calibrate([])
+    assert result['economics']['actual_pnl_usd'] is None
+    assert result['qualification']['strategy_result'] is False
