@@ -85,7 +85,7 @@ jobs:
           for c in ${{ steps.cfg.outputs.coins }}; do
             b="$RUNNER_TEMP/paper/bundle-$c"
             echo "== $c"
-            python recording.py "$RUNNER_TEMP/paper" --coin "$c" --out "$b" || continue
+            python recording.py "$RUNNER_TEMP/paper" --coin "$c" --out "$b"
             if python strategy_zoo.py "$b" --confirm --extra 101 103 104 105 106 107 108 109 --reps 2000 \
               --out "$RUNNER_TEMP/run-$c.md" --trades-out "$RUNNER_TEMP/new-$c.csv"; then
               python forward.py add "$RUNNER_TEMP/new-$c.csv" --markets "$b" || true
@@ -133,6 +133,28 @@ jobs:
             > "$RUNNER_TEMP/paper/bundle-btc/strict/current-h-audit.json"
           python h_source_race.py --archive "$RUNNER_TEMP/paper/bundle-btc" \
             > "$RUNNER_TEMP/paper/bundle-btc/strict/current-h-source-race.json"
+          configured=" ${{ steps.cfg.outputs.coins }} "
+          cross_asset_ready=true
+          for c in btc eth sol xrp doge; do
+            if [[ "$configured" != *" $c "* ]]; then
+              cross_asset_ready=false
+            elif [ ! -s "$RUNNER_TEMP/paper/bundle-$c/latency/binance_prices.jsonl.gz" ]; then
+              echo "required $c strict price sidecar is missing"
+              exit 1
+            fi
+          done
+          if [ "$cross_asset_ready" = true ]; then
+            python cross_asset_breadth.py \
+              --archive "$RUNNER_TEMP/paper/bundle-btc/strict" \
+              --btc-prices "$RUNNER_TEMP/paper/bundle-btc/latency/binance_prices.jsonl.gz" \
+              --eth-prices "$RUNNER_TEMP/paper/bundle-eth/latency/binance_prices.jsonl.gz" \
+              --sol-prices "$RUNNER_TEMP/paper/bundle-sol/latency/binance_prices.jsonl.gz" \
+              --xrp-prices "$RUNNER_TEMP/paper/bundle-xrp/latency/binance_prices.jsonl.gz" \
+              --doge-prices "$RUNNER_TEMP/paper/bundle-doge/latency/binance_prices.jsonl.gz" \
+              > "$RUNNER_TEMP/paper/bundle-btc/strict/cross-asset-breadth.json"
+          else
+            echo "Cross-asset breadth not scheduled: this recording did not configure all five assets."
+          fi
           if python - "$RUNNER_TEMP/paper/bundle-btc/strict/current-h-audit.json" <<'PY'
           import json, sys
           raise SystemExit(0 if json.load(open(sys.argv[1]))["dataset"]["paper_gate_eligible"] else 1)

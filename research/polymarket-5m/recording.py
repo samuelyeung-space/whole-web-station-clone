@@ -292,6 +292,96 @@ def binance_ws_ticks(records, symbol="BTCUSDT"):
             continue
 
 
+def binance_ws_price_events(records, symbol="BTCUSDT", audit=None):
+    """Strict receipt-ordered trade/BBO events and lifecycle for one symbol.
+
+    The raw combined stream has one global sequence across every subscribed symbol.  Validate that
+    sequence before filtering, then assign a contiguous per-symbol sequence to the sidecar.
+    """
+    active_epoch = None
+    last_epoch = 0
+    previous_raw_sequence = -1
+    previous_recv_ms = -math.inf
+    emitted_sequence = 0
+    raw_count = 0
+    raw_started_ms = None
+    raw_ended_ms = None
+    for rec in records:
+        kind = str(rec.get("kind") or "")
+        try:
+            recv_ms = float(rec["recv_ms"])
+            raw_sequence = int(rec["sequence"])
+            epoch = int(rec["connection_epoch"])
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError("strict Binance price row is missing causal metadata") from exc
+        if raw_sequence != previous_raw_sequence + 1:
+            raise ValueError("strict Binance raw sequence is not contiguous")
+        if not math.isfinite(recv_ms) or recv_ms < previous_recv_ms:
+            raise ValueError("strict Binance receipt time regressed")
+        previous_raw_sequence = raw_sequence
+        previous_recv_ms = recv_ms
+        raw_started_ms = recv_ms if raw_started_ms is None else raw_started_ms
+        raw_ended_ms = recv_ms
+        raw_count += 1
+        if kind in {"connection", "disconnect"}:
+            if kind == "connection":
+                if active_epoch is not None or epoch <= last_epoch:
+                    raise ValueError("strict Binance connection epoch is invalid")
+                active_epoch = last_epoch = epoch
+            elif active_epoch != epoch:
+                raise ValueError("strict Binance disconnect epoch is invalid")
+            event = {
+                "kind": kind,
+                "asset": symbol.removesuffix("USDT").lower(),
+                "recv_ms": recv_ms,
+                "connection_epoch": epoch,
+                "sequence": emitted_sequence,
+                "raw_sequence": raw_sequence,
+            }
+            emitted_sequence += 1
+            yield event
+            if kind == "disconnect":
+                active_epoch = None
+            continue
+        if active_epoch != epoch:
+            raise ValueError("strict Binance price arrived outside its connection epoch")
+        if str(rec.get("s") or "").upper() != symbol:
+            continue
+        source_ts_ms = rec.get("T") if rec.get("T") is not None else rec.get("E")
+        common = {
+            "kind": kind,
+            "asset": symbol.removesuffix("USDT").lower(),
+            "recv_ms": recv_ms,
+            "source_ts_ms": None if source_ts_ms is None else float(source_ts_ms),
+            "connection_epoch": epoch,
+            "sequence": emitted_sequence,
+            "raw_sequence": raw_sequence,
+        }
+        if kind == "trade":
+            price = float(rec["p"])
+            if not math.isfinite(price) or price <= 0:
+                raise ValueError(f"invalid {symbol} strict trade")
+            emitted_sequence += 1
+            yield {**common, "price": price}
+        elif kind == "bookTicker":
+            bid, ask = float(rec["b"]), float(rec["a"])
+            if not all(map(math.isfinite, (bid, ask))) or not 0 < bid < ask:
+                raise ValueError(f"invalid {symbol} strict bookTicker")
+            emitted_sequence += 1
+            yield {**common, "bid": bid, "ask": ask, "mid": (bid + ask) / 2}
+        else:
+            raise ValueError(f"unknown strict Binance price kind {kind!r}")
+    if active_epoch is not None:
+        raise ValueError("strict Binance price stream ended with an open epoch")
+    if audit is not None:
+        audit.update({
+            "raw_event_count": raw_count,
+            "emitted_event_count": emitted_sequence,
+            "raw_started_ms": raw_started_ms,
+            "raw_ended_ms": raw_ended_ms,
+        })
+
+
 def coinbase_ticks(records, product="BTC-USD"):
     """(exchange time s, price, recv_ms) of one product's recorded Coinbase trade prints."""
     from datetime import datetime
@@ -400,8 +490,6 @@ def _strict_binance_stream(records, source, symbol, stats):
     previous_sequence = -1
     previous_receive_ms = -float("inf")
     for row in records:
-        if str(row.get("s", symbol)).upper() != symbol and row.get("kind") not in ("connection", "disconnect"):
-            continue
         try:
             receive_ms = float(row["recv_ms"])
             sequence = int(row["sequence"])
@@ -434,6 +522,8 @@ def _strict_binance_stream(records, source, symbol, stats):
         else:
             if active_epoch != epoch:
                 stats["dropped_outside_epoch"] += 1
+                continue
+            if source != "deribit" and str(row.get("s") or "").upper() != symbol:
                 continue
             try:
                 bid, ask = float(row.get("b")), float(row.get("a"))
@@ -868,13 +958,47 @@ class LatencyFiles:
                     f.write(json.dumps({"event": "BINANCE_WS_TRADE", "trade_ts": ts, "receive_ts": recv_ms / 1000,
                                         "price": value}) + "\n")
                     bw += 1
+            bp = 0
+            price_path = self.d / "binance_prices.jsonl.gz"
+            price_tmp = self.d / "binance_prices.jsonl.gz.tmp"
+            price_audit = {}
+            try:
+                with gzip.open(price_tmp, "wt") as f:
+                    rows = iter_jsonl_strict(raw_files(src, "binance-strict"))
+                    for row in binance_ws_price_events(
+                        rows, f"{coin.upper()}USDT", price_audit,
+                    ):
+                        f.write(json.dumps(row, sort_keys=True, separators=(",", ":")) + "\n")
+                        bp += 1
+                    recorder_complete = any(
+                        row.get("where") == "recorder-complete"
+                        for row in iter_jsonl_strict(raw_files(src, "errors"))
+                    )
+                    metadata = {
+                        "kind": "metadata",
+                        "schema": "polymarket-binance-price-sidecar-v1",
+                        "asset": coin.lower(),
+                        "run_id": os.environ.get("GITHUB_RUN_ID"),
+                        "collector_region": os.environ.get(
+                            "POLYMARKET_COLLECTOR_REGION", "unknown",
+                        ),
+                        "recorder_complete": recorder_complete,
+                        **price_audit,
+                    }
+                    f.write(json.dumps(metadata, sort_keys=True, separators=(",", ":")) + "\n")
+                price_tmp.replace(price_path)
+            except BaseException:
+                price_tmp.unlink(missing_ok=True)
+                price_path.unlink(missing_ok=True)
+                raise
             closes = clob_close_times(iter_jsonl(raw_files(src, "errors")))
             with gzip.open(self.d / "clob_closes.csv.gz", "wt", newline="") as f:
                 w = csv.writer(f)
                 w.writerow(["at_s"])
                 w.writerows([f"{x:.3f}"] for x in sorted(closes))
             return {"latency_markets": len(self.up), "latency_books": self.n, "latency_binance": k,
-                    "latency_coinbase": c, "latency_binance_ws": bw, "latency_clob_closes": len(closes)}
+                    "latency_coinbase": c, "latency_binance_ws": bw,
+                    "latency_binance_prices": bp, "latency_clob_closes": len(closes)}
         except Exception as e:
             return {"latency_error": repr(e)}
 
@@ -931,6 +1055,8 @@ def build(src, out, coin="btc"):
         for f in files.values():
             f.close()
     counts.update(lat.close(src, coin))
+    if "latency_error" in counts:
+        raise RuntimeError(f"latency export failed: {counts['latency_error']}")
     if coin == "btc":  # G/H/I/J are BTC-only; do not duplicate raw L2 for the four side datasets.
         counts.update(write_strict_bundle(src, out, coin, markets))
     return counts

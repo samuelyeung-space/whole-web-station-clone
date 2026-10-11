@@ -231,9 +231,15 @@ def now_ms():
 
 def binance_stream_names(coins):
     """Receipt-ordered spot inputs used by the strict sub-second replays."""
-    return tuple(stream for coin in coins for stream in
-                 ((f"{coin}usdt@aggTrade", f"{coin}usdt@trade", f"{coin}usdt@bookTicker") if coin == "btc"
-                  else (f"{coin}usdt@aggTrade",)))
+    return tuple(
+        stream
+        for coin in coins
+        for stream in (
+            f"{coin}usdt@aggTrade",
+            f"{coin}usdt@trade",
+            f"{coin}usdt@bookTicker",
+        )
+    )
 
 
 def fetch_json(url, timeout=10):

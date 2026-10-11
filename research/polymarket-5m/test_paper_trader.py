@@ -1,7 +1,6 @@
 import gzip
 import json
 
-import numpy as np
 import pandas as pd
 import pytest
 
@@ -191,6 +190,10 @@ def test_live_recorder_keeps_bookticker_and_explicit_clob_epoch(tmp_path):
     assert deribit[2]["timestamp"] == 904 and deribit[2]["volatility"] == 58.25
     assert pt.binance_stream_names(("btc",)) == (
         "btcusdt@aggTrade", "btcusdt@trade", "btcusdt@bookTicker",
+    )
+    assert pt.binance_stream_names(("eth", "doge")) == (
+        "ethusdt@aggTrade", "ethusdt@trade", "ethusdt@bookTicker",
+        "dogeusdt@aggTrade", "dogeusdt@trade", "dogeusdt@bookTicker",
     )
 
 

@@ -284,6 +284,87 @@ def test_binance_trades_reach_the_latency_files(recorded, tmp_path):
     assert [r["price"] for r in rows] == [80000.5, 80001.0] and rows[0]["trade_ts"] == S0 + 100
 
 
+def test_alt_price_sidecar_keeps_bbo_trade_and_connection_epoch(tmp_path):
+    out = tmp_path / "paper"
+    trader = pt.LiveTrader(out, P, fetch=lambda url: [])
+    base_ms = S0 * 1000.0
+    trader.record_binance_open("spot", base_ms, conn_id=4)
+    trader.on_binance(json.dumps({"data": {
+        "e": "trade", "s": "ETHUSDT", "t": 7, "T": int(base_ms + 1),
+        "p": "3000.10", "q": "1", "m": False,
+    }}), base_ms + 2, conn_id=4)
+    trader.on_binance(json.dumps({"data": {
+        "e": "trade", "s": "BTCUSDT", "t": 9, "T": int(base_ms + 2),
+        "p": "80000.00", "q": "1", "m": False,
+    }}), base_ms + 3, conn_id=4)
+    trader.on_binance(json.dumps({"data": {
+        "e": "bookTicker", "s": "ETHUSDT", "u": 8,
+        "b": "3000.00", "B": "2", "a": "3000.20", "A": "3",
+    }}), base_ms + 5, conn_id=4)
+    trader.record_complete(base_ms + 5.5)
+    trader.record_binance_close("spot", "test", base_ms + 6, conn_id=4)
+    trader.rec.close()
+
+    counts = rc.build(out, tmp_path / "bundle-eth", coin="eth")
+    with gzip.open(
+        tmp_path / "bundle-eth" / "latency" / "binance_prices.jsonl.gz", "rt",
+    ) as stream:
+        rows = [json.loads(line) for line in stream]
+
+    assert counts["latency_binance_prices"] == 4
+    events = [row for row in rows if row["kind"] != "metadata"]
+    metadata = next(row for row in rows if row["kind"] == "metadata")
+    assert [row["kind"] for row in events] == [
+        "connection", "trade", "bookTicker", "disconnect",
+    ]
+    assert events[1]["price"] == pytest.approx(3000.10)
+    assert events[2]["mid"] == pytest.approx(3000.10)
+    assert events[2]["source_ts_ms"] is None
+    assert all(row["connection_epoch"] == 1 for row in events)
+    assert [row["sequence"] for row in events] == [0, 1, 2, 3]
+    assert [row["raw_sequence"] for row in events] == [0, 1, 3, 4]
+    assert metadata["raw_event_count"] == 5
+    assert metadata["emitted_event_count"] == 4
+    assert metadata["recorder_complete"] is True
+
+
+def test_strict_btc_normalizer_validates_global_sequence_before_symbol_filter() -> None:
+    records = [
+        {"kind": "connection", "recv_ms": 100.0, "connection_epoch": 1,
+         "sequence": 0, "max_active_connections": 3},
+        {"kind": "trade", "recv_ms": 101.0, "connection_epoch": 1,
+         "sequence": 1, "s": "ETHUSDT", "T": 90.0, "p": "3000", "q": "1"},
+        {"kind": "trade", "recv_ms": 102.0, "connection_epoch": 1,
+         "sequence": 2, "s": "BTCUSDT", "T": 91.0, "p": "80000", "q": "1"},
+        {"kind": "disconnect", "recv_ms": 103.0, "connection_epoch": 1,
+         "sequence": 3, "max_active_connections": 3},
+    ]
+    stats = rc._source_stats()
+
+    rows = [event for _key, event in rc._strict_binance_stream(
+        records, "spot", "BTCUSDT", stats,
+    )]
+
+    assert [row["kind"] for row in rows] == [
+        "spot_connection", "spot_trade", "spot_disconnect",
+    ]
+    assert [row["stream_sequence"] for row in rows] == [0, 1, 2]
+    assert stats["sequence_regressions"] == 0
+
+
+def test_bundle_conversion_fails_closed_when_strict_price_sidecar_fails(
+    recorded, tmp_path, monkeypatch,
+) -> None:
+    def broken(*_args, **_kwargs):
+        raise ValueError("broken strict source")
+
+    monkeypatch.setattr(rc, "binance_ws_price_events", broken)
+
+    with pytest.raises(RuntimeError, match="latency export failed"):
+        rc.build(recorded[0], tmp_path / "bundle")
+    assert not (tmp_path / "bundle/latency/binance_prices.jsonl.gz").exists()
+
+
 def test_strict_bundle_keeps_bookticker_dual_token_l2_and_connection_epochs(tmp_path):
     import h_replay_archive as archive
 
