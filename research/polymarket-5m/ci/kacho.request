@@ -7,7 +7,7 @@
 #       | replay (every archived forward recording through strategy_zoo with #101 and #103-#108 -> real/forward-replay.md)
 #       | latency (latency.py on the forward recordings' bundle-btc/latency files -> real/latency-github.md)
 #       | momentum5s (frozen zoo100 #27 on every retained post-freeze BTC recording)
+#       | dustchain (Family 31 parent-order upper bound from pinned raw V2 chain events)
 #       | cross (cross.py on BTC 5m/15m/1h books from Hugging Face; "cross: probe" lists the tables first)
-requested: 2026-10-10T23:25:33Z audit Family 29 same-expiry 5m-15m boxes on the pinned 67-archive manifest with source-bound non-atomic legs, exact latency snapshots, orphan unwinds and corrected inference
-mode: cross
-cross: boxbatch
+requested: 2026-10-11T03:33:43Z audit conservative Family 31 parent-order nominal capacity on the immutable July V2 archive
+mode: dustchain
