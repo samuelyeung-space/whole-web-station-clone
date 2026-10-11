@@ -2,16 +2,20 @@
 
 from __future__ import annotations
 
+import argparse
 import heapq
+import json
 import math
 from collections import Counter
 from collections.abc import Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from itertools import groupby
+from pathlib import Path
 from typing import Any
 
 import h_replay as replay
+import h_replay_archive as archive
 import h_replay_run as run
 import h_source_race as source_race
 
@@ -24,6 +28,8 @@ TARGET_SHARES = 5.0
 CORRECTION_DENOMINATOR = 874
 MAX_CONFIRMATION_CANDIDATES = 4_096
 ARMS = ("baseline", "confirmation_veto", "receipt_time_shifted_placebo")
+STRATEGY_ID = "FAMILY36-SOURCE-CONFIRMATION-V1"
+PROSPECTIVE_CUTOFF_MS = 1_791_737_162_000.0
 _EPS = 1e-9
 
 
@@ -1283,3 +1289,164 @@ def replay_normalized(
             del arm.manual_rows[before:]
     rows.sort(key=_row_sort_key)
     return rows, dict(sorted(counters.items()))
+
+
+def _atomic_write_rows(path: str | Path, rows: Sequence[Mapping[str, Any]]) -> None:
+    destination = Path(path)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temporary = destination.with_name(destination.name + ".tmp")
+    with temporary.open("w", encoding="utf-8") as stream:
+        for row in rows:
+            stream.write(json.dumps(row, sort_keys=True, allow_nan=False) + "\n")
+    temporary.replace(destination)
+
+
+def replay_archive(
+    archive_dir: str | Path,
+    *,
+    rows_out: str | Path | None = None,
+    prospective_cutoff_ms: float = PROSPECTIVE_CUTOFF_MS,
+) -> dict[str, Any]:
+    """Run Family 36 on one immutable standard strict recording artifact."""
+    cutoff_ms = float(prospective_cutoff_ms)
+    if not math.isfinite(cutoff_ms):
+        raise ValueError("prospective cutoff must be finite")
+
+    root = Path(archive_dir)
+    identity, artifact_stats, standard = source_race._capture_artifact_identity(root)
+    if identity.get("receipt_race_ready") is not True:
+        raise ValueError("Family 36 requires a receipt-race-ready artifact")
+    checked = archive.validate_standard_artifact(standard)
+    manifest = checked["manifest"]
+    for key in ("run_id", "collector_region", "receipt_race_ready", "started_ms", "ended_ms"):
+        if manifest.get(key) != identity.get(key):
+            raise ValueError(f"artifact identity drift for {key}")
+
+    mappings = list(archive.iter_market_mappings(standard / "market_registry.csv.gz"))
+    mapping_by_market = {str(row["market_id"]): row for row in mappings}
+    if len(mapping_by_market) != len(mappings):
+        raise ValueError("duplicate market mapping")
+    outcome_rows = list(archive.iter_outcomes(standard / "market_outcomes.csv.gz"))
+    outcomes: dict[str, str] = {}
+    result_available_ms: dict[str, float] = {}
+    for outcome in outcome_rows:
+        market_id = str(outcome["market_id"])
+        if market_id in outcomes:
+            raise ValueError(f"duplicate market outcome: {market_id}")
+        mapping = mapping_by_market.get(market_id)
+        if mapping is None:
+            raise ValueError(f"market outcome has no direct-token mapping: {market_id}")
+        outcomes[market_id] = str(outcome["winner"])
+        recorded_ms = float(outcome["recv_ms"])
+        market_end_ms = (float(mapping["slot"]) + 300.0) * 1_000.0
+        if not math.isfinite(recorded_ms):
+            raise ValueError(f"market outcome has invalid receipt time: {market_id}")
+        result_available_ms[market_id] = max(recorded_ms, market_end_ms)
+
+    frozen = replay.load_freeze()
+    execution, signal = configs_from_current_h(frozen)
+    rows, counters = replay_normalized(
+        archive.iter_normalized_events(
+            standard / "source_events.jsonl.gz", family="source"
+        ),
+        archive.iter_normalized_events(
+            standard / "clob_events.jsonl.gz", family="clob"
+        ),
+        mappings,
+        outcomes,
+        execution,
+        signal,
+    )
+    if source_race._artifact_stats(standard) != artifact_stats:
+        raise ValueError("strict artifact changed during Family 36 replay")
+
+    observation_run_id = str(identity.get("run_id") or root.name)
+    eligible_rows: list[dict[str, Any]] = []
+    excluded_pre_cutoff_rows = 0
+    for original in rows:
+        row = dict(original)
+        try:
+            signal_receive_ms = float(row["signal_receive_ms"])
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError("Family 36 row lacks a valid receipt timestamp") from exc
+        if not math.isfinite(signal_receive_ms):
+            raise ValueError("Family 36 row lacks a valid receipt timestamp")
+        if signal_receive_ms < cutoff_ms - _EPS:
+            excluded_pre_cutoff_rows += 1
+            continue
+        row["observation_run_id"] = observation_run_id
+        row["strategy_id"] = STRATEGY_ID
+        row["family"] = 36
+        if row.get("winner") is not None:
+            market_id = str(row.get("market_id"))
+            if market_id not in result_available_ms:
+                raise ValueError(f"resolved row has no observable outcome time: {market_id}")
+            row["result_time_ms"] = result_available_ms[market_id]
+        eligible_rows.append(row)
+    eligible_rows.sort(key=_row_sort_key)
+    if rows_out is not None:
+        _atomic_write_rows(rows_out, eligible_rows)
+
+    pending_outcomes = sorted(
+        {
+            str(row["market_id"])
+            for row in eligible_rows
+            if row.get("winner") is None
+        }
+    )
+    summary = summarize(eligible_rows, counters)
+    summary["dataset"] = {
+        "sample_scope": "prospective_standard_forward_artifact",
+        "archive": root.name,
+        "run_id": identity.get("run_id"),
+        "collector_region": identity.get("collector_region"),
+        "started_ms": identity.get("started_ms"),
+        "ended_ms": identity.get("ended_ms"),
+        "receipt_race_ready": identity.get("receipt_race_ready") is True,
+        "artifact_files_sha256": source_race._canonical_digest(identity),
+        "mapped_markets": len(mappings),
+        "outcomes": len(outcomes),
+        "prospective_cutoff_ms": cutoff_ms,
+        "raw_rows": len(rows),
+        "excluded_pre_cutoff_rows": excluded_pre_cutoff_rows,
+        "eligible_rows": len(eligible_rows),
+        "pending_signal_market_outcomes": pending_outcomes,
+        "paper_gate_eligible": bool(
+            identity.get("collector_region") == "eu-west-1"
+            and identity.get("receipt_race_ready") is True
+            and not pending_outcomes
+            and float(identity.get("started_ms") or -math.inf) >= cutoff_ms
+            and float(identity.get("ended_ms") or -math.inf) >= cutoff_ms
+        ),
+    }
+    summary["protocol"] = {
+        "strategy_id": STRATEGY_ID,
+        "primary_sources": sorted(PRIMARY_SOURCES),
+        "secondary_sources": sorted(SECONDARY_SOURCES),
+        "confirmation_window_ms": CONFIRMATION_WINDOW_MS,
+        "placebo_shift_ms": PLACEBO_SHIFT_MS,
+        "evaluation_ms": list(EVALUATION_MS),
+        "target_shares": TARGET_SHARES,
+        "result_time_basis": "max_market_end_and_outcome_receipt",
+    }
+    summary["record_count"] = len(eligible_rows)
+    return summary
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--archive", required=True)
+    parser.add_argument("--rows-out")
+    args = parser.parse_args()
+    print(
+        json.dumps(
+            replay_archive(args.archive, rows_out=args.rows_out),
+            indent=2,
+            sort_keys=True,
+            allow_nan=False,
+        )
+    )
+
+
+if __name__ == "__main__":
+    main()

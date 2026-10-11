@@ -654,7 +654,7 @@
       ],
       "priority": 28,
       "passes": false,
-      "notes": "Family 36 is a depth-first repair of the observed source-race result, not another threshold search. Two inspected blocks showed that allowing futures_trade and Deribit to originate orders increased executable volume but reduced per-share EV and worsened loss rate. This family freezes their role as already-arrived confirmation or veto information while leaving the primary current-H send time unchanged. The 120 millisecond receipt window is fixed before any later artifact is read; all earlier data is development-only."
+      "notes": "Family 36 is a depth-first repair of the observed source-race result, not another threshold search. Two inspected blocks showed that allowing futures_trade and Deribit to originate orders increased executable volume but reduced per-share EV and worsened loss rate. This family freezes their role as already-arrived confirmation or veto information while leaving the primary current-H send time unchanged. The 120 millisecond receipt window is fixed before any later artifact is read; all earlier data is development-only. The standard strict-artifact adapter and continuous paper-workflow hook are implemented; only an artifact that starts after the prospective cutoff can be paper-gate eligible."
     }
   ]
 }

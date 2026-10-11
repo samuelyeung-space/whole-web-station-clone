@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import copy
+import json
 from collections import Counter
 from typing import Any
 
-import pytest
-
 import h_replay
 import h_replay_run
+import pytest
 import source_confirmation as confirmation
 
 
@@ -923,3 +923,132 @@ def test_replay_and_summary_are_deterministic() -> None:
         second_rows,
         second_counters,
     )
+
+
+def test_archive_adapter_filters_pre_cutoff_and_uses_observable_result_time(
+    tmp_path, monkeypatch
+) -> None:
+    strict = tmp_path / "strict"
+    strict.mkdir()
+    (strict / "manifest.json").write_text("{}\n", encoding="utf-8")
+    manifest = {
+        "schema": "polymarket-5m-strict-replay-v2",
+        "complete": True,
+        "run_id": "run-family36",
+        "collector_region": "eu-west-1",
+        "receipt_race_ready": True,
+        "started_ms": 1_000.0,
+        "ended_ms": 500_000.0,
+    }
+    identity = {
+        "run_id": "run-family36",
+        "collector_region": "eu-west-1",
+        "receipt_race_ready": True,
+        "started_ms": 1_000.0,
+        "ended_ms": 500_000.0,
+        "files": {"manifest.json": "sha"},
+    }
+    artifact_stats = {"manifest.json": (3, 4, 5)}
+    mappings = [{
+        "market_id": "m",
+        "slot": 100,
+        "up_token_id": "up",
+        "down_token_id": "down",
+    }]
+    outcomes = [{
+        "market_id": "m",
+        "winner": "Up",
+        "recv_ms": 399_000.0,
+        "source_ts_ms": 300_000.0,
+    }]
+    before = _summary_row(
+        arm="baseline",
+        evaluation_ms=400.0,
+        market_id="m",
+        signal_ms=999.0,
+        reason="filled",
+        sent=True,
+        filled_shares=5.0,
+        pnl=1.0,
+        won=True,
+    )
+    after = copy.deepcopy(before)
+    after["signal_receive_ms"] = 1_000.0
+    after["evaluation_time_ms"] = 1_400.0
+
+    monkeypatch.setattr(
+        confirmation.source_race,
+        "_capture_artifact_identity",
+        lambda _: (identity, artifact_stats, strict),
+    )
+    monkeypatch.setattr(
+        confirmation.source_race,
+        "_artifact_stats",
+        lambda _: artifact_stats,
+    )
+    monkeypatch.setattr(
+        confirmation.archive,
+        "validate_standard_artifact",
+        lambda _: {"manifest": manifest, "counts": {}},
+    )
+    monkeypatch.setattr(
+        confirmation.archive,
+        "iter_market_mappings",
+        lambda _: iter(mappings),
+    )
+    monkeypatch.setattr(
+        confirmation.archive,
+        "iter_outcomes",
+        lambda _: iter(outcomes),
+    )
+    monkeypatch.setattr(
+        confirmation.archive,
+        "iter_normalized_events",
+        lambda *_args, **_kwargs: iter(()),
+    )
+    monkeypatch.setattr(
+        confirmation,
+        "replay_normalized",
+        lambda *_args, **_kwargs: ([before, after], {"events": 1}),
+    )
+
+    rows_out = tmp_path / "family36.jsonl"
+    result = confirmation.replay_archive(
+        tmp_path,
+        rows_out=rows_out,
+        prospective_cutoff_ms=1_000.0,
+    )
+
+    persisted = [
+        json.loads(line)
+        for line in rows_out.read_text(encoding="utf-8").splitlines()
+    ]
+    assert len(persisted) == 1
+    assert persisted[0]["signal_receive_ms"] == 1_000.0
+    assert persisted[0]["result_time_ms"] == 400_000.0
+    assert persisted[0]["observation_run_id"] == "run-family36"
+    assert persisted[0]["family"] == 36
+    assert result["dataset"]["excluded_pre_cutoff_rows"] == 1
+    assert result["dataset"]["eligible_rows"] == 1
+    assert result["dataset"]["paper_gate_eligible"] is True
+    assert result["promotion_eligible"] is False
+
+
+def test_archive_adapter_rejects_non_receipt_race_artifact(tmp_path, monkeypatch) -> None:
+    strict = tmp_path / "strict"
+    strict.mkdir()
+    (strict / "manifest.json").write_text("{}\n", encoding="utf-8")
+    identity = {
+        "run_id": "bad",
+        "collector_region": "eu-west-1",
+        "receipt_race_ready": False,
+        "files": {},
+    }
+    monkeypatch.setattr(
+        confirmation.source_race,
+        "_capture_artifact_identity",
+        lambda _: (identity, {}, strict),
+    )
+
+    with pytest.raises(ValueError, match="receipt-race-ready"):
+        confirmation.replay_archive(tmp_path)
