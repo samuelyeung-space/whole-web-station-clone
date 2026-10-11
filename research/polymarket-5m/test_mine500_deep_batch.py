@@ -97,6 +97,53 @@ def test_failed_first_signal_not_replaced_by_later_winner():
     assert result['conflicts'][0]['suppressed_signals']==1
 
 
+def test_panel_intents_recover_order_rejected_only_by_candidate_cash():
+    def market(mid, start):
+        return dict(type='market', market_id=mid, recv_ms=start, start_ms=start,
+                    end_ms=start+300000, label_source='gamma')
+    def book(mid, t, price):
+        return dict(type='book', market_id=mid, recv_ms=t, healthy=True,
+                    up_asks=[[price,1500]], down_asks=[[.5,1500]], fee_rate=.07)
+    def decision(mid,t,selector,end):
+        return dict(type='decision', market_id=mid, recv_ms=t,
+                    features={'selector':selector,'tau_s':(end-t)/1000},
+                    feature_available_ms={'selector':t,'tau_s':t})
+    events=[dict(type='dataset',recv_ms=0,dataset_id='cash-counterexample',split='development',
+                 coverage_end_ms=400000,provenance={'source':'synthetic_fixture'}),
+        market('m1',0), book('m1',1000,.4), decision('m1',1000,1,300000), book('m1',1500,.5),
+        book('m1',2000,.5), decision('m1',2000,2,300000), book('m1',2500,.5),
+        market('m2',300000), book('m2',301000,.5), decision('m2',301000,2,600000),
+        book('m2',301500,.5),
+        dict(type='outcome',market_id='m1',recv_ms=600001,resolved_ms=300000,winner='Up',source='gamma'),
+        dict(type='outcome',market_id='m2',recv_ms=600001,resolved_ms=600000,winner='Up',source='gamma')]
+    candidates=[dict(id='A',required_features=['selector'],selector=2),
+                dict(id='B',required_features=['selector'],selector=1)]
+    def choose(candidate, features):
+        return 'Up' if candidate['selector']==features['selector'] else None
+    config=batch.execution.ReplayConfig(latencies_ms=(500,),shares=1500)
+    individual=batch.execution.replay_events(events,candidates,choose,config)
+    later=next(r for r in individual['attempts'] if r['candidate_id']=='A' and r['market_id']=='m2')
+    assert later['status']=='rejected_insufficient_available_cash'
+    panels,intents=batch.panel_intent_results(events,candidates,choose,config)
+    panel=panels[0]
+    assert panel['initial_cash_usd']==panel['portfolio_cash_usd']==1000
+    assert panel['intent_capital_censoring'] is False
+    # Earliest B failed m1, so the shared panel retained enough cash for A on m2.
+    assert panel['filled_orders']==1
+    accepted=next(r for r in panel['chosen_attempts'] if r['market_id']=='m2')
+    assert accepted['submitted'] and not accepted['shared_cash_rejected']
+    assert accepted['shared_status']=='filled_full'
+
+
+def test_coverage_count_is_not_historical_multiple_testing_count():
+    stats={'declared_family_rules':860,'denominator_audit':[
+        {'declared_rules':860,'registered_rules_in_runner':40,'missing_runner_summaries':820}]}
+    corrected=batch.correct_current_coverage_denominator(stats,40,860)
+    assert corrected['declared_family_rules']==860
+    assert corrected['denominator_audit'][0]['declared_rules']==40
+    assert corrected['denominator_audit'][0]['missing_runner_summaries']==0
+
+
 def test_registration_precedes_any_model_fit_or_result(tmp_path,monkeypatch):
     source=tape(tmp_path,'a')
     out=tmp_path/'out'

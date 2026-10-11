@@ -73,6 +73,16 @@ def test_decimal_band_edges_are_direction_symmetric():
     assert path_score("neutral_first_exit", [1-p for p in path]) == -1
 
 
+def test_exact_four_cent_staircase_is_not_lost_to_float_subtraction():
+    path = [.40]*12+[.41,.42,.43,.44]
+    assert path[-1]-path[0] < .04  # The binary-float counterexample is real.
+    assert path_score("staircase_follow", path) == 1
+    assert path_score("staircase_follow", [1-p for p in path]) == -1
+    below = path[:-1]+[.439]
+    assert path_score("staircase_follow", below) == 0
+    assert path_score("staircase_follow", [1-p for p in below]) == 0
+
+
 def test_external_information_vetoes_jump_fade():
     path = PATHS["isolated_jump_fade"]
     assert path_score("isolated_jump_fade", path, {"r_5s": -2}) == 0

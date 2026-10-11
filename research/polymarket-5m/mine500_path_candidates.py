@@ -109,11 +109,13 @@ def make_candidates():
 
 def _up_trigger(key, p, external):
     """Up-side condition; symmetric Down condition uses 1-p and -returns."""
-    increments = [b-a for a, b in zip(p, p[1:])]
+    # Keep threshold arithmetic on the same canonical probability grid. This
+    # prevents an exact 4c move (0.44-0.40) being rejected as 0.0399999999999.
+    increments = [round(b-a, 12) for a, b in zip(p, p[1:])]
     absolute = [abs(x) for x in increments]
-    variation = sum(absolute)
-    squared = sum(x*x for x in increments)
-    net = p[-1]-p[0]
+    variation = round(sum(absolute), 12)
+    squared = round(sum(x*x for x in increments), 18)
+    net = round(p[-1]-p[0], 12)
     if key == "neutral_first_exit":
         return all(.45 <= x <= .55 for x in p[:-1]) and p[-1] >= .555
     if key == "failed_excursion":
@@ -124,32 +126,32 @@ def _up_trigger(key, p, external):
         prefix = p[:-3]
         return (sum(x >= .60 for x in prefix)/len(prefix) >= .8
                 and .50 <= p[-1] < .60 and min(p[-3:]) >= .45
-                and p[-1]-min(p[-3:]) >= .01 and p[-1] > p[-2])
+                and round(p[-1]-min(p[-3:]), 12) >= .01 and p[-1] > p[-2])
     if key == "roundtrip_reclaim":
-        return (.40 <= p[0] <= .75 and min(p[1:-1]) <= p[0]-.08
-                and p[-2] < p[0] <= p[-1] <= p[0]+.01)
+        return (.40 <= p[0] <= .75 and min(p[1:-1]) <= round(p[0]-.08, 12)
+                and p[-2] < p[0] <= p[-1] <= round(p[0]+.01, 12))
     if key == "oscillation_edge_fade":
         signs = [1 if x > 0 else -1 for x in increments if abs(x) > 1e-10]
         turns = sum(a != b for a, b in zip(signs, signs[1:]))
-        width = max(p)-min(p)
+        width = round(max(p)-min(p), 12)
         return (variation >= .16 and turns >= 4 and width >= .04
-                and abs(net) <= .3*variation
-                and p[-1] <= min(p)+.1*width)
+                and abs(net) <= round(.3*variation, 12)
+                and p[-1] <= round(min(p)+.1*width, 12))
     if key == "isolated_jump_fade":
         if squared <= 0:
             return False
         index = max(range(len(increments)), key=lambda j: abs(increments[j]))
         jump = increments[index]
         age = len(increments)-1-index
-        retrace = (p[-1]-p[index+1])/(-jump) if jump < 0 else -1
-        return (jump <= -.04 and jump*jump >= .6*squared and 3 <= age <= 8
+        retrace = round(round(p[-1]-p[index+1], 12)/(-jump), 12) if jump < 0 else -1
+        return (jump <= -.04 and round(jump*jump,18) >= round(.6*squared,18) and 3 <= age <= 8
                 and .1 <= retrace <= .5 and increments[-1] > 0
                 and external["r_5s"] > -1.)
     if key == "staircase_follow":
-        return (net >= .04 and variation > 0 and net >= .75*variation
+        return (net >= .04 and variation > 0 and net >= round(.75*variation,12)
                 and sum(x > 1e-10 for x in absolute) >= 4
-                and max(absolute) <= .4*net
-                and max(x*x for x in increments) <= .35*squared)
+                and max(absolute) <= round(.4*net,12)
+                and round(max(x*x for x in increments),18) <= round(.35*squared,18))
     if key == "contested_majority_release":
         prefix = p[:-3]
         crossings = sum((a-.5)*(b-.5) < 0 for a, b in zip(prefix, prefix[1:]))

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import argparse
 from collections import Counter, defaultdict
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from datetime import datetime, timezone
 import gzip
 import hashlib
@@ -212,6 +212,37 @@ def panel_results(doc):
     return result
 
 
+def panel_intent_results(events, candidates, signal_fn, config):
+    """Generate uncensored execution intents, then apply the single $1000 ledger.
+
+    Candidate-specific $1000 rejections must not suppress an order that the
+    shared panel could afford after choosing another candidate on prior markets.
+    The large finite cash ceiling generates intents only, never portfolio capital.
+    """
+    intent_config = replace(config, initial_cash_usd=1e12)
+    intent_doc = execution.replay_events(events, candidates, signal_fn, intent_config)
+    if any(row["status"] == "rejected_insufficient_available_cash" for row in intent_doc["attempts"]):
+        raise ValueError("finite intent cash ceiling bound; panel input remains capital censored")
+    results = panel_results(intent_doc)
+    for result in results:
+        result["intent_cash_ceiling_usd"] = intent_config.initial_cash_usd
+        result["portfolio_cash_usd"] = 1000.0
+        result["intent_capital_censoring"] = False
+    return results, intent_doc
+
+
+def correct_current_coverage_denominator(stats, candidate_count, multiplicity_lower_bound):
+    """Separate current coverage from historical multiple-testing denominator."""
+    stats["current_registered_candidate_count"] = candidate_count
+    stats["historical_multiplicity_lower_bound"] = multiplicity_lower_bound
+    for audit in stats.get("denominator_audit", []):
+        audit["declared_rules"] = candidate_count
+        audit["missing_runner_summaries"] = max(0, candidate_count-audit["registered_rules_in_runner"])
+        audit["historical_multiplicity_lower_bound"] = multiplicity_lower_bound
+        audit["coverage_scope"] = "current_batch_candidates_only"
+    return stats
+
+
 def run(inputs, output, include_reference=True):
     output = Path(output)
     output.mkdir(parents=True, exist_ok=False)
@@ -249,8 +280,11 @@ def run(inputs, output, include_reference=True):
         print("replaying " + name, flush=True)
         doc = execution.replay_events(enriched, candidates, signal, execution.ReplayConfig(**parameters))
         daily = describe(doc)
-        panels.append({"scenario": name, "results": panel_results(doc)})
-        stats = analyze(doc, family_tests=860)
+        panel, intent_doc = panel_intent_results(enriched, candidates, signal, execution.ReplayConfig(**parameters))
+        panels.append({"scenario": name, "results": panel})
+        write_gzip(output/(name+"_panel_intent_attempts.jsonl.gz"), intent_doc.pop("attempts"))
+        write_json(output/(name+"_panel_intent_replay.json"), intent_doc)
+        stats = correct_current_coverage_denominator(analyze(doc, family_tests=860), len(candidates), 860)
         write_json(output/(name+"_statistics.json"), stats)
         write_gzip(output/(name+"_attempts.jsonl.gz"), doc.pop("attempts"))
         write_json(output/(name+"_replay.json"), doc)
@@ -265,10 +299,13 @@ def run(inputs, output, include_reference=True):
         write_json(output/"reference720_daily.json", describe(doc))
         write_gzip(output/"reference720_attempts.jsonl.gz", doc.pop("attempts"))
         write_json(output/"reference720_replay.json", doc)
-    if {p.name:digest(p) for p in modules} != registration["code_hashes"]:
-        write_json(output/"invalidated_run.json", {"reason": "code_changed_during_execution",
+    code_changed = {p.name:digest(p) for p in modules} != registration["code_hashes"]
+    input_changed = {filename:digest(filename) for filename in registration["input_hashes"]} != registration["input_hashes"]
+    if code_changed or input_changed:
+        write_json(output/"invalidated_run.json", {"reason": "code_or_input_changed_during_execution",
+                                                   "code_changed": code_changed, "input_changed": input_changed,
                                                    "formal_oos_result": None})
-        raise ValueError("registered code changed during execution; preserve outputs as invalidated")
+        raise ValueError("registered code or input changed during execution; preserve outputs as invalidated")
     write_json(output/"completion.json", {"completed_at_utc": datetime.now(timezone.utc).isoformat(),
         "new_candidate_scenarios": len(all_summary), "reference_candidate_scenarios": 2160 if include_reference else 0,
         "new_registered_trials": 40, "simulations_only": True, "formal_oos_result": None,
