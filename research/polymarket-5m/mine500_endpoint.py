@@ -192,6 +192,11 @@ def main():
         augmented.append(path); coverage.append(audit)
         print(json.dumps(audit), flush=True)
     batch.write_json(out/'feature_coverage.json', coverage)
+    replay_prepared(out, augmented, registry)
+
+
+def replay_prepared(out, augmented, registry):
+    """Resume only verified, already registered features; no refitting or tuning."""
     tape, input_audit = batch.combine_inputs(augmented, materialize_output=out/'combined.jsonl.gz')
     batch.write_json(out/'input_audit.json', input_audit)
     metrics, daily = [], []
