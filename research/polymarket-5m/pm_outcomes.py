@@ -121,7 +121,6 @@ def parse_event(ev):
     start = m.get("eventStartTime") or ev.get("startTime")
     src = m.get("resolutionSource") or ev.get("resolutionSource") or ""
     return dict(T=int(pd.Timestamp(start).timestamp()), slug=ev["slug"], up=float(up),
-                up_index=int(iu),
                 condition_id=m.get("conditionId"), token_up=toks[iu] if toks else None,
                 token_down=toks[idn] if toks else None, source=src, w=source_window(src))
 

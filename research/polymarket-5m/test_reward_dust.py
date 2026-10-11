@@ -218,6 +218,8 @@ def test_market_fetch_uses_authoritative_fallback_for_stale_gamma_outcome():
 
     class FakeHttp:
         def get(self, url):
+            if "/slug/" in url:
+                return _event(int(url.rsplit("-", 1)[1]))
             slugs = parse_qs(urlparse(url).query)["slug"]
             rows = [_event(int(slug.rsplit("-", 1)[1])) for slug in slugs]
             for row in rows:

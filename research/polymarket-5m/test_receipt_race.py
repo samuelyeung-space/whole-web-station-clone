@@ -47,12 +47,12 @@ def test_external_source_gap_discards_the_pre_gap_return_anchor():
         sigma_min_observations=2,
         forward_fill_s=1,
     )
-    trigger = TimestampedFirstTrigger(config)
+    trigger = rr.ReceiptRaceTrigger(config)
     for timestamp_ms, price in ((0, 100.0), (1_000, 100.01), (2_000, 100.0), (3_000, 100.01)):
         trigger.update_trade(timestamp_ms, price)
     trigger.update_source("deribit_quote", 4_000, 100.0)
 
-    trigger.reset_source("deribit_quote")
+    trigger.reset_external_source("deribit_quote")
 
     assert trigger.update_source("deribit_quote", 5_100, 100.1) is None
 

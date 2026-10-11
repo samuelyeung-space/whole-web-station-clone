@@ -16,7 +16,7 @@ import hashlib
 import json
 import ssl
 from collections import Counter
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -577,6 +577,27 @@ def validate_complete_day(day_start_s: int, market_starts: list[int]) -> list[in
     return expected
 
 
+def gamma_up_index(http: Any, row: Mapping[str, Any]) -> int:
+    event = http.get(f"{pm_outcomes.GAMMA}/slug/{row['slug']}")
+    if not isinstance(event, Mapping):
+        raise ValueError(f"missing Gamma outcome order for {row.get('slug')}")
+    markets = [
+        market for market in event.get("markets", [])
+        if market.get("conditionId") == row.get("condition_id")
+    ]
+    if len(markets) != 1:
+        raise ValueError(f"ambiguous Gamma outcome order for {row.get('slug')}")
+    market = markets[0]
+    outcomes = json.loads(market.get("outcomes") or "[]")
+    tokens = json.loads(market.get("clobTokenIds") or "[]")
+    if sorted(outcomes) != ["Down", "Up"] or len(tokens) != 2:
+        raise ValueError(f"invalid Gamma outcome order for {row.get('slug')}")
+    index = outcomes.index("Up")
+    if str(tokens[index]) != str(row.get("token_up")):
+        raise ValueError(f"conflicting Gamma Up token for {row.get('slug')}")
+    return index
+
+
 def fetch_btc5m_markets(
     http: Any,
     day_start_s: int,
@@ -625,7 +646,7 @@ def fetch_btc5m_markets(
         if up not in (0.0, 1.0) and resolve_unsettled is not None:
             resolved_up = resolve_unsettled(
                 str(condition_id),
-                int(row.get("up_index", -1)),
+                gamma_up_index(http, row),
             )
             if isinstance(resolved_up, bool):
                 up = float(resolved_up)

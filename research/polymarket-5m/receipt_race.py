@@ -23,6 +23,14 @@ ACTIVE_START_S = 60
 ACTIVE_END_S = 285
 
 
+class ReceiptRaceTrigger(TimestampedFirstTrigger):
+    def reset_external_source(self, source: str) -> None:
+        if source == "spot_trade":
+            raise ValueError("reset the whole trigger after a spot gap")
+        self.source_timestamps[source] = []
+        self.source_log_prices[source] = []
+
+
 @dataclass(frozen=True)
 class ReceiptCandidate:
     source: str
@@ -67,7 +75,7 @@ def _frame_identity(event: MarketEvent) -> tuple[object, ...] | None:
     return None
 
 
-def _event_candidate(event: MarketEvent, source: str, trigger: TimestampedFirstTrigger) -> object | None:
+def _event_candidate(event: MarketEvent, source: str, trigger: ReceiptRaceTrigger) -> object | None:
     source_ms = int(event.exchange_ns) / MS
     if source == "spot_trade":
         return trigger.update_trade(source_ms, event.price)
@@ -89,7 +97,7 @@ def extract_candidates(
     health: Counter[str] | None = None,
 ) -> list[ReceiptCandidate]:
     signal_config = config or SignalConfig(book_lag_ms=0.0)
-    trigger = TimestampedFirstTrigger(signal_config)
+    trigger = ReceiptRaceTrigger(signal_config)
     diagnostics = health if health is not None else Counter()
     seen_frames: set[tuple[object, ...]] = set()
     last_recv: dict[str, int] = {}
@@ -122,11 +130,11 @@ def extract_candidates(
         if max_gap_ms is not None and previous_recv is not None and event.recv_ns - previous_recv > max_gap_ms * MS:
             diagnostics[f"gap_{source}"] += 1
             if source == "spot_trade":
-                trigger = TimestampedFirstTrigger(signal_config)
+                trigger = ReceiptRaceTrigger(signal_config)
                 last_exchange.clear()
                 last_episode_source.clear()
             else:
-                trigger.reset_source(source)
+                trigger.reset_external_source(source)
                 last_exchange.pop(source, None)
                 for key in [key for key in last_episode_source if key[0] == source]:
                     del last_episode_source[key]
