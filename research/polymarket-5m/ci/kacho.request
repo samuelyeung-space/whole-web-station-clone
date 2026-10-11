@@ -10,5 +10,5 @@
 #       | dustchain (Family 31 parent-order upper bound from pinned raw V2 chain events)
 #       | walletlead (Family 32 receipt-causal informed-wallet historical audit)
 #       | cross (cross.py on BTC 5m/15m/1h books from Hugging Face; "cross: probe" lists the tables first)
-requested: 2026-10-11T07:22:00Z rerun frozen Family 32 after pinning the verified lint toolchain
+requested: 2026-10-11T08:14:36Z rerun Family 32 on every retained book day with a complete locked period
 mode: walletlead

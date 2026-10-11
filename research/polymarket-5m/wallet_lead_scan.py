@@ -42,6 +42,7 @@ DAYS = (FINAL_DAY - START_DAY).days + 1
 HISTORY_SEED_DAY = START_DAY - timedelta(days=1)
 DISCOVERY_END = date(2026, 7, 15)
 CONFIRMATION_END = date(2026, 8, 16)
+LOCKED_START = CONFIRMATION_END + timedelta(days=1)
 HORIZONS = (400, 500)
 TARGET_SHARES = Decimal(5)
 MAX_SNAPSHOT_LAG_MS = 100
@@ -487,11 +488,21 @@ def parse_book_manifest(text: str) -> dict[date, BookFile]:
         if day in files and files[day] != item:
             raise ValueError(f"conflicting book manifest row for {day}")
         files[day] = item
-    expected = {START_DAY + timedelta(days=offset) for offset in range(DAYS)}
-    missing = expected - set(files)
-    if missing:
-        raise ValueError(f"book manifest misses {min(missing)} through {max(missing)}")
-    return {day: files[day] for day in sorted(expected)}
+    audit_window = {START_DAY + timedelta(days=offset) for offset in range(DAYS)}
+    retained = audit_window & set(files)
+    locked_days = {
+        LOCKED_START + timedelta(days=offset)
+        for offset in range((FINAL_DAY - LOCKED_START).days + 1)
+    }
+    missing_locked = locked_days - retained
+    if missing_locked:
+        raise ValueError(
+            f"book manifest misses locked days {min(missing_locked)} through "
+            f"{max(missing_locked)}"
+        )
+    if not retained:
+        raise ValueError("book manifest has no retained audit days")
+    return {day: files[day] for day in sorted(retained)}
 
 
 def _download_book(item: BookFile, destination: Path) -> None:
@@ -824,7 +835,7 @@ def render_report(
         f"- Gamma 未终结但 CTF 已终结的市场：{onchain_outcome_fallbacks} 个；结果由官方 Conditional Tokens payout numerator/denominator 恢复。",
         "- 吃单身份只认 CTF Exchange V2 parent 行：taker 为交易所合约、maker_direction=BUY；逐 maker 成交行不作钱包信号。",
         f"- 链源最终性账本：{'通过' if chain_finalized else '未证明；结果因此只能作历史诊断'}。",
-        f"- 盘口：{BOOK_DATASET}，{book_files} 个逐日档；MANIFEST SHA-256 {book_manifest_sha256}。",
+        f"- 盘口：{BOOK_DATASET}，冻结区间内公开保留 {book_files} 个逐日档；未列入固定 MANIFEST 的日期不插值、不回填；锁定段 {LOCKED_START} 至 {FINAL_DAY} 完整。MANIFEST SHA-256 {book_manifest_sha256}。",
         f"- 日期：{BOOK_START} 至 {BOOK_END}；共 {len(rows):,} 条变体/延迟尝试。",
         "- 这批日期已用于机制开发，只能否决或决定是否进入新的前向样本，不能直接宣称可赚钱。",
         "",
@@ -910,7 +921,7 @@ def run_audit(workdir: Path, out: Path, csv_out: Path) -> pd.DataFrame:
     for offset in range(DAYS):
         day = START_DAY + timedelta(days=offset)
         events = read_chain_day(day)
-        if day <= DISCOVERY_END:
+        if day <= DISCOVERY_END or day not in book_files:
             day_rows: list[dict[str, Any]] = []
             selected: tuple[wl.WalletScore, ...] = ()
         else:

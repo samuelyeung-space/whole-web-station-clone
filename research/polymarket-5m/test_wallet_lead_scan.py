@@ -316,21 +316,24 @@ def test_ctf_payout_resolver_recovers_up_outcome_from_binary_condition():
     assert all(call[1]["method"] == "eth_call" for call in calls)
 
 
-def test_book_manifest_requires_and_preserves_every_frozen_day():
+def test_book_manifest_preserves_retained_days_and_requires_the_locked_period():
     lines = ["# file sha256 bytes"]
-    for offset in range(scan.DAYS):
-        day = scan.START_DAY + timedelta(days=offset)
+    retained = [scan.START_DAY, scan.DISCOVERY_END + timedelta(days=2)] + [
+        scan.LOCKED_START + timedelta(days=offset)
+        for offset in range((scan.FINAL_DAY - scan.LOCKED_START).days + 1)
+    ]
+    for offset, day in enumerate(retained):
         lines.append(
             f"market_parquet_{day}.tar.gz  {'ab' * 32}  {600_000_000 + offset}"
         )
 
     inventory = scan.parse_book_manifest("\n".join(lines))
 
-    assert len(inventory) == scan.DAYS
+    assert list(inventory) == sorted(retained)
     assert inventory[scan.START_DAY].sha256 == "ab" * 32
     assert inventory[scan.FINAL_DAY].day == scan.FINAL_DAY
 
-    with pytest.raises(ValueError, match="book manifest misses"):
+    with pytest.raises(ValueError, match="book manifest misses locked days"):
         scan.parse_book_manifest("\n".join(lines[:-1]))
 
 
