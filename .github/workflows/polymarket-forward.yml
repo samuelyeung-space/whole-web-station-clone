@@ -183,8 +183,10 @@ jobs:
 
       - name: Start the next run
         # the chain follows the recording itself: a later audit step failing (e.g. a strict replay
-        # manifest marked incomplete) keeps the job red but must not stop the paper recordings
-        if: ${{ !cancelled() && steps.cfg.outputs.enabled == 'true' && steps.rec.outcome == 'success' }}
+        # manifest marked incomplete) or running past timeout-minutes (which GitHub reports as a
+        # cancelled job) keeps the job red but must not stop the paper recordings; to stop the
+        # chain, set "enabled": false in ci/forward.json
+        if: ${{ always() && steps.cfg.outputs.enabled == 'true' && steps.rec.outcome == 'success' }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh workflow run polymarket-forward.yml --ref "${{ github.ref_name }}"
