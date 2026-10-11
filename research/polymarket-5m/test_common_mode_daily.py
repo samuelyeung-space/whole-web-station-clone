@@ -113,7 +113,7 @@ def test_persisted_day_result_is_byte_stable_or_rejected(tmp_path):
 
 def test_protocol_loader_rejects_dependency_drift(tmp_path):
     frozen, digest = daily.load_protocol_freeze()
-    assert digest == "462d54a77a8e9f666d8a198fb63f3f9acb856d3db2ce8e54a23bdab81aaa67b4"
+    assert digest == "a0d997aa7cd8ab0f37d045b20315d709b8363ff66cc81df0c6bbb57393f0a923"
     assert daily.detector_config(frozen) == detector.DetectorConfig()
 
     copied = json.loads(json.dumps(frozen))

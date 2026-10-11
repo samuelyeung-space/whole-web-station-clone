@@ -98,6 +98,20 @@ def envelope(rn, idx, epoch, sequence, kind, **details):
     }
 
 
+def transport_error_envelope(rn, idx, epoch, sequence, error):
+    """Keep established connection sequencing strict; retain pre-connect diagnostics separately."""
+    if epoch is None:
+        return {
+            "rn": rn,
+            "c": -1,
+            "k": "recorder_error",
+            "source_connection": idx,
+            "err": error,
+        }, sequence
+    sequence += 1
+    return envelope(rn, idx, epoch, sequence, "error", err=error), sequence
+
+
 class RecentFrames:
     """Keep only the first receipt of a duplicated market frame across warm sockets."""
 
@@ -197,10 +211,11 @@ async def conn(assets, idx, stop):
         except asyncio.CancelledError:
             raise
         except Exception as exc:
-            sink.write(json.dumps(envelope(
-                time.time_ns(), idx, epoch, sequence, "error",
-                err=f"{type(exc).__name__}: {str(exc)[:120]}",
-            ), separators=(",", ":")))
+            row, sequence = transport_error_envelope(
+                time.time_ns(), idx, epoch, sequence,
+                f"{type(exc).__name__}: {str(exc)[:120]}",
+            )
+            sink.write(json.dumps(row, separators=(",", ":")))
             await asyncio.sleep(0.5)
 
 

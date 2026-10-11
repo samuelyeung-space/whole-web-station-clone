@@ -46,6 +46,10 @@ JSON_BACKEND_VERSION = getattr(orjson, "__version__", None)
 GZIP_BACKEND = "isal.igzip" if igzip is not None else "gzip"
 GZIP_BACKEND_VERSION = getattr(isal, "__version__", None)
 MAX_JSON_RECORD_BYTES = 64 * 1024 * 1024
+DAY_MS = 86_400_000
+LEADING_CARRYOVER_GRACE_MS = 60_000
+
+
 def _gzip_open(path: Path, mode: str, *, compresslevel: int | None = None):
     if "r" in mode:
         # stdlib gzip validates trailers and supports concatenated members in one pass.  Probing
@@ -459,12 +463,18 @@ def iter_clob_events(paths: Iterable[Path], segment_end_ms: float):
     markets: dict[str, dict[str, Any]] = {}
     tokens: dict[str, str] = {}
     active: set[tuple[int, int]] = set()
+    observed_connections: set[tuple[int, int]] = set()
     physical_sequence: dict[tuple[int, int], int] = {}
+    physical_kind: dict[tuple[int, int], str] = {}
     logical_epoch = 0
     sequence = 0
+    carryover_deadline_ns = int(
+        (segment_end_ms - DAY_MS + LEADING_CARRYOVER_GRACE_MS) * 1_000_000
+    )
     stats = {
         "explicit_order": True,
         "physical_sequence_regressions": 0,
+        "legacy_duplicate_error_annotations": 0,
         "leading_carryover_frames": 0,
         "dropped_outside_epoch": 0,
         "deduplicated_frames": 0,
@@ -492,18 +502,33 @@ def iter_clob_events(paths: Iterable[Path], segment_end_ms: float):
                 except (KeyError, TypeError, ValueError) as exc:
                     stats["explicit_order"] = False
                     raise ValueError(f"{path.name}:{line_number}: missing CLOB lifecycle") from exc
-                if logical_epoch == 0 and kind != "connection":
-                    stats["leading_carryover_frames"] += 1
+                if kind != "connection" and connection not in observed_connections:
+                    key = (
+                        "leading_carryover_frames"
+                        if receive_ns <= carryover_deadline_ns
+                        else "dropped_outside_epoch"
+                    )
+                    stats[key] += 1
                     continue
                 previous = physical_sequence.get(connection, -1)
+                if (
+                    kind == "error"
+                    and physical == previous
+                    and physical_kind.get(connection) == "disconnect"
+                    and connection not in active
+                ):
+                    stats["legacy_duplicate_error_annotations"] += 1
+                    continue
                 if physical != previous + 1:
                     stats["physical_sequence_regressions"] += 1
                 physical_sequence[connection] = physical
+                physical_kind[connection] = str(kind)
             else:
                 stats["explicit_order"] = False
                 stats["dropped_outside_epoch"] += 1
                 continue
             if kind == "connection":
+                observed_connections.add(connection)
                 was_empty = not active
                 active.add(connection)
                 stats["max_active_connections"] = max(stats["max_active_connections"], len(active))

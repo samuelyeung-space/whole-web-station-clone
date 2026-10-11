@@ -38,6 +38,33 @@ def test_poly_recorder_envelope_binds_epoch_and_sequence():
     }
 
 
+def test_poly_recorder_error_advances_an_established_connection_sequence():
+    row, sequence = poly.transport_error_envelope(999, 1, 888, 7, "closed")
+
+    assert sequence == 8
+    assert row == {
+        "rn": 999,
+        "c": 1,
+        "e": 888,
+        "s": 8,
+        "k": "error",
+        "err": "closed",
+    }
+
+
+def test_poly_recorder_keeps_preconnect_errors_outside_connection_lifecycle():
+    row, sequence = poly.transport_error_envelope(999, 1, None, 0, "timeout")
+
+    assert sequence == 0
+    assert row == {
+        "rn": 999,
+        "c": -1,
+        "k": "recorder_error",
+        "source_connection": 1,
+        "err": "timeout",
+    }
+
+
 def test_poly_sink_close_finishes_a_valid_gzip_member(tmp_path, monkeypatch):
     monkeypatch.setattr(poly, "OUT", str(tmp_path))
     sink = poly.Sink()

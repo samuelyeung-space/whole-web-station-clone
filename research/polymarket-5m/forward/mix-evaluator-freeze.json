@@ -8,7 +8,7 @@
   "control_protocol_sha256": "28588718bd3a944595fc8a786beeb6fb1b54d3bd51a2246775995c31cdfe8b45",
   "dependencies_sha256": {
     "archive_day.py": "009217f3a4ebb9953147e1e605c1b05ffcb76ff24a7560b9aa413b11db71669b",
-    "eu_strict.py": "f88d04eaa46850f438bd433a4237c8952f7e68a3b2243b4d56350c7c3245a2fe",
+    "eu_strict.py": "95b6e3fc744dd6231e9ef431206ca8633505f2810434c8aa76039c02bcd99435",
     "forward/mix-control-freeze.json": "9bff030e6e703861b5e4935fa74cea51c76fe948cae84ca6dd340f7087be0c6a",
     "forward/mix-r1-17f-freeze.json": "bf1a36537d98f7ffe8a4d1cfce7a1dd7bad040d038ffb47f3c3b2fa6a6304bfc",
     "h_replay_archive.py": "a977dc5d7dc7d96fdd931eaed57e1523e5031f5d6e5dc826ab91f4d8314f497e",
@@ -17,7 +17,7 @@
     "mix_forward.py": "e1bdc7774bef55bfe33d8b7c66d3916708b73fb5b4930dc1d8261ebb338e8dcc",
     "mix_hf.py": "be5ee28d60d463795e7a2f58f4a0abe514071ffae7dd1bac8587556f31803d40",
     "mix_projection.py": "6fc104123dc4f286c61fd3be064652ec2d3c0f6a57bf86040120cb0e2b7f0739",
-    "poly_clob_rec.py": "db88ec4933a0f111d9ee6c0b0929f5fe483b893411fa7699d694aed8adac9adc",
+    "poly_clob_rec.py": "528c465db7a09a75fab81ab89ef990ba86fae31289a0bb62f1cdbbf26b3e9de6",
     "raw_rec.py": "93aea9620247b302abb0b19fcf7553f505ce65331b845d40ee6a12e14a6b4ce4",
     "requirements.txt": "d7ce01981383daa3d4586dfd189fa3f7ed26bfdbf0d8ac268ad4dca9863b8764",
     "source_race_daily.py": "6f8028e14daba523d4d4af8dd128df823b6d5faa4254aa6bfe0e8e884d9b8cac",

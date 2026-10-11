@@ -16,6 +16,12 @@ def _raw(path, rows):
             stream.write(f"{receive_ns}\t{json.dumps(payload, separators=(',', ':'))}\n")
 
 
+def _clob(path, rows):
+    with gzip.open(path, "wt", encoding="utf-8") as stream:
+        for row in rows:
+            stream.write(json.dumps(row, separators=(",", ":")) + "\n")
+
+
 def _marker(kind, epoch):
     return {"_recorder": {
         "schema": "recorder-lifecycle-v1", "kind": kind, "epoch": epoch,
@@ -138,6 +144,64 @@ def test_builds_valid_receipt_race_artifact_from_eu_recorders(tmp_path):
         stream.write(b"corrupt")
     with pytest.raises(archive.ArchiveFormatError, match="converter-validated file drift"):
         archive.validate_standard_artifact(out)
+
+
+def test_clob_reader_treats_each_midnight_connection_as_bounded_carryover(tmp_path):
+    path = tmp_path / f"poly_clob.{DAY}T00.jsonl.gz"
+    fresh_epoch = START_NS + 2_000_000
+    _clob(path, [
+        {"rn": START_NS + 1_000_000, "c": 0, "e": START_NS - 20, "s": 50,
+         "k": "message", "m": []},
+        {"rn": fresh_epoch, "c": 2, "e": fresh_epoch, "s": 0,
+         "k": "connection", "assets": []},
+        {"rn": START_NS + 3_000_000, "c": 1, "e": START_NS - 10, "s": 70,
+         "k": "message", "m": []},
+        {"rn": START_NS + 4_000_000, "c": 0, "e": START_NS - 20, "s": 51,
+         "k": "disconnect"},
+        {"rn": START_NS + 5_000_000, "c": 2, "e": fresh_epoch, "s": 1,
+         "k": "disconnect"},
+        {"rn": START_NS + 61_000_000_000, "c": 3, "e": START_NS - 30, "s": 90,
+         "k": "message", "m": []},
+    ])
+
+    rows = list(eu.iter_clob_events([path], (START_NS / 1e6) + eu.DAY_MS))
+    stats = rows[-1][3]
+
+    assert stats["leading_carryover_frames"] == 3
+    assert stats["dropped_outside_epoch"] == 1
+    assert stats["physical_sequence_regressions"] == 0
+
+
+def test_clob_reader_accepts_only_the_legacy_disconnect_error_duplicate(tmp_path):
+    path = tmp_path / f"poly_clob.{DAY}T00.jsonl.gz"
+    epoch = START_NS + 1_000_000
+    _clob(path, [
+        {"rn": epoch, "c": 0, "e": epoch, "s": 0, "k": "connection", "assets": []},
+        {"rn": epoch + 1, "c": 0, "e": epoch, "s": 1, "k": "disconnect"},
+        {"rn": epoch + 2, "c": 0, "e": epoch, "s": 1, "k": "error", "err": "closed"},
+    ])
+
+    rows = list(eu.iter_clob_events([path], (START_NS / 1e6) + eu.DAY_MS))
+    stats = rows[-1][3]
+
+    assert stats["legacy_duplicate_error_annotations"] == 1
+    assert stats["physical_sequence_regressions"] == 0
+
+
+def test_clob_reader_still_rejects_a_same_sequence_non_disconnect_error(tmp_path):
+    path = tmp_path / f"poly_clob.{DAY}T00.jsonl.gz"
+    epoch = START_NS + 1_000_000
+    _clob(path, [
+        {"rn": epoch, "c": 0, "e": epoch, "s": 0, "k": "connection", "assets": []},
+        {"rn": epoch + 1, "c": 0, "e": epoch, "s": 0, "k": "error", "err": "bad"},
+        {"rn": epoch + 2, "c": 0, "e": epoch, "s": 1, "k": "disconnect"},
+    ])
+
+    rows = list(eu.iter_clob_events([path], (START_NS / 1e6) + eu.DAY_MS))
+    stats = rows[-1][3]
+
+    assert stats["legacy_duplicate_error_annotations"] == 0
+    assert stats["physical_sequence_regressions"] == 1
 
 
 def test_route_reader_fast_rejects_only_known_irrelevant_frames(tmp_path):

@@ -164,7 +164,7 @@ def test_stage_is_not_committed_before_evidence_upload(tmp_path, monkeypatch):
 def test_evaluator_freeze_binds_dependencies(tmp_path):
     frozen, digest = daily.load_evaluator_freeze()
 
-    assert digest == "ab6c4f80e339c14f0af8c6a59e12222dae41d14a969db4fcaa155c5a5b86d963"
+    assert digest == "45fe604c3c800eae5522533e24455e17dd56c933ca25524626ce7b1070b10c4b"
     assert frozen["control_protocol_sha256"] == (
         "28588718bd3a944595fc8a786beeb6fb1b54d3bd51a2246775995c31cdfe8b45"
     )
