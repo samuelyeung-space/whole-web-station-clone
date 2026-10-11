@@ -614,6 +614,26 @@
       "priority": 26,
       "passes": false,
       "notes": "Family 34 was frozen before replaying any outcome. Its mechanism is internal complementary-token price discovery: a displayed five-share-or-larger best-bid queue vanishes and the same direct token reprices, while the other direct token updates later and still offers value relative to one minus the first token's midpoint. It is not Binance/Deribit stale-quote momentum, same-expiry box arbitrage, post-trade absorption, partial-cancel prediction or paired maker placement. The first implementation step is a bounded-memory direct-book detector with atomic receipt batches and reverse-order controls; historical results remain audit-only."
+    },
+    {
+      "id": "US-034",
+      "title": "Test adverse-excursion reclaim hysteresis",
+      "description": "As the account owner, I want to know whether a binary price that absorbs an eight-cent adverse excursion and then reclaims its starting level contains path-dependent information that survives executable latency, rather than merely restating endpoint momentum.",
+      "acceptanceCriteria": [
+        "Use only strict receipt-ordered direct Up and Down CLOB lifecycle data with physical receipt batches applied atomically; sample on the market-relative one-second grid using only complete batches received strictly before each boundary, mark a boundary missing on an equal-time batch, and fail closed across disconnects, sequence gaps, source regressions, crossed books or books older than 250 milliseconds",
+        "For each token independently form exactly sixteen uninterpolated same-epoch midpoint observations p0 through p15; require 0.40 through 0.75 at p0, at least an eight-cent adverse excursion below p0 during p1 through p14, p14 below p0, and p15 from p0 through p0 plus one cent; apply the identical rule to direct Down, reject a boundary if both tokens qualify, and allow only the first qualifying boundary per market with 240 through 90 seconds remaining",
+        "Consume the market's first qualifying signal even when the order is blocked or receives no fill; freeze its direct token, five-share quantity and decision-time worst direct ask as the immutable limit, without a model fair value or an edge threshold",
+        "Replay independent direct-book FAK execution at exact 400 and 500 millisecond receipt-clock horizons, enforce the one-dollar venue minimum and conservative valid tick, charge the exact historical taker fee, preserve partial-fill risk, score fills to authoritative settlement and include every signal with zero PnL when it does not fill",
+        "Run a shallow-path control with maximum adverse excursion below two cents but the same reclaim crossing, and a five-second delayed control that retains the original signal, direction and fixed limit; match base and shallow rows only in predeclared outcome-blind strata of direction, UTC day, 30-second remaining-time bucket, five-cent start-price bucket, one-cent endpoint, last-step, ask and spread buckets, and decision-depth bucket, using time-greedy matching without outcome rematching",
+        "Treat all recordings inspected before 2026-10-11T15:10:32Z as development only; the path rule, controls, 400 and 500 millisecond horizons and correction denominator of at least 873 are immutable for later untouched evidence",
+        "Promote only after at least 1000 resolved full five-share base entries at each latency across seven UTC days, positive intention-to-trade net EV and positive one-sided 99 percent UTC-day lower bounds at both latencies, a one-sided paired or fair-price p value below 0.01 after the 873-family correction, and base EV above both matched controls; otherwise classify an indistinguishable result as existing endpoint momentum rather than a new family",
+        "No production deployment, wallet access or real order is part of this story",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 27,
+      "passes": false,
+      "notes": "Family 35 is frozen before outcome replay. Its economic claim is hysteresis after a deep adverse path, not a high terminal probability, static fair-value gap or one-step momentum signal. The endpoint and last-step matched shallow control is mandatory: without incremental performance over that control, the candidate is not economically independent. Previously inspected data can exercise causality and implementation only; a formal verdict requires untouched post-freeze receipt data."
     }
   ]
 }
