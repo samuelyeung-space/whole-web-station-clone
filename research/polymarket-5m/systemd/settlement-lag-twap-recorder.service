@@ -1,0 +1,20 @@
+[Unit]
+Description=Record Polymarket final-TWAP proof frames in closed hourly epochs
+After=network-online.target time-sync.target
+Wants=network-online.target time-sync.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/rec/h-race
+Environment=PYTHONPATH=/home/ubuntu/rec/h-race
+ExecStartPre=/home/ubuntu/rec/venv/bin/python /home/ubuntu/rec/h-race/settlement_lag_runtime.py verify --lock /home/ubuntu/rec/h-race/settlement-lag-runtime-lock.json
+ExecStartPre=/home/ubuntu/rec/venv/bin/python /home/ubuntu/rec/h-race/settlement_lag_runtime.py verify-protocol
+ExecStart=/home/ubuntu/rec/venv/bin/python /home/ubuntu/rec/h-race/settlement_lag_twap_rec.py /home/ubuntu/rec/data_settlement_twap
+Restart=always
+RestartSec=2
+Nice=10
+MemoryMax=256M
+
+[Install]
+WantedBy=multi-user.target

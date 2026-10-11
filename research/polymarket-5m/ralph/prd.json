@@ -679,7 +679,7 @@
       "description": "As the account owner, I want to know whether a winning token remains executable below one dollar after the contractually authoritative candle or touch event has already fixed the result but before Polymarket closes or settles the market.",
       "acceptanceCriteria": [
         "Restrict the family to markets whose outcome can be reconstructed exactly from the authoritative source and rule; distinguish a deterministically known result from US-013's forecast of an unfinished settlement average",
-        "Timestamp the first locally observable proof of the final outcome, reject ambiguous or revised source data, and use only direct winning-token depth received after that proof",
+        "Timestamp the first locally observable proof of the final outcome, reject ambiguous or revised source data, and use only directly executable winning-token liquidity received after that proof: native winner asks or complementary loser bids, taking the conservative maximum rather than summing duplicate economic liquidity",
         "Replay fixed-limit FAK execution at predeclared receipt-clock horizons with at least five shares, exact fees, any venue delay, capital lock and settlement or redemption costs; public trade volume is capacity context only",
         "Report opportunity count, fill rate, net cents per share, dollars per day, concentration and the conservative controllable capacity lower bound, with pre-finality and wrong-side placebos",
         "Promote only when both statistical and capacity gates remain positive on untouched forward data under the global multiplicity correction",
@@ -689,7 +689,7 @@
       ],
       "priority": 30,
       "passes": false,
-      "notes": "A 201-day historical scan found market-wide T*+5s volume averaging 1,354 shares and $38.7 nominal profit per day at prices no higher than 0.995; seller-initiated volume averaged 770 shares and $9.8 nominal profit. Daily median notional was only $23.6 overall and $8.8 seller-initiated, so the result is a concentrated upper bound until direct-book and queue evidence exists."
+      "notes": "A 201-day historical scan found market-wide T*+5s volume averaging 1,354 shares and $38.7 nominal profit per day at prices no higher than 0.995; seller-initiated volume averaged 770 shares and $9.8 nominal profit. A three-hour direct-L2 development audit then reconstructed 28 final proofs, all 28 matching the official winner, with 7.85-892.25ms proof lead, but found zero executable five-share winner fills at 200/300/500ms. After fixing a false-liquidity bug that could merge alternative native/complementary paths and overfill one order, the 300ms pre-final control had one five-share fill for -$0.06346 (-1.2692¢/share), while the wrong-side control had 24 five-share fills for -$1.08996 (-0.9083¢/share). The prospective protocol preserves exact integer receipt clocks in a Family-37-only adapter so earlier frozen evaluators remain byte-stable; freeze SHA-256 is 6a5234303e20c5e21176fc561aa74d51aac9cdf6946124659d75603b9fe5d2c7 and the first eligible full UTC day is 2026-10-15. This is a deterministic signal with no demonstrated capacity, so the paper-only forward gate remains unpassed."
     },
     {
       "id": "US-038",

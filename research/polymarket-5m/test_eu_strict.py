@@ -4,6 +4,7 @@ import json
 import eu_strict as eu
 import h_replay_archive as archive
 import pytest
+import settlement_lag_eu_strict as settlement_eu
 
 DAY = "20261010"
 START_NS = 1_791_590_400_000_000_000
@@ -186,6 +187,40 @@ def test_clob_reader_accepts_only_the_legacy_disconnect_error_duplicate(tmp_path
 
     assert stats["legacy_duplicate_error_annotations"] == 1
     assert stats["physical_sequence_regressions"] == 0
+
+
+def test_clob_reader_keeps_logical_epoch_alive_while_another_warm_connection_survives(tmp_path):
+    path = tmp_path / f"poly_clob.{DAY}T00.jsonl.gz"
+    first, second = START_NS + 1_000, START_NS + 2_000
+    _clob(path, [
+        {"rn": first, "c": 0, "e": first, "s": 0, "k": "connection", "assets": []},
+        {"rn": second, "c": 1, "e": second, "s": 0, "k": "connection", "assets": []},
+        {"rn": second + 1, "c": 0, "e": first, "s": 1, "k": "disconnect"},
+        {"rn": second + 2, "c": 1, "e": second, "s": 1, "k": "message", "m": []},
+        {"rn": second + 3, "c": 1, "e": second, "s": 2, "k": "disconnect"},
+    ])
+
+    events = [row[0] for row in eu.iter_clob_events(
+        [path], (START_NS / 1e6) + eu.DAY_MS,
+    )]
+
+    assert [event["kind"] for event in events] == ["clob_connection", "clob_error"]
+    assert {event["connection_epoch"] for event in events} == {1}
+
+
+def test_settlement_converter_preserves_exact_integer_receipt_clock(tmp_path):
+    path = tmp_path / f"poly_clob.{DAY}T00.jsonl.gz"
+    epoch = START_NS + 1_000_001
+    _clob(path, [
+        {"rn": epoch, "c": 0, "e": epoch, "s": 0, "k": "connection", "assets": []},
+        {"rn": epoch + 89, "c": 0, "e": epoch, "s": 1, "k": "disconnect"},
+    ])
+
+    events = [row[0] for row in settlement_eu.iter_clob_events(
+        [path], (START_NS / 1e6) + eu.DAY_MS,
+    )]
+
+    assert [event["recv_ns"] for event in events] == [epoch, epoch + 89]
 
 
 def test_clob_reader_still_rejects_a_same_sequence_non_disconnect_error(tmp_path):

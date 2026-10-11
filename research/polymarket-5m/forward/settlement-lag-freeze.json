@@ -1,0 +1,178 @@
+{
+  "schema": "settlement-lag-freeze-v3",
+  "strategy_id": "twap60-final-race-v3",
+  "economic_family": 37,
+  "published_at": "2026-10-11T23:44:57Z",
+  "development_data_cutoff": "2026-10-11T23:44:57Z",
+  "formal_holdout_start": "2026-10-15T00:00:00Z",
+  "market": {
+    "asset": "BTC",
+    "duration_seconds": 300,
+    "slug_prefix": "btc-updown-5m-",
+    "collector_region": "eu-west-1",
+    "authoritative_outcome_check": "official_gamma_after_execution"
+  },
+  "proof": {
+    "topic": "crypto_prices_twap_sixty",
+    "symbol": "btc/usd",
+    "window_seconds": 60,
+    "opening_payload_offset_ms": -2000,
+    "closing_payload_offset_ms": -2000,
+    "direction_rule": "Up iff closing_value >= opening_value",
+    "decision_clock": "first_local_receipt",
+    "conflicting_revision_policy": "reject_market",
+    "outside_connection_epoch_policy": "reject_frame"
+  },
+  "execution": {
+    "order_type": "FAK",
+    "fixed_limit": 0.97,
+    "theta": 0.025,
+    "tick": 0.01,
+    "base_shares": 5.0,
+    "minimum_notional_usd": 1.0,
+    "maximum_order_usd": 10.0,
+    "local_path_ms": 0.86,
+    "venue_hold_ms": 150.0,
+    "evaluation_ms": [
+      200.0,
+      300.0,
+      500.0
+    ],
+    "primary_evaluation_ms": 300.0,
+    "fee_rate": 0.07,
+    "capital_annual_rate": 0.1,
+    "redemption_cost_usd": 0.01,
+    "maximum_clock_offset_drift_ms": 5.0,
+    "execution_metadata_source": "recorded_gamma_sidecar_v1",
+    "depth_mode": "effective_complementary_single_path_v2",
+    "depth": "select exactly one executable path (native winning-token asks or complementary losing-token bids), maximize capacity up to five shares, break equal-capacity ties by worse all-in cost, and never merge paths",
+    "after_market_close_policy": "no_fill_primary_retain_raw_sensitivity",
+    "disconnect_policy": "fail_closed",
+    "clock_scope": "same-host-active-open-fd-and-post-close-identity"
+  },
+  "controls": {
+    "prefinality_payload_offset_ms": -3000,
+    "wrong_side": true,
+    "no_fill_pnl": 0.0
+  },
+  "stopping": {
+    "minimum_primary_full_fills": 1000,
+    "minimum_utc_days": 7,
+    "minimum_day_cluster_lower_99": 0.0,
+    "maximum_multiplicity_adjusted_one_sided_p": 0.01,
+    "family_tests": 100,
+    "requires_exact_official_outcome_match": true,
+    "requires_positive_prefinality_increment": true,
+    "requires_wrong_side_nonpositive": true,
+    "requires_bounded_live_fak_capacity_calibration": true
+  },
+  "dependencies_sha256": {
+    "archive_day.py": "009217f3a4ebb9953147e1e605c1b05ffcb76ff24a7560b9aa413b11db71669b",
+    "eu_strict.py": "95b6e3fc744dd6231e9ef431206ca8633505f2810434c8aa76039c02bcd99435",
+    "forward/current-h-freeze.json": "fdad7b7d919a9018c4a75df9561d27fe8c13cfe23d42aec7d79fdb450eb0df8d",
+    "h_forward.py": "308a76d935978051bd4c4c58a285445b856142f3cfd683faf9f9547bc90b48ba",
+    "h_replay.py": "38bf2d05604f4e514805d8753e1b4a76b4181b101b8111575a339cfce51fc393",
+    "h_replay_archive.py": "a977dc5d7dc7d96fdd931eaed57e1523e5031f5d6e5dc826ab91f4d8314f497e",
+    "h_replay_run.py": "1d15596f4b63b78b2e843b112040e4842b961a41e158efcdbd2ebea1d891f2c4",
+    "h_source_race.py": "66aa6077c0242e0ac7a468837d35dc3e014896c698e971073f2a662e7fd9d306",
+    "pm_outcomes.py": "7da4c35c717d66e7b27b8879c97ae6fe1ecfc907a164f4b365b7466c2ec08407",
+    "poly_clob_rec.py": "528c465db7a09a75fab81ab89ef990ba86fae31289a0bb62f1cdbbf26b3e9de6",
+    "raw_rec.py": "93aea9620247b302abb0b19fcf7553f505ce65331b845d40ee6a12e14a6b4ce4",
+    "requirements.txt": "d7ce01981383daa3d4586dfd189fa3f7ed26bfdbf0d8ac268ad4dca9863b8764",
+    "settlement-lag-runtime-lock.json": "431fafa5c8014ba8886939c56752e83ec03a25889e2d87f2eeeaf455193f9d2f",
+    "settlement_lag.py": "ab3f4e9905da6c59d3664609e53dd987225fc2eb1b2c92b9dd69a086602960b5",
+    "settlement_lag_archive.py": "ff4ff06c016c3b6ed86455a4c1f0936ea1b8e6ec096b7452a736d21b46e4f0bb",
+    "settlement_lag_daily.py": "5fce38253646ae3bc8abe306ef4ab5813684045320b7c83c95cf73d716307630",
+    "settlement_lag_eu_strict.py": "821aaf167071eac685934ffc4eeb7836bdee8aae403adc50130aeb43854569f9",
+    "settlement_lag_forward.py": "c473ae0606de7e575f03be06f2b7ea1a927b58f448e5fd72e1fe43271dd2f977",
+    "settlement_lag_meta_rec.py": "eed8c76f15580a067ac858c5b80ee041c73065646325f3b166a07820cba6a647",
+    "settlement_lag_runtime.py": "4434d06fa2cb2c12f61136b35ffe3246db7b37bab513027b34a969f74f36b541",
+    "settlement_lag_strict_prebuild.py": "fcac6e262b907866c7939a4248a0d815a1fc0190fb42ba50c03d214838f1a4f9",
+    "settlement_lag_twap_rec.py": "d3dd91099533dffa5ca6d85cf16eafd62847e9091dd4408e4123f54663c67a23",
+    "settlement_proxy.py": "ae9978f8d0fbcea9be2941e6ba94386056cb61fb3dc50d3d2e338875778c7b23",
+    "source_confirmation.py": "71bf4021cce1dcaf7a30b654037b1d91b91643fc4f8012020a1fc3873be09a66",
+    "source_confirmation_daily.py": "ee40439f04c69ce859a2c4bca4ad001cd3fc3c687ff8b968964aa47a350d0443",
+    "source_confirmation_forward.py": "6a5b9c22b0697fdf70379c732756025873bbd4ebe554d40739e01afceaf3a997",
+    "source_race_daily.py": "6f8028e14daba523d4d4af8dd128df823b6d5faa4254aa6bfe0e8e884d9b8cac",
+    "source_race_forward.py": "11fe2bf5ccb730ede77accbe6885f271ed286c8e92a3b118f06c8b8cbe1d7aac",
+    "strict_prebuild.py": "4bf41cd1179cc16792974c79ae485cfb26d36ea9a379a9a807ef66bb9d6ebbdb",
+    "systemd/poly-clob-recorder.service": "cc8ec23f634014465f96d606621a7aca195d9a703d68c2cae81b4ddff44d0ee7",
+    "systemd/raw-recorder.service": "55b84ec134b1497ff17f611097f194a5b884d40e2ad50f85ddca74b51aa34246",
+    "systemd/recorder-day-boundary.service": "8e65f4d4a73e9cedd7c2fc1645f15cc553d862c3a661f1c7d038e12c833c83a6",
+    "systemd/recorder-day-boundary.timer": "e0f7b7f88abebf1a58dd043f2a1f015ad1e61951cfd5152a5148c4bad1835aca",
+    "systemd/settlement-lag-daily.service": "c9bf45cebd859bf7c768ca61078062a7b57e49958e2a9a6ea0ef32b625e1a895",
+    "systemd/settlement-lag-daily.timer": "1f973c96e7577588a627a734d132f86181fcba4e7bc739933ccc4540be12634a",
+    "systemd/settlement-lag-meta-recorder.service": "7794a3b0161fb0ce310db41b798c07b8d2f85cb7807f99868f63a0a1699100df",
+    "systemd/settlement-lag-strict-artifact.service": "fd850b71a17ec4aa5e8b5b53cfcd538ebfbb5f9b96888818ed219e727817fb49",
+    "systemd/settlement-lag-strict-artifact.timer": "74a1f29a61007ad5ef6544bc71f612cf0191186a431a12b189b2f382da7b67e6",
+    "systemd/settlement-lag-twap-recorder.service": "b01a3a6146961bb69f379329e0686e79814f145222abcba189e2b11b150caef1",
+    "systemd/strict-artifact-daily.service": "e95b41e45a171287f1004fabcbc56b921632faa68f05ed7f385cfa262eaa1cc4",
+    "systemd/strict-artifact-daily.timer": "453abc98f24a32a88620e2b21a942f3f3df08d9a8aefd3a0838f2be124fca2cb"
+  },
+  "safety": {
+    "paper_only": true,
+    "wallet_access": false,
+    "production_orders": false
+  },
+  "twap_coverage": {
+    "required_markets_per_utc_day": 288,
+    "required_payload_offsets_ms": {
+      "opening": -2000,
+      "prefinal": -3000,
+      "final": -2000
+    },
+    "required_receive_segments": 25,
+    "maximum_missing_required_payload_keys": 0
+  },
+  "recorders": {
+    "clob": {
+      "service": "poly-clob-recorder.service",
+      "unit_path": "/etc/systemd/system/poly-clob-recorder.service",
+      "unit_dependency": "systemd/poly-clob-recorder.service",
+      "process_executable_path": "/usr/bin/python3.12",
+      "process_executable_sha256": "e50d468e8b0adfb05733f5b87b3cff34829c4a8c1aea50c865aa8bdfe4bb150f",
+      "process_cwd": "/home/ubuntu/rec",
+      "process_argv": [
+        "/home/ubuntu/rec/venv/bin/python",
+        "/home/ubuntu/rec/poly_clob_rec.py",
+        "/home/ubuntu/rec/data_poly"
+      ],
+      "process_script_path": "/home/ubuntu/rec/poly_clob_rec.py",
+      "script_dependency": "poly_clob_rec.py"
+    },
+    "twap": {
+      "service": "settlement-lag-twap-recorder.service",
+      "unit_path": "/etc/systemd/system/settlement-lag-twap-recorder.service",
+      "unit_dependency": "systemd/settlement-lag-twap-recorder.service",
+      "process_executable_path": "/usr/bin/python3.12",
+      "process_executable_sha256": "e50d468e8b0adfb05733f5b87b3cff34829c4a8c1aea50c865aa8bdfe4bb150f",
+      "process_cwd": "/home/ubuntu/rec/h-race",
+      "process_argv": [
+        "/home/ubuntu/rec/venv/bin/python",
+        "/home/ubuntu/rec/h-race/settlement_lag_twap_rec.py",
+        "/home/ubuntu/rec/data_settlement_twap"
+      ],
+      "process_script_path": "/home/ubuntu/rec/h-race/settlement_lag_twap_rec.py",
+      "script_dependency": "settlement_lag_twap_rec.py"
+    },
+    "metadata": {
+      "service": "settlement-lag-meta-recorder.service",
+      "unit_path": "/etc/systemd/system/settlement-lag-meta-recorder.service",
+      "unit_dependency": "systemd/settlement-lag-meta-recorder.service",
+      "process_executable_path": "/usr/bin/python3.12",
+      "process_executable_sha256": "e50d468e8b0adfb05733f5b87b3cff34829c4a8c1aea50c865aa8bdfe4bb150f",
+      "process_cwd": "/home/ubuntu/rec/h-race",
+      "process_argv": [
+        "/home/ubuntu/rec/venv/bin/python",
+        "/home/ubuntu/rec/h-race/settlement_lag_meta_rec.py",
+        "/home/ubuntu/rec/data_settlement_meta",
+        "--clob-root",
+        "/home/ubuntu/rec/data_poly",
+        "--clob-service",
+        "poly-clob-recorder.service"
+      ],
+      "process_script_path": "/home/ubuntu/rec/h-race/settlement_lag_meta_rec.py",
+      "script_dependency": "settlement_lag_meta_rec.py"
+    }
+  }
+}

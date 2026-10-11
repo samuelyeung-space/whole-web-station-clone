@@ -1,0 +1,13 @@
+[Unit]
+Description=Ensure Family 37 strict input after UTC-day archival
+
+[Timer]
+OnCalendar=*-*-* 00:50:00 UTC
+AccuracySec=1s
+RandomizedDelaySec=0
+Persistent=true
+OnUnitInactiveSec=1h
+Unit=settlement-lag-strict-artifact.service
+
+[Install]
+WantedBy=timers.target

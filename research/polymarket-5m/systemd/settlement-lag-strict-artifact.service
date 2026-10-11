@@ -1,0 +1,20 @@
+[Unit]
+Description=Ensure the closed UTC day has a strict artifact for Family 37
+After=network-online.target time-sync.target archive-rec.service recorder-day-boundary.service strict-artifact-daily.service
+Wants=network-online.target time-sync.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/home/ubuntu/rec/h-race
+Environment=PYTHONPATH=/home/ubuntu/rec/h-race
+Environment=OPENBLAS_NUM_THREADS=1
+Environment=OMP_NUM_THREADS=1
+Environment=STRICT_BUILD_WORKERS=2
+ExecStartPre=/home/ubuntu/rec/venv/bin/python /home/ubuntu/rec/h-race/settlement_lag_runtime.py verify --lock /home/ubuntu/rec/h-race/settlement-lag-runtime-lock.json
+ExecStartPre=/home/ubuntu/rec/venv/bin/python /home/ubuntu/rec/h-race/settlement_lag_runtime.py verify-protocol
+ExecStart=/usr/bin/timeout 1800 /home/ubuntu/rec/venv/bin/python /home/ubuntu/rec/h-race/settlement_lag_strict_prebuild.py
+Nice=15
+IOSchedulingClass=idle
+MemoryMax=4G
+TimeoutStartSec=1810s

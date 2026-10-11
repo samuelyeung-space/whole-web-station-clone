@@ -1,0 +1,18 @@
+[Unit]
+Description=Polymarket settlement-lag execution metadata recorder
+After=network-online.target time-sync.target poly-clob-recorder.service
+Wants=network-online.target time-sync.target poly-clob-recorder.service
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/rec/h-race
+ExecStartPre=/home/ubuntu/rec/venv/bin/python /home/ubuntu/rec/h-race/settlement_lag_runtime.py verify --lock /home/ubuntu/rec/h-race/settlement-lag-runtime-lock.json
+ExecStartPre=/home/ubuntu/rec/venv/bin/python /home/ubuntu/rec/h-race/settlement_lag_runtime.py verify-protocol
+ExecStart=/home/ubuntu/rec/venv/bin/python /home/ubuntu/rec/h-race/settlement_lag_meta_rec.py /home/ubuntu/rec/data_settlement_meta --clob-root /home/ubuntu/rec/data_poly --clob-service poly-clob-recorder.service
+Restart=always
+RestartSec=2
+Nice=10
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,19 @@
+[Unit]
+Description=Admit one closed UTC day into the frozen Polymarket settlement-lag study
+After=network-online.target time-sync.target settlement-lag-strict-artifact.service
+Wants=network-online.target time-sync.target settlement-lag-strict-artifact.service
+
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/home/ubuntu/rec/h-race
+Environment=PYTHONPATH=/home/ubuntu/rec/h-race
+Environment=OPENBLAS_NUM_THREADS=1
+Environment=OMP_NUM_THREADS=1
+ExecStartPre=/home/ubuntu/rec/venv/bin/python /home/ubuntu/rec/h-race/settlement_lag_runtime.py verify --lock /home/ubuntu/rec/h-race/settlement-lag-runtime-lock.json
+ExecStartPre=/home/ubuntu/rec/venv/bin/python /home/ubuntu/rec/h-race/settlement_lag_runtime.py verify-protocol
+ExecStart=/usr/bin/timeout 7200 /home/ubuntu/rec/venv/bin/python /home/ubuntu/rec/h-race/settlement_lag_daily.py
+Nice=15
+IOSchedulingClass=idle
+MemoryMax=4G
+TimeoutStartSec=7210s

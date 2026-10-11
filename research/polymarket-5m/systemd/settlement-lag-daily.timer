@@ -1,0 +1,13 @@
+[Unit]
+Description=Run the frozen Polymarket settlement-lag admission after strict daily build
+
+[Timer]
+OnCalendar=*-*-* 02:20:00 UTC
+AccuracySec=1s
+RandomizedDelaySec=0
+Persistent=true
+OnUnitInactiveSec=1h
+Unit=settlement-lag-daily.service
+
+[Install]
+WantedBy=timers.target

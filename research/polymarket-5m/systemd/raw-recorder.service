@@ -1,0 +1,16 @@
+[Unit]
+Description=Multi-venue BTC raw websocket recorder (research only, no orders) - owner wants this machine kept running
+After=network-online.target time-sync.target
+Wants=network-online.target
+
+[Service]
+User=ubuntu
+WorkingDirectory=/home/ubuntu/rec
+ExecStart=/home/ubuntu/rec/venv/bin/python raw_rec.py /home/ubuntu/rec/data 720
+Restart=on-failure
+RestartSec=10
+StandardOutput=append:/home/ubuntu/rec/rec.log
+StandardError=append:/home/ubuntu/rec/rec.log
+
+[Install]
+WantedBy=multi-user.target

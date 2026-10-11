@@ -1,0 +1,116 @@
+{
+  "distributions": {
+    "Pygments": {
+      "record_sha256": "c3d361f3a0e1dbae305ce5f755bc13bc676ef9cd488579f1493d1731cd0cbcb2",
+      "version": "2.21.0"
+    },
+    "boto3": {
+      "record_sha256": "986e179e55ef051a9a1ab9afc77b145d6d00834a62a00ed68f07e7f83044d407",
+      "version": "1.43.108"
+    },
+    "botocore": {
+      "record_sha256": "4796f15b3b8d44a807a7cbf01bd1636c5f05c755afb1fd8bf0887abaac445b24",
+      "version": "1.43.108"
+    },
+    "cloudpickle": {
+      "record_sha256": "97862f8046fccbf72f48a774dca47e17e45361306c7696a66e9977d10e57f5ed",
+      "version": "3.1.2"
+    },
+    "iniconfig": {
+      "record_sha256": "35a4639352f7be8f234acecb04f8fe59869d709b082e0b440f045085e8b3e20e",
+      "version": "2.3.1"
+    },
+    "isal": {
+      "record_sha256": "2d98f99cc3f6c5767434ba169a30bc483c997562796be297f1e60cb96f7b1f0c",
+      "version": "1.8.0"
+    },
+    "jmespath": {
+      "record_sha256": "39bf2cba1d7efe268d8344cc978532fa42318a37437bca5a8730c0da545ee445",
+      "version": "1.1.0"
+    },
+    "joblib": {
+      "record_sha256": "ba3756b9fdb044d52450225f0163e687097225284273dca914a215b4c784d873",
+      "version": "1.6.0"
+    },
+    "numpy": {
+      "record_sha256": "a08b5a85d825faf259b2eea7b682e1784b80719c98d87f49369327eac3cbe17e",
+      "version": "2.4.6"
+    },
+    "orjson": {
+      "record_sha256": "a05c4950ee603f4c0e127f8050c863fd716882f2de720fad01eb88e7191b56ea",
+      "version": "3.13.0"
+    },
+    "packaging": {
+      "record_sha256": "a2cd431afc6ca596c9bf35faf2b902709cad9c48a55d264a71c71e70c6cb2e7a",
+      "version": "26.3"
+    },
+    "pandas": {
+      "record_sha256": "731003e0eb09148911ab7dd6b4f6f40832dd44981eb3ce4fca6a3e7a073dd2e9",
+      "version": "3.0.6"
+    },
+    "pip": {
+      "record_sha256": "942aca03202c0132cc301d607bd4e6998f56d8ec7b92e44193eb17532e29c8f3",
+      "version": "24.0"
+    },
+    "pluggy": {
+      "record_sha256": "6bb7a9d0ece8e716b9b2d61c5656639449d6408e413e5ba2526119bfc4f629f6",
+      "version": "1.6.0"
+    },
+    "pytest": {
+      "record_sha256": "4810ce20f3ba4c28fb85608be3972af80d09f637301435579bf95badf07c888a",
+      "version": "9.1.1"
+    },
+    "python-dateutil": {
+      "record_sha256": "0c26b4b1542dbd1ebd8d2babdd501aed583d6ada9595517f936f00fe4ff9d254",
+      "version": "2.9.0.post0"
+    },
+    "s3transfer": {
+      "record_sha256": "a6bb4f3879eacbb1628acbed8eb9394b86a218a0a606663c9baa2e20256870f6",
+      "version": "0.19.2"
+    },
+    "scikit-learn": {
+      "record_sha256": "71f20134cacbb010dca07cd1e7594910a19530c2f2128bfe2e768e27143173a5",
+      "version": "1.8.0"
+    },
+    "scipy": {
+      "record_sha256": "cf88c01b64998c08fee7fc684ba0dcfa292a2df89efc009288ae3f2ffd549ce2",
+      "version": "1.17.1"
+    },
+    "six": {
+      "record_sha256": "d834e846ba51c0e7371968d0b5a0cdebdaa2f9ea2f0447a40b594fa96ca5d89f",
+      "version": "1.17.0"
+    },
+    "threadpoolctl": {
+      "record_sha256": "4e5745fe5761283112882898b4ab0c1364fb5a63e62cad465a8f26ff19b8e386",
+      "version": "3.7.0"
+    },
+    "urllib3": {
+      "record_sha256": "5d88c4832d0406a7fd3c000f924b00394c2d7f694b332bc441370d1a7f5fe392",
+      "version": "2.8.0"
+    },
+    "websockets": {
+      "record_sha256": "71c6e1a2f0dec70532f99ed06bdfeec865ee7ad7000542558897f57aa98aa72c",
+      "version": "15.0.1"
+    }
+  },
+  "platform": {
+    "libc": [
+      "glibc",
+      "2.39"
+    ],
+    "machine": "x86_64",
+    "release": "7.0.0-1013-aws",
+    "system": "Linux"
+  },
+  "python": {
+    "build": [
+      "main",
+      "Aug 31 2026 10:18:26"
+    ],
+    "executable_sha256": "e50d468e8b0adfb05733f5b87b3cff34829c4a8c1aea50c865aa8bdfe4bb150f",
+    "implementation": "CPython",
+    "version": "3.12.3"
+  },
+  "record_hash_algorithm": "sha256-record-file-v1",
+  "schema": "settlement-lag-runtime-lock-v1"
+}

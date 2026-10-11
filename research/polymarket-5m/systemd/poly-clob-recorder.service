@@ -1,0 +1,12 @@
+[Unit]
+Description=Polymarket CLOB recorder BTC 5m+15m (research only, no orders) - owner wants forward data for jump-model OOS
+After=network-online.target
+[Service]
+User=ubuntu
+WorkingDirectory=/home/ubuntu/rec
+ExecStart=/home/ubuntu/rec/venv/bin/python /home/ubuntu/rec/poly_clob_rec.py /home/ubuntu/rec/data_poly
+Restart=always
+RestartSec=5
+Nice=5
+[Install]
+WantedBy=multi-user.target
