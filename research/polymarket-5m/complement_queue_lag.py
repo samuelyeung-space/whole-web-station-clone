@@ -38,6 +38,7 @@ class QueueLagConfig:
     minimum_remaining_s: float = 30.0
     maximum_remaining_s: float = 240.0
     book_fresh_ms: float = 2_000.0
+    conservative_limit_tick: float = 0.01
     evaluation_ms: tuple[float, ...] = (400.0, 500.0)
     delayed_control_ms: float = 5_000.0
 
@@ -69,6 +70,12 @@ class DirectBook:
         return levels
 
     def _validate(self) -> None:
+        if self.bids and self.asks and max(self.bids) >= min(self.asks):
+            self.bids.clear()
+            self.asks.clear()
+            self.snapshot_required = True
+            self.ready = False
+            return
         self.ready = bool(
             self.bids
             and self.asks
@@ -364,8 +371,13 @@ def iter_physical_clob_events(path: str | Path) -> Iterable[dict[str, Any]]:
             if base_sequence != expected_sequence:
                 raise ValueError(f"{source.name}:{line_number}: non-contiguous strict sequence")
             previous_recv_ms = receive_ms
-            batch_id = f"{line_number}:{base_sequence}"
+            supplied_batch_id = physical.get("physical_batch_id")
+            batch_id = str(supplied_batch_id or f"{line_number}:{base_sequence}")
             if kind != "clob_price_change_batch":
+                if kind == "clob_price_change" and supplied_batch_id is None:
+                    raise ValueError(
+                        f"{source.name}:{line_number}: missing physical_batch_id"
+                    )
                 expected_sequence += 1
                 yield {**physical, "physical_batch_id": batch_id}
                 continue
@@ -443,6 +455,12 @@ def replay(
             counters["insufficient_decision_depth"] += 1
             return None
         fixed_limit = levels[-1][0]
+        limit_units = fixed_limit / cfg.conservative_limit_tick
+        if not math.isclose(
+            limit_units, round(limit_units), rel_tol=0.0, abs_tol=_EPS,
+        ):
+            counters["invalid_limit_precision"] += 1
+            return None
         if fixed_limit * cfg.target_shares < cfg.minimum_order_usd - _EPS:
             counters["below_venue_minimum"] += 1
             return None
@@ -537,7 +555,7 @@ def replay(
             "pnl": pnl,
             "filled": did_fill,
             "full_fill": reason == "filled",
-            "sent": True,
+            "sent": reason != "right_censored",
             "reason": reason,
         })
         counters[f"execution_{reason}"] += 1
@@ -849,8 +867,10 @@ def replay(
 
 
 def _metrics(sample: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
-    fills = [row for row in sample if row.get("filled")]
-    full = [row for row in sample if row.get("full_fill")]
+    censored = [row for row in sample if not row.get("sent")]
+    attempts = [row for row in sample if row.get("sent")]
+    fills = [row for row in attempts if row.get("filled")]
+    full = [row for row in attempts if row.get("full_fill")]
     resolved = [row for row in fills if row.get("pnl") is not None]
     unresolved = [row for row in fills if row.get("pnl") is None]
     total_filled_shares = sum(float(row["filled_shares"]) for row in fills)
@@ -858,7 +878,8 @@ def _metrics(sample: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     resolved_pnl = sum(float(row["pnl"]) for row in resolved)
     complete_outcomes = not unresolved
     return {
-        "attempts": len(sample),
+        "attempts": len(attempts),
+        "right_censored": len(censored),
         "fills": len(fills),
         "full_fills": len(full),
         "resolved_fills": len(resolved),
@@ -867,7 +888,7 @@ def _metrics(sample: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
         "resolved_shares": shares,
         "wins": sum(row.get("won") is True for row in resolved),
         "losses": sum(row.get("won") is False for row in resolved),
-        "fill_rate": len(full) / len(sample) if sample else 0.0,
+        "fill_rate": len(full) / len(attempts) if attempts else 0.0,
         "net_ev_per_share": (
             resolved_pnl / shares if shares and complete_outcomes else None
         ),
@@ -886,7 +907,7 @@ def _matching_stratum(row: Mapping[str, Any]) -> tuple[Any, ...]:
         str(row["buy_side"]),
         bin_of("remaining_s", 30.0),
         bin_of("fair", 0.05),
-        bin_of("decision_vwap", 0.05),
+        bin_of("fixed_limit", 0.05),
         bin_of("net_edge", 0.05),
         bin_of("pre_best_bid_size", 5.0),
         math.floor(
@@ -921,8 +942,8 @@ def summarize(
         base = samples[("base", latency)]
         reverse = samples[("reverse_order", latency)]
         common = (
-            {_matching_stratum(row) for row in base}
-            & {_matching_stratum(row) for row in reverse}
+            {_matching_stratum(row) for row in base if row.get("sent")}
+            & {_matching_stratum(row) for row in reverse if row.get("sent")}
         )
         matched_controls[f"{latency:g}"] = {
             "common_strata": len(common),
@@ -939,10 +960,11 @@ def summarize(
         "formal_gate_implemented": False,
         "fill_model": "displayed_direct_depth_upper_bound",
         "requires_live_fak_calibration": True,
+        "limit_precision": "observed_direct_ask_on_conservative_0.01_grid",
         "control_matching": {
             "outcome_blind": True,
             "fields": [
-                "buy_side", "remaining_s_30", "fair_0.05", "decision_vwap_0.05",
+                "buy_side", "remaining_s_30", "fair_0.05", "fixed_limit_0.05",
                 "net_edge_0.05", "pre_best_bid_size_5", "midpoint_move_0.01",
             ],
             "latencies": matched_controls,

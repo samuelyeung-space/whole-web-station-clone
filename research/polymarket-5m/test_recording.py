@@ -491,6 +491,9 @@ def test_strict_bundle_keeps_bookticker_dual_token_l2_and_connection_epochs(tmp_
     assert {row["connection_epoch"] for row in clob} == {1}
     snapshots = [row for row in clob if row["kind"] == "clob_snapshot"]
     assert snapshots[0]["asks"][0]["size"] == "150"
+    assert len({row["physical_batch_id"] for row in snapshots}) == 1
+    changes = [row for row in clob if row["kind"] == "clob_price_change"]
+    assert len({row["physical_batch_id"] for row in changes}) == 1
 
     mappings = list(archive.iter_market_mappings(strict / "market_registry.csv.gz"))
     outcomes = list(archive.iter_outcomes(strict / "market_outcomes.csv.gz"))

@@ -133,9 +133,6 @@ jobs:
             > "$RUNNER_TEMP/paper/bundle-btc/strict/current-h-audit.json"
           python h_source_race.py --archive "$RUNNER_TEMP/paper/bundle-btc" \
             > "$RUNNER_TEMP/paper/bundle-btc/strict/current-h-source-race.json"
-          python complement_queue_lag.py --archive "$RUNNER_TEMP/paper/bundle-btc" \
-            --rows-out "$RUNNER_TEMP/paper/bundle-btc/strict/complement-queue-lag-rows.jsonl" \
-            > "$RUNNER_TEMP/paper/bundle-btc/strict/complement-queue-lag.json"
           configured=" ${{ steps.cfg.outputs.coins }} "
           cross_asset_ready=true
           for c in btc eth sol xrp doge; do
@@ -186,6 +183,14 @@ jobs:
           git commit -q -m "research: forward-test results from recording run ${{ github.run_id }}" || exit 0
           for i in 1 2 3 4 5; do git pull -q --rebase && git push -q && exit 0; sleep $((2 ** i)); done
           exit 1
+
+      - name: Family 34 complementary queue-lag development audit
+        if: always() && steps.cfg.outputs.enabled == 'true'
+        continue-on-error: true
+        run: |
+          python complement_queue_lag.py --archive "$RUNNER_TEMP/paper/bundle-btc" \
+            --rows-out "$RUNNER_TEMP/paper/bundle-btc/strict/complement-queue-lag-rows.jsonl" \
+            > "$RUNNER_TEMP/paper/bundle-btc/strict/complement-queue-lag.json"
 
       - name: Keep the converted bundles (the raw messages run to gigabytes)
         if: always() && steps.cfg.outputs.enabled == 'true'

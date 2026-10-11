@@ -694,6 +694,7 @@ def _strict_clob_events(src, coin, token_market):
         if epoch != active_epoch:
             stats["dropped_epoch_mismatch"] += 1
             continue
+        physical_batch_id = f"{epoch}:{sequence}"
         messages = row.get("msg")
         for message in messages if isinstance(messages, list) else [messages]:
             if not isinstance(message, dict):
@@ -717,6 +718,7 @@ def _strict_clob_events(src, coin, token_market):
                 last_source_ms[token] = max(previous_source_ms, source_ts)
                 event = {"kind": "clob_snapshot", "recv_ms": float(row["recv_ms"]), "seq": sequence,
                          "source_ts_ms": source_ts, "connection_epoch": epoch,
+                         "physical_batch_id": physical_batch_id,
                          "market_id": str(message.get("market") or token_market[token]), "asset_id": token,
                          "bids": message.get("bids") if "bids" in message else message.get("buys") or [],
                          "asks": message.get("asks") if "asks" in message else message.get("sells") or []}
@@ -739,6 +741,7 @@ def _strict_clob_events(src, coin, token_market):
                     last_source_ms[token] = max(previous_source_ms, source_ts)
                     event = {"kind": "clob_price_change", "recv_ms": float(row["recv_ms"]),
                              "seq": sequence, "source_ts_ms": source_ts, "connection_epoch": epoch,
+                             "physical_batch_id": physical_batch_id,
                              "market_id": str(message.get("market") or token_market[token]),
                              "asset_id": token, "price": change.get("price"), "size": change.get("size"),
                              "side": change.get("side")}

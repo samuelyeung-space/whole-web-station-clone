@@ -160,7 +160,11 @@ def test_right_censored_attempts_are_explicit_and_json_safe():
 
     assert len(rows) == 4
     assert all(row["reason"] == "right_censored" for row in rows)
+    assert all(row["sent"] is False for row in rows)
     assert counters["right_censored_execution"] == 4
+    report = lag.summarize(rows, counters)
+    assert report["variants"]["base"]["latencies"]["400"]["attempts"] == 0
+    assert report["variants"]["base"]["latencies"]["400"]["right_censored"] == 1
     json.dumps(rows, allow_nan=False)
 
 
@@ -194,6 +198,18 @@ def test_source_regression_requires_a_new_snapshot():
         [{"price": 0.39, "size": 5}], [{"price": 0.61, "size": 5}], 4, 12,
     )
     assert book.ready and not book.snapshot_required
+
+
+def test_crossed_book_requires_a_new_snapshot_before_recovery():
+    book = lag.DirectBook()
+    book.replace(
+        [{"price": 0.4, "size": 5}], [{"price": 0.6, "size": 5}], 1, 10,
+    )
+
+    assert book.change("BUY", 0.7, 5, 2, 11)
+    assert book.snapshot_required and not book.ready
+    assert book.change("BUY", 0.3, 5, 3, 12)
+    assert book.snapshot_required and not book.ready
 
 
 def test_venue_bbo_mismatch_invalidates_ghost_depth():
@@ -230,6 +246,19 @@ def test_historical_fee_fallback_uses_market_start_time():
 
     base = [row for row in rows if row["variant"] == "base"]
     assert base and all(row["fee_rate"] == pytest.approx(0.072) for row in base)
+
+
+def test_subcent_direct_ask_is_rejected_by_conservative_limit_grid():
+    events = base_events()
+    events[2] = snapshot(DOWN, 1, 2, [(0.46, 10)], [(0.485, 10)])
+    events[-1] = change(DOWN, 100_100, 6, "SELL", 0.485, 10)
+
+    rows, counters = lag.replay(
+        events, mapping(), {MARKET: "Down"}, segment_end_ms=101_000,
+    )
+
+    assert not rows
+    assert counters["invalid_limit_precision"] == 1
 
 
 def test_epoch_scale_receipts_do_not_expand_equal_time_tolerance():
@@ -279,6 +308,19 @@ def test_physical_reader_preserves_frames_and_rejects_sequence_gaps(tmp_path):
         for row in physical:
             stream.write(json.dumps(row) + "\n")
     with pytest.raises(ValueError, match="non-contiguous strict sequence"):
+        list(lag.iter_physical_clob_events(path))
+
+
+def test_physical_reader_rejects_unmarked_logical_price_change(tmp_path):
+    path = tmp_path / "logical.jsonl.gz"
+    with gzip.open(path, "wt", encoding="utf-8") as stream:
+        stream.write(json.dumps({
+            "kind": "clob_price_change", "recv_ms": 2.0, "source_ts_ms": 2.0,
+            "connection_epoch": 1, "seq": 0, "market_id": MARKET,
+            "asset_id": UP, "price": 0.4, "size": 5, "side": "BUY",
+        }) + "\n")
+
+    with pytest.raises(ValueError, match="missing physical_batch_id"):
         list(lag.iter_physical_clob_events(path))
 
 
