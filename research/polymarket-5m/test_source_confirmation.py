@@ -975,6 +975,17 @@ def test_archive_adapter_filters_pre_cutoff_and_uses_observable_result_time(
     after = copy.deepcopy(before)
     after["signal_receive_ms"] = 1_000.0
     after["evaluation_time_ms"] = 1_400.0
+    no_fill = copy.deepcopy(after)
+    no_fill.update(
+        signal_receive_ms=1_001.0,
+        evaluation_time_ms=1_401.0,
+        filled=False,
+        full_fill=False,
+        filled_shares=0.0,
+        pnl=0.0,
+        won=None,
+        reason="killed",
+    )
 
     monkeypatch.setattr(
         confirmation.source_race,
@@ -1009,7 +1020,7 @@ def test_archive_adapter_filters_pre_cutoff_and_uses_observable_result_time(
     monkeypatch.setattr(
         confirmation,
         "replay_normalized",
-        lambda *_args, **_kwargs: ([before, after], {"events": 1}),
+        lambda *_args, **_kwargs: ([before, after, no_fill], {"events": 1}),
     )
 
     rows_out = tmp_path / "family36.jsonl"
@@ -1023,13 +1034,34 @@ def test_archive_adapter_filters_pre_cutoff_and_uses_observable_result_time(
         json.loads(line)
         for line in rows_out.read_text(encoding="utf-8").splitlines()
     ]
-    assert len(persisted) == 1
-    assert persisted[0]["signal_receive_ms"] == 1_000.0
-    assert persisted[0]["result_time_ms"] == 400_000.0
-    assert persisted[0]["observation_run_id"] == "run-family36"
-    assert persisted[0]["family"] == 36
+    assert len(persisted) == 2
+    filled, killed = persisted
+    assert filled["signal_receive_ms"] == 1_000.0
+    assert filled["result_time_ms"] == 400_000.0
+    assert killed.get("result_time_ms") is None
+    assert filled["observation_run_id"] == "run-family36"
+    assert filled["family"] == 36
+    assert filled["artifact_started_ms"] == 1_000.0
+    assert filled["artifact_ended_ms"] == 500_000.0
+    assert filled["artifact_collector_region"] == "eu-west-1"
+    assert filled["artifact_receipt_race_ready"] is True
+    assert filled["artifact_files_sha256"] == result["dataset"]["artifact_files_sha256"]
+    assert filled["artifact_row_count"] == 2
+    assert killed["artifact_row_count"] == 2
+    assert filled["artifact_rows_sha256"] == result["dataset"]["artifact_rows_sha256"]
+    unbound = [
+        {
+            key: value
+            for key, value in row.items()
+            if key not in {"artifact_row_count", "artifact_rows_sha256"}
+        }
+        for row in persisted
+    ]
+    assert confirmation.source_race._canonical_digest(unbound) == filled[
+        "artifact_rows_sha256"
+    ]
     assert result["dataset"]["excluded_pre_cutoff_rows"] == 1
-    assert result["dataset"]["eligible_rows"] == 1
+    assert result["dataset"]["eligible_rows"] == 2
     assert result["dataset"]["paper_gate_eligible"] is True
     assert result["promotion_eligible"] is False
 

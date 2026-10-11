@@ -29,7 +29,7 @@ CORRECTION_DENOMINATOR = 874
 MAX_CONFIRMATION_CANDIDATES = 4_096
 ARMS = ("baseline", "confirmation_veto", "receipt_time_shifted_placebo")
 STRATEGY_ID = "FAMILY36-SOURCE-CONFIRMATION-V1"
-PROSPECTIVE_CUTOFF_MS = 1_791_737_162_000.0
+PROSPECTIVE_CUTOFF_MS = 1_791_750_600_000.0
 _EPS = 1e-9
 
 
@@ -1361,6 +1361,7 @@ def replay_archive(
         raise ValueError("strict artifact changed during Family 36 replay")
 
     observation_run_id = str(identity.get("run_id") or root.name)
+    artifact_files_sha256 = source_race._canonical_digest(identity)
     eligible_rows: list[dict[str, Any]] = []
     excluded_pre_cutoff_rows = 0
     for original in rows:
@@ -1377,13 +1378,26 @@ def replay_archive(
         row["observation_run_id"] = observation_run_id
         row["strategy_id"] = STRATEGY_ID
         row["family"] = 36
-        if row.get("winner") is not None:
+        row["artifact_started_ms"] = identity.get("started_ms")
+        row["artifact_ended_ms"] = identity.get("ended_ms")
+        row["artifact_collector_region"] = identity.get("collector_region")
+        row["artifact_receipt_race_ready"] = identity.get("receipt_race_ready") is True
+        row["artifact_files_sha256"] = artifact_files_sha256
+        if (
+            row.get("winner") is not None
+            and float(row.get("filled_shares") or 0.0) > _EPS
+        ):
             market_id = str(row.get("market_id"))
             if market_id not in result_available_ms:
                 raise ValueError(f"resolved row has no observable outcome time: {market_id}")
             row["result_time_ms"] = result_available_ms[market_id]
         eligible_rows.append(row)
     eligible_rows.sort(key=_row_sort_key)
+    artifact_row_count = len(eligible_rows)
+    artifact_rows_sha256 = source_race._canonical_digest(eligible_rows)
+    for row in eligible_rows:
+        row["artifact_row_count"] = artifact_row_count
+        row["artifact_rows_sha256"] = artifact_rows_sha256
     if rows_out is not None:
         _atomic_write_rows(rows_out, eligible_rows)
 
@@ -1403,7 +1417,9 @@ def replay_archive(
         "started_ms": identity.get("started_ms"),
         "ended_ms": identity.get("ended_ms"),
         "receipt_race_ready": identity.get("receipt_race_ready") is True,
-        "artifact_files_sha256": source_race._canonical_digest(identity),
+        "artifact_files_sha256": artifact_files_sha256,
+        "artifact_row_count": artifact_row_count,
+        "artifact_rows_sha256": artifact_rows_sha256,
         "mapped_markets": len(mappings),
         "outcomes": len(outcomes),
         "prospective_cutoff_ms": cutoff_ms,
