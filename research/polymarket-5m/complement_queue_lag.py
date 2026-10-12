@@ -661,40 +661,71 @@ def replay(
                     explicit_zero.add((state.market_id, asset_id, price))
                 applied = book.change(side, price, size, receive_ms, source_ms)
                 if "best_bid" in row or "best_ask" in row:
-                    venue_bid = (
-                        float(row["best_bid"]) if "best_bid" in row else None
-                    )
-                    venue_ask = (
-                        float(row["best_ask"]) if "best_ask" in row else None
-                    )
-                    if (
-                        venue_bid is not None
-                        and (not math.isfinite(venue_bid) or not 0 < venue_bid < 1)
-                    ) or (
-                        venue_ask is not None
-                        and (not math.isfinite(venue_ask) or not 0 < venue_ask < 1)
-                    ) or (
-                        venue_bid is not None
-                        and venue_ask is not None
-                        and venue_bid >= venue_ask
-                    ):
-                        raise ValueError("invalid venue BBO")
-                    key = (state.market_id, asset_id)
-                    previous_bid, previous_ask = reported_bbo.get(key, (None, None))
-                    if (
-                        venue_bid is not None
-                        and previous_bid is not None
-                        and venue_bid != previous_bid
-                    ) or (
-                        venue_ask is not None
-                        and previous_ask is not None
-                        and venue_ask != previous_ask
-                    ):
-                        raise ValueError("inconsistent venue BBO within physical batch")
-                    reported_bbo[key] = (
-                        venue_bid if venue_bid is not None else previous_bid,
-                        venue_ask if venue_ask is not None else previous_ask,
-                    )
+                    try:
+                        venue_bid = (
+                            float(row["best_bid"])
+                            if "best_bid" in row else None
+                        )
+                        venue_ask = (
+                            float(row["best_ask"])
+                            if "best_ask" in row else None
+                        )
+                    except (TypeError, ValueError, OverflowError):
+                        venue_bid = venue_ask = None
+                        valid_venue_bbo = False
+                    else:
+                        valid_venue_bbo = not (
+                            (
+                                venue_bid is not None
+                                and (
+                                    not math.isfinite(venue_bid)
+                                    or not 0 < venue_bid < 1
+                                )
+                            )
+                            or (
+                                venue_ask is not None
+                                and (
+                                    not math.isfinite(venue_ask)
+                                    or not 0 < venue_ask < 1
+                                )
+                            )
+                            or (
+                                venue_bid is not None
+                                and venue_ask is not None
+                                and venue_bid >= venue_ask
+                            )
+                        )
+                    if not valid_venue_bbo:
+                        # The delta itself may be well formed while the venue's
+                        # accompanying BBO is malformed, locked or crossed.  Do
+                        # not abort unrelated markets in the segment, but also
+                        # never leave the just-mutated book reusable.  A fresh
+                        # snapshot is required before this token can score or
+                        # fill again.
+                        book._invalidate()
+                        counters["invalid_venue_bbo"] += 1
+                        regressed_markets.add(state.market_id)
+                    else:
+                        key = (state.market_id, asset_id)
+                        previous_bid, previous_ask = reported_bbo.get(
+                            key, (None, None)
+                        )
+                        if (
+                            venue_bid is not None
+                            and previous_bid is not None
+                            and venue_bid != previous_bid
+                        ) or (
+                            venue_ask is not None
+                            and previous_ask is not None
+                            and venue_ask != previous_ask
+                        ):
+                            raise ValueError(
+                                "inconsistent venue BBO within physical batch"
+                            )
+                        reported_bbo[key] = (
+                            venue_bid if venue_bid is not None else previous_bid,
+                            venue_ask if venue_ask is not None else previous_ask,
+                        )
             else:
                 raise ValueError(f"unexpected CLOB event kind: {row['kind']}")
             if not applied:

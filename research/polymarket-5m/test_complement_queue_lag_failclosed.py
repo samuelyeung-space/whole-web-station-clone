@@ -84,6 +84,33 @@ class FailClosedTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "invalid direct-book delta"):
             lag.replay(events, mappings, {"m1": "Down"}, segment_end_ms=101000)
 
+    def test_invalid_venue_bbo_fails_closed_without_aborting_segment(self):
+        cases = [
+            ("bad", .48, "malformed"),
+            (.48, .48, "locked"),
+            (.49, .48, "crossed"),
+            (float("nan"), .48, "nonfinite"),
+        ]
+        for best_bid, best_ask, label in cases:
+            with self.subTest(label=label):
+                events, mappings, delta = fixture()
+                invalid = delta("down", 100300, 7, "SELL", .48, 9)
+                invalid.update(best_bid=best_bid, best_ask=best_ask)
+                # An ordinary delta after invalidation cannot resurrect the
+                # book.  Only a new full snapshot may do that.
+                events += [invalid, delta("down", 100350, 8, "BUY", .46, 9)]
+                rows, counts = lag.replay(
+                    events, mappings, {"m1": "Down"},
+                    segment_end_ms=101000,
+                )
+                base = [r for r in rows if r["variant"] == "base"]
+                self.assertEqual(counts["invalid_venue_bbo"], 1)
+                self.assertEqual(
+                    [r["reason"] for r in base],
+                    ["book_unavailable", "book_unavailable"],
+                )
+                self.assertTrue(all(r["filled_shares"] == 0 for r in base))
+
 
 if __name__ == "__main__":
     unittest.main()
