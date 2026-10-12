@@ -61,6 +61,15 @@ jobs:
           ls -la "$RUNNER_TEMP"/paper/raw/*/ && du -sh "$RUNNER_TEMP/paper/raw" && df -h "$RUNNER_TEMP" | tail -1
           zcat "$RUNNER_TEMP"/paper/raw/*/errors.jsonl.gz 2>/dev/null | tail -n 5 || true
 
+      - name: Start the next run
+        # queued right after the recording: the concurrency group holds it until this job ends, so
+        # a later audit step failing, or the job running past timeout-minutes, cannot stop the paper
+        # recordings; to stop the chain, set "enabled": false in ci/forward.json
+        if: ${{ steps.cfg.outputs.enabled == 'true' && steps.rec.outcome == 'success' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run polymarket-forward.yml --ref "${{ github.ref_name }}"
+
       - name: Diagnose the recording
         if: steps.cfg.outputs.enabled == 'true'
         continue-on-error: true
@@ -185,7 +194,7 @@ jobs:
           exit 1
 
       - name: Family 34 complementary queue-lag development audit
-        if: always() && steps.cfg.outputs.enabled == 'true'
+        if: ${{ !cancelled() && steps.cfg.outputs.enabled == 'true' }}
         continue-on-error: true
         run: |
           python complement_queue_lag.py --archive "$RUNNER_TEMP/paper/bundle-btc" \
@@ -193,7 +202,7 @@ jobs:
             > "$RUNNER_TEMP/paper/bundle-btc/strict/complement-queue-lag.json"
 
       - name: Family 35 adverse-reclaim development audit
-        if: always() && steps.cfg.outputs.enabled == 'true'
+        if: ${{ !cancelled() && steps.cfg.outputs.enabled == 'true' }}
         continue-on-error: true
         run: |
           python adverse_reclaim.py --archive "$RUNNER_TEMP/paper/bundle-btc" \
@@ -201,7 +210,7 @@ jobs:
             > "$RUNNER_TEMP/paper/bundle-btc/strict/adverse-reclaim.json"
 
       - name: Family 36 zero-wait source-confirmation development audit
-        if: always() && steps.cfg.outputs.enabled == 'true'
+        if: ${{ !cancelled() && steps.cfg.outputs.enabled == 'true' }}
         continue-on-error: true
         run: |
           python source_confirmation.py --archive "$RUNNER_TEMP/paper/bundle-btc" \
@@ -226,16 +235,6 @@ jobs:
           name: recording-${{ github.run_id }}
           path: ${{ runner.temp }}/raw.tgz
           retention-days: 30
-
-      - name: Start the next run
-        # the chain follows the recording itself: a later audit step failing (e.g. a strict replay
-        # manifest marked incomplete) or running past timeout-minutes (which GitHub reports as a
-        # cancelled job) keeps the job red but must not stop the paper recordings; to stop the
-        # chain, set "enabled": false in ci/forward.json
-        if: ${{ always() && steps.cfg.outputs.enabled == 'true' && steps.rec.outcome == 'success' }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh workflow run polymarket-forward.yml --ref "${{ github.ref_name }}"
 
       - name: Tests C and D and a WeChat Work report (polymarket-shadow)
         if: always() && steps.cfg.outputs.enabled == 'true'
