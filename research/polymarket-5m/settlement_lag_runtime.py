@@ -17,12 +17,12 @@ from pathlib import Path
 from typing import Any
 
 SCHEMA = "settlement-lag-runtime-lock-v1"
-ANCHOR_SCHEMA = "settlement-lag-protocol-anchor-v1"
+ANCHOR_SCHEMA = "settlement-lag-protocol-anchor-v2"
 DEFAULT_LOCK_PATH = Path(__file__).with_name("settlement-lag-runtime-lock.json")
 DEFAULT_FREEZE_PATH = Path(__file__).with_name("forward") / "settlement-lag-freeze.json"
 DEFAULT_ANCHOR_PATH = Path(__file__).with_name("forward") / "settlement-lag-anchor.json"
 DEFAULT_ANCHOR_BUCKET = "sgk90-rec-archive-114469424813-euw1"
-DEFAULT_ANCHOR_KEY = "formal/settlement-lag-v1/protocol-anchor.json"
+DEFAULT_ANCHOR_KEY = "formal/settlement-lag-v2/protocol-anchor.json"
 _SHA256_RE = re.compile(r"[0-9a-f]{64}")
 _COMMIT_RE = re.compile(r"[0-9a-f]{40,64}")
 

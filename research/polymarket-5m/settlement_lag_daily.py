@@ -25,7 +25,7 @@ import source_confirmation_daily as shared_daily
 import source_race_daily as archive_daily
 
 BUCKET = archive_daily.BUCKET
-EVIDENCE_PREFIX = "formal/settlement-lag-v1"
+EVIDENCE_PREFIX = "formal/settlement-lag-v2"
 DEFAULT_STRICT_ROOT = "/home/ubuntu/rec/formal/strict-days"
 DEFAULT_TWAP_ROOT = "/home/ubuntu/rec/data_settlement_twap"
 DEFAULT_METADATA_ROOT = "/home/ubuntu/rec/data_settlement_meta"

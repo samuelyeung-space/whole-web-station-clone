@@ -213,6 +213,32 @@ def test_closed_clob_hour_is_bound_once_to_same_host_clock_sidecar(
         recorder.record_closed_clob_identity(clob, evidence, "20261013T00")
 
 
+def test_previous_closed_hour_skips_a_missed_identity_window(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    observed: list[str] = []
+
+    def record(_clob, _output, hour):
+        observed.append(hour)
+        return Path("evidence.jsonl")
+
+    monkeypatch.setattr(recorder, "record_closed_clob_identity", record)
+    current_hour_ns = _hour_start_ns("20261013T01")
+
+    assert recorder.record_previous_closed_clob_hour(
+        "clob",
+        "evidence",
+        now_ns=current_hour_ns + 601_000_000_000,
+    ) is None
+    assert observed == []
+    assert recorder.record_previous_closed_clob_hour(
+        "clob",
+        "evidence",
+        now_ns=current_hour_ns + 300_000_000_000,
+    ) == Path("evidence.jsonl")
+    assert observed == ["20261013T00"]
+
+
 def test_external_clob_process_identity_binds_executable_script_cwd_and_unit(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

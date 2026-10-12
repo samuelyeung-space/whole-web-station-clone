@@ -419,6 +419,12 @@ def record_closed_clob_identity(
     hour: str,
 ) -> Path:
     _, hour_end_ns = _hour_bounds_ns(hour)
+    provenance = capture_host_provenance()
+    sampled_ns = int(provenance["provenance_sampled_ns"])
+    if not (
+        hour_end_ns <= sampled_ns <= hour_end_ns + MAXIMUM_CLOSE_AGE_S * 1_000_000_000
+    ):
+        raise ValueError("CLOB closed identity sampling lag is invalid")
     source = Path(clob_root) / f"poly_clob.{hour}.jsonl.gz"
     size, digest = _stable_file_identity(source)
     path = _clock_path(output_root, hour)
@@ -435,12 +441,6 @@ def record_closed_clob_identity(
         if any(existing.get(key) != value for key, value in immutable.items()):
             raise ValueError("CLOB clock sidecar drift")
         return path
-    provenance = capture_host_provenance()
-    sampled_ns = int(provenance["provenance_sampled_ns"])
-    if not (
-        hour_end_ns <= sampled_ns <= hour_end_ns + MAXIMUM_CLOSE_AGE_S * 1_000_000_000
-    ):
-        raise ValueError("CLOB closed identity sampling lag is invalid")
     _append_clock_row(path, {**immutable, **provenance})
     return path
 
@@ -474,7 +474,12 @@ def record_previous_closed_clob_hour(
     timestamp_ns = time.time_ns() if now_ns is None else int(now_ns)
     timestamp_s = timestamp_ns // 1_000_000_000
     current_hour_s = timestamp_s // 3_600 * 3_600
-    if timestamp_s - current_hour_s < minimum_close_age_s:
+    close_age_ns = timestamp_ns - current_hour_s * 1_000_000_000
+    if not (
+        minimum_close_age_s * 1_000_000_000
+        <= close_age_ns
+        <= MAXIMUM_CLOSE_AGE_S * 1_000_000_000
+    ):
         return None
     previous_hour = time.strftime("%Y%m%dT%H", time.gmtime(current_hour_s - 3_600))
     return record_closed_clob_identity(clob_root, output_root, previous_hour)
