@@ -163,9 +163,12 @@ plan and untouched inputs; it must not rewrite the existing candidate protocol.
 `mine500_execution_calibration.py` is the fail-closed bridge from displayed-depth
 paper fills to future private FAK receipts. It accepts only an explicit private
 order response, preserves decision/send/match/response clocks, treats the
-measured match timestamp as already containing the venue hold, separates partial
-fill, kill, reject and unresolved outcomes, and reports exact 99% fill-realization
-bounds plus outcome-dependent fill diagnostics. It creates no signal and cannot
-change the frozen rules. Until prospective private receipts are supplied,
-displayed depth remains only a capacity upper bound and the calibration result is
-null.
+measured match timestamp as already containing the venue hold, and separates
+partial fill, kill, reject and unresolved outcomes. Requested sizes are isolated
+into exact cohorts. The 100-share target is identified only by direct 100-share
+private receipts; five-share or other-size fills are never extrapolated to its
+fill rate, queue position, adverse selection or PnL. Day-cluster intervals remain
+descriptive and null when clusters or outcomes are insufficient. The tool creates
+no signal and cannot change the frozen rules. Until prospective same-size private
+receipts are supplied, displayed depth remains only a capacity upper bound and
+the target-size calibration result is unidentified.

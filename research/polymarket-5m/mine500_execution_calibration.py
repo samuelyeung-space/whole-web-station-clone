@@ -1,8 +1,11 @@
-"""Private FAK calibration v2: receipts, separate economics and cluster limits.
+"""Private FAK calibration v3: receipts, exact-size cohorts and cluster limits.
 
 V1 is invalid for evidence: its shared net_pnl_per_share mispriced actual fills,
 its iid intervals ignored market clustering, and its mandatory match timestamp
 excluded unresolved/rejected receipts. V2 does not migrate V1 economics silently.
+V3 also forbids extrapolating small-order receipts to the 100-share research
+target: every requested size is reported separately and the target remains
+unidentified until direct receipts at exactly that size exist.
 No signals, orders, deployments, or changes to the frozen mine500 evaluator.
 """
 from __future__ import annotations
@@ -200,6 +203,11 @@ def _rate(rows):
             'all_prediction_missing_outcome_bounds':[full/len(predicted),(full+unknown)/len(predicted)] if predicted else None}
 
 
+def _size_key(value):
+    """Return a stable JSON key without silently rounding distinct sizes."""
+    return format(float(value), '.17g')
+
+
 def _cluster_interval(rows, reps, seed):
     predicted = [r for r in rows if r.paper_full]
     days, markets = defaultdict(list),defaultdict(set)
@@ -246,7 +254,48 @@ def _adverse_selection(rows):
             **_economics(sample)}
 
 
-def calibrate(attempts: Iterable[Attempt], *, bootstrap_reps=10000, seed=500):
+def _cohort(rows, bootstrap_reps, seed):
+    return {**_rate(rows),
+            'unique_markets':len({r.market_id for r in rows}),
+            'utc_decision_days':len({r.day for r in rows}),
+            'paper_full_realization_cluster_99pct_interval':_cluster_interval(rows,bootstrap_reps,seed),
+            'economics':_economics(rows)}
+
+
+def _target_identification(rows, target_requested_shares, bootstrap_reps, seed):
+    target=[r for r in rows if math.isclose(
+        r.requested_shares,target_requested_shares,rel_tol=0.,abs_tol=EPS)]
+    summary=_cohort(target,bootstrap_reps,seed)
+    if not target:
+        status='no_direct_target_size_receipts'
+    elif not summary['paper_full_predictions_all']:
+        status='no_paper_full_target_predictions'
+    elif summary['unknown_paper_full_outcomes']:
+        status='unresolved_target_outcomes'
+    else:
+        cluster=summary['paper_full_realization_cluster_99pct_interval']['status']
+        status='descriptive_target_receipts_only' if cluster=='descriptive_only' else cluster
+    return {'target_requested_shares':target_requested_shares,
+            'status':status,
+            'direct_target_size_receipt_attempts':len(target),
+            'other_size_receipt_attempts':len(rows)-len(target),
+            'direct_target_evidence_present':bool(target),
+            'cross_size_extrapolation_permitted':False,
+            'smaller_or_larger_orders_excluded_from_target_estimate':True,
+            'strategy_profitability_claim_supported':False,
+            'summary':summary,
+            'note':('Only private receipts whose requested_shares exactly equal the target enter this '
+                    'summary. Five-share or other-size fills cannot identify a 100-share fill rate, '
+                    'queue position, adverse selection, or PnL.')}
+
+
+def calibrate(attempts: Iterable[Attempt], *, bootstrap_reps=10000, seed=500,
+              target_requested_shares=100.0):
+    if (isinstance(target_requested_shares,bool) or
+            not isinstance(target_requested_shares,(int,float)) or
+            not math.isfinite(target_requested_shares) or target_requested_shares<=0):
+        raise ValueError('target_requested_shares must be finite and positive')
+    target_requested_shares=float(target_requested_shares)
     rows=[parse_attempt(asdict(row)) for row in attempts]
     if len({r.attempt_id for r in rows})!=len(rows): raise ValueError('attempt_id values must be unique')
     observed_match=[r for r in rows if r.match_ms is not None]
@@ -256,11 +305,23 @@ def calibrate(attempts: Iterable[Attempt], *, bootstrap_reps=10000, seed=500):
         lag=row.match_ms-row.decision_ms if row.match_ms is not None else None
         name='unobserved_match_clock' if lag is None else 'lt500ms' if lag<500 else '500_599ms' if lag<600 else '600_999ms' if lag<1000 else 'ge1000ms'
         buckets[name].append(row)
+    size_groups=defaultdict(list)
+    for row in rows:
+        size_groups[_size_key(row.requested_shares)].append(row)
+    mixed_sizes=len(size_groups)>1
     paper_shares=sum(r.paper_fill_shares for r in known)
-    return {'schema':'mine500-private-fak-calibration-v2',
-            'supersedes':{'schema':'mine500-private-fak-calibration-v1','status':'invalid_for_evidence'},
+    return {'schema':'mine500-private-fak-calibration-v3',
+            'supersedes':[{'schema':'mine500-private-fak-calibration-v1','status':'invalid_for_evidence'},
+                          {'schema':'mine500-private-fak-calibration-v2','status':'unsafe_cross_size_aggregation'}],
             **_rate(rows),'unique_markets':len({r.market_id for r in rows}),
             'utc_decision_days':len({r.day for r in rows}),
+            'requested_size_aggregation':{
+                'mixed_requested_sizes':mixed_sizes,
+                'aggregate_is_target_size_evidence':not mixed_sizes and bool(rows) and
+                    math.isclose(rows[0].requested_shares,target_requested_shares,
+                                 rel_tol=0.,abs_tol=EPS),
+                'warning':('Top-level rates summarize input health only. Use target_size_identification '
+                           'for the requested target; never infer it from a mixed-size aggregate.')},
             'status_counts':dict(sorted(Counter(r.actual_status for r in rows).items())),
             'known_outcomes':len(known),'unknown_outcomes':len(rows)-len(known),
             'paper_full_realization_cluster_99pct_interval':_cluster_interval(rows,bootstrap_reps,seed),
@@ -278,17 +339,24 @@ def calibrate(attempts: Iterable[Attempt], *, bootstrap_reps=10000, seed=500):
                 'venue_hold_is_already_in_match_clock':True,
                 'interpretation':'Observed filled-trade match clocks only; no-fill orders remain in overall denominators and unobserved bucket.'},
             'by_total_decision_to_match_bucket':{name:_rate(rs) for name,rs in sorted(buckets.items())},
+            'by_requested_shares':{name:_cohort(rs,bootstrap_reps,seed)
+                                   for name,rs in sorted(size_groups.items(),key=lambda item:float(item[0]))},
+            'target_size_identification':_target_identification(
+                rows,target_requested_shares,bootstrap_reps,seed),
             'economics':_economics(rows),'adverse_selection':_adverse_selection(rows),
             'qualification':{'strategy_result':False,'public_depth_is_not_actual_fill':True,
                 'may_change_frozen_candidate_rules':False,'real_receipt_provenance_verified':False,
-                'note':'Input provenance is declared, not independently authenticated; all output remains research calibration.'}}
+                'cross_size_extrapolation_permitted':False,
+                'note':'Input provenance is declared, not independently authenticated; all output remains research calibration. Target-size claims require direct same-size receipts.'}}
 
 
 def main(argv: Sequence[str] | None = None):
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('attempts_jsonl'); parser.add_argument('--out',required=True)
+    parser.add_argument('--target-requested-shares',type=float,default=100.0)
     args=parser.parse_args(argv)
-    Path(args.out).write_text(json.dumps(calibrate(load_attempts(args.attempts_jsonl)),indent=2,sort_keys=True,allow_nan=False)+'\n')
+    Path(args.out).write_text(json.dumps(calibrate(load_attempts(args.attempts_jsonl),
+        target_requested_shares=args.target_requested_shares),indent=2,sort_keys=True,allow_nan=False)+'\n')
 
 
 if __name__=='__main__':main()

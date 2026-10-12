@@ -25,6 +25,33 @@ def test_actual_economics_use_actual_price_and_fees_not_paper_price():
     assert result['economics']['paper_pnl_usd']==pytest.approx(2.916)
     assert result['economics']['actual_pnl_usd']==pytest.approx(1.916)
     assert result['adverse_selection']['actual_pnl_usd']==pytest.approx(1.916)
+    assert result['schema']=='mine500-private-fak-calibration-v3'
+    assert result['target_size_identification']['status']=='no_direct_target_size_receipts'
+    assert result['target_size_identification']['direct_target_size_receipt_attempts']==0
+    assert result['target_size_identification']['cross_size_extrapolation_permitted'] is False
+
+
+def test_five_share_fills_never_identify_one_hundred_share_execution():
+    five=cal.parse_attempt(row('five'))
+    hundred=cal.parse_attempt(no_match('hundred','killed') | {
+        'requested_shares':100,'paper_fill_shares':100})
+    result=cal.calibrate([five,hundred])
+    assert result['known_only_realization_rate']==.5
+    assert result['requested_size_aggregation']['mixed_requested_sizes'] is True
+    assert result['requested_size_aggregation']['aggregate_is_target_size_evidence'] is False
+    assert result['by_requested_shares']['5']['known_only_realization_rate']==1
+    assert result['by_requested_shares']['100']['known_only_realization_rate']==0
+    target=result['target_size_identification']
+    assert target['direct_target_size_receipt_attempts']==1
+    assert target['other_size_receipt_attempts']==1
+    assert target['summary']['known_only_realization_rate']==0
+    assert target['summary']['actual_full_fills_among_paper_full']==0
+
+
+@pytest.mark.parametrize('target',[0,-1,float('nan'),True,'100'])
+def test_invalid_target_size_fails_closed(target):
+    with pytest.raises(ValueError,match='target_requested_shares'):
+        cal.calibrate([],target_requested_shares=target)
 
 
 def test_partial_actual_pnl_uses_actual_quantity_and_total_actual_fee():
