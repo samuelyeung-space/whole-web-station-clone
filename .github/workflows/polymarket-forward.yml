@@ -152,7 +152,9 @@ jobs:
           test "$(du -sm "$RUNNER_TEMP/paper/bundle-btc/strict" | awk '{print $1}')" -lt 1500
 
       - name: Persist pooled stopping state before nonessential artifact work
-        if: steps.cfg.outputs.enabled == 'true'
+        # Preserve completed stopping-table observations even when a later strict replay gate fails.
+        # A cancelled job still must not write partial state.
+        if: ${{ !cancelled() && steps.cfg.outputs.enabled == 'true' }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
