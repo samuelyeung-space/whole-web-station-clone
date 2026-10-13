@@ -82,8 +82,8 @@ def validate_intent(intent: LegIntent) -> None:
         raise ValueError("side must be YES or NO")
     if intent.arrival_ms < intent.decision_ms:
         raise ValueError("arrival_ms precedes decision_ms")
-    if intent.settlement_ms < intent.arrival_ms:
-        raise ValueError("settlement_ms precedes arrival_ms")
+    if intent.settlement_ms <= intent.arrival_ms:
+        raise ValueError("settlement_ms must follow arrival_ms")
     for name in (
         "requested_shares",
         "fixed_limit",
@@ -141,6 +141,7 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
     cash = config.initial_cash
     positions: dict[str, Position] = {}
     fills: list[Fill] = []
+    ledger: list[dict] = []
     counts = {
         "orders": len(orders),
         "full_fills": 0,
@@ -151,10 +152,47 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
     }
     max_gross_exposure = 0.0
     max_unhedged_shares = 0.0
-    inventory_episodes: set[tuple[str, str]] = set()
+    unhedged_episode_count = 0
+    total_unhedged_ms = 0
+    max_unhedged_episode_ms = 0
+    market_last_ms: dict[str, int] = {}
+    market_unhedged: dict[str, bool] = {}
+    market_episode_start: dict[str, int] = {}
     peak_conservative_equity = config.initial_cash
     max_conservative_drawdown = 0.0
     cash_min = cash
+
+    def position_snapshot(market_id: str) -> dict[str, float]:
+        position = positions.get(market_id, Position())
+        return {
+            "yes_shares": position.yes_shares,
+            "no_shares": position.no_shares,
+            "cash_cost": position.cash_cost,
+        }
+
+    def advance_exposure_clock(market_id: str, timestamp_ms: int) -> None:
+        nonlocal total_unhedged_ms
+        prior_ms = market_last_ms.setdefault(market_id, timestamp_ms)
+        if timestamp_ms < prior_ms:
+            raise RuntimeError("internal error: market event clock regressed")
+        if market_unhedged.get(market_id, False):
+            total_unhedged_ms += timestamp_ms - prior_ms
+        market_last_ms[market_id] = timestamp_ms
+
+    def refresh_exposure_state(market_id: str, timestamp_ms: int) -> None:
+        nonlocal unhedged_episode_count, max_unhedged_episode_ms
+        position = positions.get(market_id, Position())
+        now_unhedged = abs(position.yes_shares - position.no_shares) > 1e-12
+        was_unhedged = market_unhedged.get(market_id, False)
+        if now_unhedged and not was_unhedged:
+            unhedged_episode_count += 1
+            market_episode_start[market_id] = timestamp_ms
+        elif was_unhedged and not now_unhedged:
+            started = market_episode_start.pop(market_id)
+            max_unhedged_episode_ms = max(
+                max_unhedged_episode_ms, timestamp_ms - started
+            )
+        market_unhedged[market_id] = now_unhedged
 
     def mark_risk() -> None:
         nonlocal max_gross_exposure, max_unhedged_shares
@@ -171,88 +209,164 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
         max_conservative_drawdown = max(
             max_conservative_drawdown, peak_conservative_equity - equity
         )
-        for market_id, position in positions.items():
+        for position in positions.values():
             unhedged = abs(position.yes_shares - position.no_shares)
             max_unhedged_shares = max(max_unhedged_shares, unhedged)
-            if unhedged > 1e-12:
-                inventory_episodes.add((market_id, "unhedged"))
 
-    for _, event_kind, event_id, payload in events:
+    for timestamp_ms, event_kind, event_id, payload in events:
         if event_kind == 0:
+            advance_exposure_clock(event_id, timestamp_ms)
+            before_cash = cash
+            before_position = position_snapshot(event_id)
             position = positions.pop(event_id, None)
+            payout = 0.0
             if position is not None:
                 outcome_yes = bool(payload)
                 payout = position.yes_shares if outcome_yes else position.no_shares
                 cash += payout
+            refresh_exposure_state(event_id, timestamp_ms)
             mark_risk()
+            ledger.append(
+                {
+                    "timestamp_ms": timestamp_ms,
+                    "event": "settlement",
+                    "market_id": event_id,
+                    "outcome_yes": bool(payload),
+                    "cash_before": before_cash,
+                    "cash_after": cash,
+                    "payout": payout,
+                    "position_before": before_position,
+                    "position_after": position_snapshot(event_id),
+                }
+            )
             continue
 
         order = payload
         assert isinstance(order, LegIntent)
+        advance_exposure_clock(order.market_id, timestamp_ms)
+        before_cash = cash
+        before_position = position_snapshot(order.market_id)
+        status = "zero_fill"
+        reason = "no_displayed_depth"
+        shares = 0.0
+        fee = 0.0
+        extra_cost = 0.0
+        debit = 0.0
         if order.arrival_ask > order.fixed_limit + 1e-12:
             counts["price_rejects"] += 1
             counts["zero_fills"] += 1
-            mark_risk()
-            continue
-        available = order.displayed_shares * config.depth_haircut
-        shares = min(order.requested_shares, available)
-        if config.full_or_zero and shares + 1e-12 < order.requested_shares:
-            shares = 0.0
-        if shares <= 1e-12:
-            counts["zero_fills"] += 1
-            mark_risk()
-            continue
-        fee = taker_fee(shares, order.arrival_ask, config.fee_rate)
-        extra_cost = shares * config.extra_cost_per_share
-        debit = shares * order.arrival_ask + fee + extra_cost
-        if debit > cash + 1e-12:
-            counts["cash_rejects"] += 1
-            counts["zero_fills"] += 1
-            mark_risk()
-            continue
-        cash -= debit
-        position = positions.setdefault(order.market_id, Position())
-        if order.side == "YES":
-            position.yes_shares += shares
+            reason = "arrival_ask_above_fixed_limit"
         else:
-            position.no_shares += shares
-        position.cash_cost += debit
-        fill = Fill(
-            order_id=order.order_id,
-            pair_id=order.pair_id,
-            market_id=order.market_id,
-            side=order.side,
-            arrival_ms=order.arrival_ms,
-            requested_shares=order.requested_shares,
-            filled_shares=shares,
-            price=order.arrival_ask,
-            fee=fee,
-            extra_cost=extra_cost,
-            cash_debit=debit,
-        )
-        fills.append(fill)
-        if shares + 1e-12 >= order.requested_shares:
-            counts["full_fills"] += 1
-        else:
-            counts["partial_fills"] += 1
+            available = order.displayed_shares * config.depth_haircut
+            shares = min(order.requested_shares, available)
+            if config.full_or_zero and shares + 1e-12 < order.requested_shares:
+                shares = 0.0
+                reason = "full_or_zero_depth_shortfall"
+            if shares <= 1e-12:
+                counts["zero_fills"] += 1
+            else:
+                fee = taker_fee(shares, order.arrival_ask, config.fee_rate)
+                extra_cost = shares * config.extra_cost_per_share
+                debit = shares * order.arrival_ask + fee + extra_cost
+                if debit > cash + 1e-12:
+                    counts["cash_rejects"] += 1
+                    counts["zero_fills"] += 1
+                    reason = "insufficient_shared_cash"
+                    shares = 0.0
+                    fee = 0.0
+                    extra_cost = 0.0
+                    debit = 0.0
+                else:
+                    cash -= debit
+                    position = positions.setdefault(order.market_id, Position())
+                    if order.side == "YES":
+                        position.yes_shares += shares
+                    else:
+                        position.no_shares += shares
+                    position.cash_cost += debit
+                    fill = Fill(
+                        order_id=order.order_id,
+                        pair_id=order.pair_id,
+                        market_id=order.market_id,
+                        side=order.side,
+                        arrival_ms=order.arrival_ms,
+                        requested_shares=order.requested_shares,
+                        filled_shares=shares,
+                        price=order.arrival_ask,
+                        fee=fee,
+                        extra_cost=extra_cost,
+                        cash_debit=debit,
+                    )
+                    fills.append(fill)
+                    if shares + 1e-12 >= order.requested_shares:
+                        counts["full_fills"] += 1
+                        status = "full_fill"
+                    else:
+                        counts["partial_fills"] += 1
+                        status = "partial_fill"
+                    reason = "executed"
+        refresh_exposure_state(order.market_id, timestamp_ms)
         mark_risk()
+        ledger.append(
+            {
+                "timestamp_ms": timestamp_ms,
+                "event": "order_arrival",
+                "order_id": order.order_id,
+                "pair_id": order.pair_id,
+                "market_id": order.market_id,
+                "side": order.side,
+                "status": status,
+                "reason": reason,
+                "requested_shares": order.requested_shares,
+                "filled_shares": shares,
+                "cash_before": before_cash,
+                "cash_after": cash,
+                "cash_debit": debit,
+                "fee": fee,
+                "extra_cost": extra_cost,
+                "position_before": before_position,
+                "position_after": position_snapshot(order.market_id),
+            }
+        )
 
     if positions:
         raise RuntimeError("internal error: unsettled positions remain")
-    pair_sides: dict[str, set[str]] = {}
+    pair_stats: dict[str, dict] = {}
     for fill in fills:
-        pair_sides.setdefault(fill.pair_id, set()).add(fill.side)
-    paired = sum(sides == {"YES", "NO"} for sides in pair_sides.values())
-    single_leg = sum(len(sides) == 1 for sides in pair_sides.values())
+        stats = pair_stats.setdefault(
+            fill.pair_id,
+            {"yes_shares": 0.0, "no_shares": 0.0, "arrivals_ms": []},
+        )
+        stats["yes_shares" if fill.side == "YES" else "no_shares"] += fill.filled_shares
+        stats["arrivals_ms"].append(fill.arrival_ms)
+    paired_stats = [
+        stats
+        for stats in pair_stats.values()
+        if stats["yes_shares"] > 1e-12 and stats["no_shares"] > 1e-12
+    ]
+    paired = len(paired_stats)
+    single_leg = sum(
+        (stats["yes_shares"] > 1e-12) != (stats["no_shares"] > 1e-12)
+        for stats in pair_stats.values()
+    )
+    residual_pairs = sum(
+        abs(stats["yes_shares"] - stats["no_shares"]) > 1e-12
+        for stats in paired_stats
+    )
+    max_pair_arrival_gap_ms = max(
+        (max(stats["arrivals_ms"]) - min(stats["arrivals_ms"]) for stats in paired_stats),
+        default=0,
+    )
     result = {
-        "schema_version": 1,
+        "schema_version": 2,
         "config": asdict(config),
         "counts": {
             **counts,
             "fills": len(fills),
             "pairs_with_both_sides_filled": paired,
             "pairs_with_single_side_filled": single_leg,
-            "unhedged_market_episodes": len(inventory_episodes),
+            "pairs_with_residual_inventory": residual_pairs,
+            "unhedged_market_episodes": unhedged_episode_count,
         },
         "cash": {
             "initial": config.initial_cash,
@@ -263,9 +377,13 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
         "risk": {
             "max_gross_cash_exposure": max_gross_exposure,
             "max_unhedged_shares": max_unhedged_shares,
+            "total_unhedged_ms": total_unhedged_ms,
+            "max_unhedged_episode_ms": max_unhedged_episode_ms,
+            "max_pair_arrival_gap_ms": max_pair_arrival_gap_ms,
             "max_conservative_drawdown": max_conservative_drawdown,
         },
         "fills": [asdict(fill) for fill in fills],
+        "ledger": ledger,
         "limitations": [
             "displayed depth is only a fill upper bound",
             "no queue position, hidden liquidity or market impact is inferred",
