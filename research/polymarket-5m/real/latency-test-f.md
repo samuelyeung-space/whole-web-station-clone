@@ -2,7 +2,7 @@
 
 事先写死（9 月 30 日 21:42 UTC，数据还没录）：2026-09-30 23:00 UTC 起开始的 BTC 5m 市场；规则与检验 D 完全相同，只是触发改用回测用的币安 BTCUSDT 逐笔成交（data-stream.binance.vision，交易所时间）：剩 240–15 秒时，与至少一秒前（不早于 5 秒）相比涨跌超过 2σ 的每一笔币安成交是候选；以那一刻交易所显示的 Up 中间价为原来的概率算公平价；0.3 秒后按卖一买顺势一方，只在 公平价 − 卖一 − taker 费 ≥ 12¢ 时成交，每个市场取第一笔，持有到结算；按触发时间取前 1,200 笔判定一次，EV > 0 且精确 p < 0.025 才算通过。数据处理同检验 C、D（含断线检查）。
 
-录制段 48 个，成交 1,166 笔。
+录制段 49 个，成交 1,186 笔。
 
 录制段备注（跳过的和断线检查）：
 
@@ -49,9 +49,10 @@
 - btc 38204238337: 688 candidates dropped because the CLOB socket closed between the quote and the order (55 disconnects in the recording; test C counts its judged lag only)
 - btc 38224319208: 1726 candidates dropped because the CLOB socket closed between the quote and the order (102 disconnects in the recording; test C counts its judged lag only)
 - btc 38256540882: 1124 candidates dropped because the CLOB socket closed between the quote and the order (155 disconnects in the recording; test C counts its judged lag only)
+- btc 38295792174: 825 candidates dropped because the CLOB socket closed between the quote and the order (114 disconnects in the recording; test C counts its judged lag only)
 
 | 笔数 | 胜率 | 平均价 | EV | p | 卖一数量中位 |
 |---|---|---|---|---|---|
-| 1,166 | 45.4% | 0.400 | +4.02¢ | 0.0010 | 80 |
+| 1,186 | 45.4% | 0.400 | +4.10¢ | 0.0006 | 79 |
 
-检验 F（前 1,200 笔）：目前 1,166 笔，不到 1,200 笔，不判定。
+检验 F（前 1,200 笔）：目前 1,186 笔，不到 1,200 笔，不判定。
