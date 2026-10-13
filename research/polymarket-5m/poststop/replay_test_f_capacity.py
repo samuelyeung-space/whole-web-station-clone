@@ -2,10 +2,11 @@
 """Post-stop execution sensitivity for the frozen Test F trade ledger.
 
 This does not alter Test F or create a new formal verdict. It applies fixed
-full-or-zero requested sizes to the already consumed 1,200-row stopping ledger
-and one shared USD 1,000 cash account. Cash is released at the scheduled
-five-minute market close, which is explicitly optimistic because actual
-redemption receipt timestamps are unavailable.
+requested sizes to the already consumed 1,200-row stopping ledger under both
+full-or-zero and displayed-depth partial-FAK counterfactuals, using one shared
+USD 1,000 cash account. Cash is released at the scheduled five-minute market
+close, which is explicitly optimistic because actual redemption receipt
+timestamps are unavailable.
 """
 
 from __future__ import annotations
@@ -53,20 +54,30 @@ def load_rows(input_path: Path) -> list[dict[str, float | str]]:
     return rows
 
 
-def replay(rows: list[dict[str, float | str]], qty: float, extra_cost: float) -> dict[str, object]:
+def replay(
+    rows: list[dict[str, float | str]],
+    qty: float,
+    extra_cost: float,
+    fill_mode: str = "full_or_zero",
+) -> dict[str, object]:
+    if fill_mode not in {"full_or_zero", "partial_displayed_fak"}:
+        raise ValueError(f"unknown fill mode: {fill_mode}")
     cash = 1000.0
     min_cash = cash
     open_positions: list[dict[str, float]] = []
     fills = 0
+    full_fills = 0
+    partial_fills = 0
     depth_failures = 0
     cash_rejections = 0
     gross_shares = 0.0
+    unfilled_requested_shares = 0.0
     realized_pnl = 0.0
     peak_realized = 0.0
     max_realized_drawdown = 0.0
     pnl_by_day: dict[str, float] = defaultdict(float)
     fills_by_day: dict[str, int] = defaultdict(int)
-    per_share_pnl_by_day: dict[str, list[float]] = defaultdict(list)
+    per_share_pnl_by_day: dict[str, list[tuple[float, float]]] = defaultdict(list)
 
     def settle(until: float) -> None:
         nonlocal cash, realized_pnl, peak_realized, max_realized_drawdown
@@ -88,38 +99,69 @@ def replay(rows: list[dict[str, float | str]], qty: float, extra_cost: float) ->
     for row in rows:
         now = float(row["t"])
         settle(now)
-        if float(row["size"]) + 1e-9 < qty:
-            depth_failures += 1
-            continue
+        displayed_size = max(0.0, float(row["size"]))
+        if fill_mode == "full_or_zero":
+            if displayed_size + 1e-9 < qty:
+                depth_failures += 1
+                unfilled_requested_shares += qty
+                continue
+            fill_qty = qty
+        else:
+            fill_qty = min(qty, displayed_size)
+            if fill_qty <= 1e-9:
+                depth_failures += 1
+                unfilled_requested_shares += qty
+                continue
         per_share_cost = float(row["price"]) + float(row["fee"]) + extra_cost
-        cost = qty * per_share_cost
-        if cash + 1e-9 < cost:
+        # A submitted FAK buy must be collateralized for the requested order,
+        # even when only displayed depth is assumed to fill. Unspent collateral
+        # is treated as immediately released after the FAK response.
+        authorized_cost = qty * per_share_cost
+        if cash + 1e-9 < authorized_cost:
             cash_rejections += 1
+            unfilled_requested_shares += qty
             continue
+        cost = fill_qty * per_share_cost
         cash -= cost
         min_cash = min(min_cash, cash)
         day = datetime.fromtimestamp(now, tz=timezone.utc).date().isoformat()
         open_positions.append(
             {
                 "settle_time": market_close(str(row["market_id"])),
-                "payout": qty * float(row["won"]),
+                "payout": fill_qty * float(row["won"]),
                 "cost": cost,
                 "day": day,
             }
         )
         fills += 1
-        gross_shares += qty
+        if fill_qty + 1e-9 >= qty:
+            full_fills += 1
+        else:
+            partial_fills += 1
+        gross_shares += fill_qty
+        unfilled_requested_shares += qty - fill_qty
         fills_by_day[day] += 1
         per_share_pnl_by_day[day].append(
-            float(row["won"]) - float(row["price"]) - float(row["fee"]) - extra_cost
+            (
+                float(row["won"])
+                - float(row["price"])
+                - float(row["fee"])
+                - extra_cost,
+                fill_qty,
+            )
         )
 
     settle(math.inf)
-    per_share_values = [
-        value for values in per_share_pnl_by_day.values() for value in values
+    weighted_per_share_values = [
+        (value, shares)
+        for values in per_share_pnl_by_day.values()
+        for value, shares in values
     ]
     mean_per_share = (
-        sum(per_share_values) / len(per_share_values) if per_share_values else None
+        sum(value * shares for value, shares in weighted_per_share_values)
+        / gross_shares
+        if gross_shares
+        else None
     )
     cluster_count = len(per_share_pnl_by_day)
     cluster_se = None
@@ -127,14 +169,14 @@ def replay(rows: list[dict[str, float | str]], qty: float, extra_cost: float) ->
     lower_99 = None
     if mean_per_share is not None and cluster_count >= 2:
         centered_cluster_sums = [
-            sum(value - mean_per_share for value in values)
+            sum((value - mean_per_share) * shares for value, shares in values)
             for values in per_share_pnl_by_day.values()
         ]
         cluster_se = math.sqrt(
             cluster_count
             / (cluster_count - 1)
             * sum(value * value for value in centered_cluster_sums)
-        ) / len(per_share_values)
+        ) / gross_shares
         if cluster_se > 0:
             statistic = mean_per_share / cluster_se
             one_sided_p = float(student_t.sf(statistic, df=cluster_count - 1))
@@ -144,11 +186,15 @@ def replay(rows: list[dict[str, float | str]], qty: float, extra_cost: float) ->
     return {
         "requested_shares": qty,
         "extra_cost_per_share": extra_cost,
+        "fill_mode": fill_mode,
         "signals": len(rows),
-        "full_fills": fills,
+        "orders_with_any_fill": fills,
+        "full_fills": full_fills,
+        "partial_fills": partial_fills,
         "depth_failures": depth_failures,
         "cash_rejections": cash_rejections,
         "filled_shares": gross_shares,
+        "unfilled_requested_shares": unfilled_requested_shares,
         "net_pnl_usd": cash - 1000.0,
         "net_per_filled_share_usd": (
             (cash - 1000.0) / gross_shares if gross_shares else None
@@ -165,7 +211,12 @@ def replay(rows: list[dict[str, float | str]], qty: float, extra_cost: float) ->
             day: value for day, value in sorted(pnl_by_day.items())
         },
         "cash_release_assumption": "scheduled market start + 300s; optimistic proxy, not redemption receipt",
-        "execution_assumption": "full-or-zero against recorded top ask size; not a private FAK receipt",
+        "execution_assumption": (
+            "full-or-zero against recorded top ask size; not a private FAK receipt"
+            if fill_mode == "full_or_zero"
+            else "partial fill equals min(requested size, recorded top ask size); not a private FAK receipt"
+        ),
+        "cash_authorization_assumption": "cash gate uses the full requested buy notional; unspent FAK collateral is immediately released",
     }
 
 
@@ -196,13 +247,15 @@ def main() -> None:
             "maximum": sizes[-1],
         },
         "scenarios": [
-            replay(rows, qty, extra_cost)
+            replay(rows, qty, extra_cost, fill_mode)
             for qty in (5.0, 10.0, 20.0, 100.0)
             for extra_cost in (0.0, 0.01)
+            for fill_mode in ("full_or_zero", "partial_displayed_fak")
         ],
         "limitations": [
             "Test F was frozen and judged at one-share economics and 300ms; this sensitivity was computed after the pass was observed.",
             "Displayed top-level ask size is only a counterfactual capacity upper bound.",
+            "Partial FAK scenarios assume every displayed top-level share fills at the recorded price, so they remain optimistic and do not identify queue competition or stale depth.",
             "No private 100-share FAK receipts, queue priority, impact, or actual redemption timing are available.",
             "The 300ms execution horizon is not the 500/600/1000ms default stress grid.",
             "These size and cost scenarios are dependent alternatives and must not be summed.",
