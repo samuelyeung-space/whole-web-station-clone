@@ -59,9 +59,14 @@ def replay(
     qty: float,
     extra_cost: float,
     fill_mode: str = "full_or_zero",
+    displayed_depth_fraction: float = 1.0,
 ) -> dict[str, object]:
     if fill_mode not in {"full_or_zero", "partial_displayed_fak"}:
         raise ValueError(f"unknown fill mode: {fill_mode}")
+    if not 0.0 < displayed_depth_fraction <= 1.0:
+        raise ValueError("displayed_depth_fraction must be in (0, 1]")
+    if fill_mode == "full_or_zero" and displayed_depth_fraction != 1.0:
+        raise ValueError("depth haircut is defined only for partial_displayed_fak")
     cash = 1000.0
     min_cash = cash
     open_positions: list[dict[str, float]] = []
@@ -100,14 +105,15 @@ def replay(
         now = float(row["t"])
         settle(now)
         displayed_size = max(0.0, float(row["size"]))
+        available_size = displayed_size * displayed_depth_fraction
         if fill_mode == "full_or_zero":
-            if displayed_size + 1e-9 < qty:
+            if available_size + 1e-9 < qty:
                 depth_failures += 1
                 unfilled_requested_shares += qty
                 continue
             fill_qty = qty
         else:
-            fill_qty = min(qty, displayed_size)
+            fill_qty = min(qty, available_size)
             if fill_qty <= 1e-9:
                 depth_failures += 1
                 unfilled_requested_shares += qty
@@ -187,6 +193,7 @@ def replay(
         "requested_shares": qty,
         "extra_cost_per_share": extra_cost,
         "fill_mode": fill_mode,
+        "displayed_depth_fraction": displayed_depth_fraction,
         "signals": len(rows),
         "orders_with_any_fill": fills,
         "full_fills": full_fills,
@@ -214,7 +221,11 @@ def replay(
         "execution_assumption": (
             "full-or-zero against recorded top ask size; not a private FAK receipt"
             if fill_mode == "full_or_zero"
-            else "partial fill equals min(requested size, recorded top ask size); not a private FAK receipt"
+            else (
+                "partial fill equals min(requested size, recorded top ask size times "
+                f"{displayed_depth_fraction:.2f}); deterministic stale-depth/queue haircut, "
+                "not a private FAK receipt"
+            )
         ),
         "cash_authorization_assumption": "cash gate uses the full requested buy notional; unspent FAK collateral is immediately released",
     }
@@ -251,11 +262,24 @@ def main() -> None:
             for qty in (5.0, 10.0, 20.0, 100.0)
             for extra_cost in (0.0, 0.01)
             for fill_mode in ("full_or_zero", "partial_displayed_fak")
+        ]
+        + [
+            replay(
+                rows,
+                qty,
+                extra_cost,
+                "partial_displayed_fak",
+                displayed_depth_fraction,
+            )
+            for qty in (5.0, 10.0, 20.0, 100.0)
+            for extra_cost in (0.0, 0.01)
+            for displayed_depth_fraction in (0.75, 0.50, 0.25)
         ],
         "limitations": [
             "Test F was frozen and judged at one-share economics and 300ms; this sensitivity was computed after the pass was observed.",
             "Displayed top-level ask size is only a counterfactual capacity upper bound.",
             "Partial FAK scenarios assume every displayed top-level share fills at the recorded price, so they remain optimistic and do not identify queue competition or stale depth.",
+            "The 75/50/25 percent depth fractions are deterministic stress haircuts, not empirically calibrated queue-fill probabilities.",
             "No private 100-share FAK receipts, queue priority, impact, or actual redemption timing are available.",
             "The 300ms execution horizon is not the 500/600/1000ms default stress grid.",
             "These size and cost scenarios are dependent alternatives and must not be summed.",
