@@ -102,8 +102,8 @@ def _copy(path: Path, destination: Path) -> None:
 
 def _materialize(
     destination: Path,
-    root: Path,
     freeze_path: Path,
+    freeze_target: Path,
     selected: Sequence[tuple[Path, Path]],
 ) -> None:
     for relative, source in selected:
@@ -112,11 +112,10 @@ def _materialize(
         if fingerprint.is_file():
             _copy(fingerprint, (destination / relative).with_suffix(".sha256"))
 
-    relative_freeze = freeze_path.relative_to(root)
-    _copy(freeze_path, destination / relative_freeze)
+    _copy(freeze_path, destination / freeze_target)
     _copy(
         freeze_path.with_suffix(".sha256"),
-        (destination / relative_freeze).with_suffix(".sha256"),
+        (destination / freeze_target).with_suffix(".sha256"),
     )
 
 
@@ -138,6 +137,7 @@ def run(
     freeze_path: Path,
     snapshot_root: Path,
     entrypoint: Path,
+    freeze_target: Path,
     entry_args: Sequence[str],
     report_path: Path | None,
     audit_only: bool,
@@ -148,6 +148,7 @@ def run(
     if freeze_path.parent != root and root not in freeze_path.parents:
         raise ValueError("freeze must be inside root")
     entrypoint = _safe_relative(entrypoint, "entrypoint")
+    freeze_target = _safe_relative(freeze_target, "freeze target")
     frozen, freeze_sha256 = _read_freeze(freeze_path)
     audit, selected = _select_dependencies(
         root, snapshot_root, frozen["dependencies_sha256"],
@@ -162,6 +163,7 @@ def run(
     report: dict[str, Any] = {
         "schema": _REPORT_SCHEMA,
         "freeze_sha256": freeze_sha256,
+        "freeze_target": str(PurePosixPath(*freeze_target.parts)),
         "entrypoint": entry_key,
         "dependencies": audit,
         "substituted_dependencies": [
@@ -177,7 +179,7 @@ def run(
 
     with tempfile.TemporaryDirectory(prefix="frozen-evaluator-") as temporary:
         materialized = Path(temporary)
-        _materialize(materialized, root, freeze_path, selected)
+        _materialize(materialized, freeze_path, freeze_target, selected)
         environment = dict(os.environ)
         prior_python_path = environment.get("PYTHONPATH")
         search = [str(materialized), str(root)]
@@ -201,6 +203,9 @@ def main() -> None:
     parser.add_argument("--freeze", type=Path, required=True)
     parser.add_argument("--snapshot-root", type=Path, required=True)
     parser.add_argument("--entrypoint", type=Path, required=True)
+    parser.add_argument(
+        "--freeze-target", type=Path, default=Path("forward/source-race-freeze.json"),
+    )
     parser.add_argument("--report", type=Path)
     parser.add_argument("--audit-only", action="store_true")
     parser.add_argument("entry_args", nargs=argparse.REMAINDER)
@@ -213,6 +218,7 @@ def main() -> None:
         freeze_path=args.freeze,
         snapshot_root=args.snapshot_root,
         entrypoint=args.entrypoint,
+        freeze_target=args.freeze_target,
         entry_args=entry_args,
         report_path=args.report,
         audit_only=args.audit_only,
