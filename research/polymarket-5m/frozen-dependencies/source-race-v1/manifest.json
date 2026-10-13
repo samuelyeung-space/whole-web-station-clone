@@ -1,0 +1,39 @@
+{
+  "schema": "frozen-dependency-snapshot-v1",
+  "protocol": "CURRENT-H-TIMESTAMPED-FIRST-TWAP-V3 source-race v1",
+  "freeze_sha256": "29ad66236aa0d2927843764970e384cb5de238c405be4e050f6b790a31a1dc63",
+  "freeze_created_at": "2026-10-09T16:56:20Z",
+  "freeze_cutoff": "2026-10-10T00:00:00Z",
+  "original_freeze_source": {
+    "branch": "claude/polymarket-options-strategy-1lc7i4",
+    "commit": "ed68e7c764dd02365fb1e3046ce03ab37d21930d"
+  },
+  "snapshot_files": {
+    "eu_strict.py": {
+      "sha256": "95b6e3fc744dd6231e9ef431206ca8633505f2810434c8aa76039c02bcd99435",
+      "source_commit": "ed68e7c764dd02365fb1e3046ce03ab37d21930d"
+    },
+    "poly_clob_rec.py": {
+      "sha256": "528c465db7a09a75fab81ab89ef990ba86fae31289a0bb62f1cdbbf26b3e9de6",
+      "source_commit": "ed68e7c764dd02365fb1e3046ce03ab37d21930d"
+    },
+    "strict_prebuild.py": {
+      "sha256": "4b7f847bc67319604652955b06eea6644ebd9c545cb555fe0ece14cdc5a13e08",
+      "source_commit": "63424060255da4d773b19e805e7fe798251fcca1"
+    }
+  },
+  "audit": {
+    "source_branch_dependency_matches": 17,
+    "source_branch_dependency_total": 18,
+    "source_branch_only_drift": "strict_prebuild.py",
+    "research_branch_current_matches_original_freeze": 16,
+    "research_branch_dependency_total": 18,
+    "research_branch_drifts": [
+      "eu_strict.py",
+      "poly_clob_rec.py"
+    ],
+    "snapshot_plus_checkout_resolves_all_dependencies": true,
+    "old_freeze_modified": false
+  },
+  "classification": "reproducibility adapter only; no PnL or OOS observation"
+}
