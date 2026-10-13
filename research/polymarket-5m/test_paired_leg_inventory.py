@@ -27,6 +27,9 @@ def test_two_filled_legs_include_exact_fees_and_settlement():
     expected = 5 - 5 * 0.9 - 2 * taker_fee(5, 0.45, 0.07)
     assert result["counts"]["pairs_with_both_sides_filled"] == 1
     assert result["counts"]["pairs_with_single_side_filled"] == 0
+    assert result["risk"]["total_unhedged_ms"] == 100
+    assert result["risk"]["max_unhedged_episode_ms"] == 100
+    assert result["risk"]["max_pair_arrival_gap_ms"] == 100
     assert result["cash"]["net_pnl"] == pytest.approx(expected)
 
 
@@ -42,6 +45,8 @@ def test_second_leg_cash_reject_creates_unhedged_loss():
     assert result["counts"]["cash_rejects"] == 1
     assert result["counts"]["pairs_with_single_side_filled"] == 1
     assert result["risk"]["max_unhedged_shares"] == 5
+    assert result["risk"]["total_unhedged_ms"] == 500
+    assert result["ledger"][1]["reason"] == "insufficient_shared_cash"
     assert result["cash"]["net_pnl"] < -2.5
 
 
@@ -61,6 +66,7 @@ def test_full_or_zero_kills_insufficient_depth():
     )
     assert result["counts"]["fills"] == 0
     assert result["counts"]["zero_fills"] == 1
+    assert result["ledger"][0]["reason"] == "full_or_zero_depth_shortfall"
 
 
 def test_settlement_releases_cash_before_same_timestamp_arrival():
@@ -101,3 +107,31 @@ def test_duplicate_order_ids_fail_closed():
     order = leg("p-yes", "YES", arrival=500, ask=0.5)
     with pytest.raises(ValueError, match="unique"):
         replay([order, order])
+
+
+def test_unequal_two_leg_fills_report_residual_inventory():
+    result = replay(
+        [
+            leg("p-yes", "YES", arrival=500, ask=0.45),
+            leg("p-no", "NO", arrival=600, ask=0.45, depth=2),
+        ]
+    )
+    assert result["counts"]["pairs_with_both_sides_filled"] == 1
+    assert result["counts"]["pairs_with_residual_inventory"] == 1
+    assert result["risk"]["total_unhedged_ms"] == 500
+
+
+def test_order_at_own_settlement_fails_closed():
+    bad = leg("p-yes", "YES", arrival=500, ask=0.5, settlement=500)
+    with pytest.raises(ValueError, match="must follow"):
+        replay([bad])
+
+
+def test_ledger_reconciles_cash_path():
+    result = replay([leg("p-yes", "YES", arrival=500, ask=0.4)])
+    rows = result["ledger"]
+    assert rows[0]["cash_before"] == 1000
+    assert rows[0]["cash_after"] == pytest.approx(1000 - rows[0]["cash_debit"])
+    assert rows[1]["event"] == "settlement"
+    assert rows[1]["cash_before"] == rows[0]["cash_after"]
+    assert rows[1]["cash_after"] == result["cash"]["final"]
