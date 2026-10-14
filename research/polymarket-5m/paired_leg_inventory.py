@@ -164,6 +164,9 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
         if order.side in legs:
             raise ValueError("pair_id values must contain at most one order per side")
         legs[order.side] = order.order_id
+    market_pair_ids: dict[str, list[str]] = {}
+    for pair_id, market_id in pair_markets.items():
+        market_pair_ids.setdefault(market_id, []).append(pair_id)
 
     market_meta: dict[str, tuple[int, bool]] = {}
     for order in orders:
@@ -181,6 +184,7 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
 
     cash = config.initial_cash
     positions: dict[str, Position] = {}
+    pair_positions: dict[str, Position] = {}
     fills: list[Fill] = []
     ledger: list[dict] = []
     counts = {
@@ -199,6 +203,13 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
     market_last_ms: dict[str, int] = {}
     market_unhedged: dict[str, bool] = {}
     market_episode_start: dict[str, int] = {}
+    max_pair_unhedged_shares = 0.0
+    pair_unhedged_episode_count = 0
+    total_pair_unhedged_ms = 0
+    max_pair_unhedged_episode_ms = 0
+    pair_last_ms: dict[str, int] = {}
+    pair_unhedged: dict[str, bool] = {}
+    pair_episode_start: dict[str, int] = {}
     peak_conservative_equity = config.initial_cash
     max_conservative_drawdown = 0.0
     cash_min = cash
@@ -235,8 +246,32 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
             )
         market_unhedged[market_id] = now_unhedged
 
+    def advance_pair_exposure_clock(pair_id: str, timestamp_ms: int) -> None:
+        nonlocal total_pair_unhedged_ms
+        prior_ms = pair_last_ms.setdefault(pair_id, timestamp_ms)
+        if timestamp_ms < prior_ms:
+            raise RuntimeError("internal error: pair event clock regressed")
+        if pair_unhedged.get(pair_id, False):
+            total_pair_unhedged_ms += timestamp_ms - prior_ms
+        pair_last_ms[pair_id] = timestamp_ms
+
+    def refresh_pair_exposure_state(pair_id: str, timestamp_ms: int) -> None:
+        nonlocal pair_unhedged_episode_count, max_pair_unhedged_episode_ms
+        position = pair_positions.get(pair_id, Position())
+        now_unhedged = abs(position.yes_shares - position.no_shares) > 1e-12
+        was_unhedged = pair_unhedged.get(pair_id, False)
+        if now_unhedged and not was_unhedged:
+            pair_unhedged_episode_count += 1
+            pair_episode_start[pair_id] = timestamp_ms
+        elif was_unhedged and not now_unhedged:
+            started = pair_episode_start.pop(pair_id)
+            max_pair_unhedged_episode_ms = max(
+                max_pair_unhedged_episode_ms, timestamp_ms - started
+            )
+        pair_unhedged[pair_id] = now_unhedged
+
     def mark_risk() -> None:
-        nonlocal max_gross_exposure, max_unhedged_shares
+        nonlocal max_gross_exposure, max_unhedged_shares, max_pair_unhedged_shares
         nonlocal peak_conservative_equity, max_conservative_drawdown, cash_min
         gross = sum(position.cash_cost for position in positions.values())
         matched_value = sum(
@@ -253,10 +288,15 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
         for position in positions.values():
             unhedged = abs(position.yes_shares - position.no_shares)
             max_unhedged_shares = max(max_unhedged_shares, unhedged)
+        for position in pair_positions.values():
+            unhedged = abs(position.yes_shares - position.no_shares)
+            max_pair_unhedged_shares = max(max_pair_unhedged_shares, unhedged)
 
     for timestamp_ms, event_kind, event_id, payload in events:
         if event_kind == 0:
             advance_exposure_clock(event_id, timestamp_ms)
+            for pair_id in market_pair_ids[event_id]:
+                advance_pair_exposure_clock(pair_id, timestamp_ms)
             before_cash = cash
             before_position = position_snapshot(event_id)
             position = positions.pop(event_id, None)
@@ -265,6 +305,9 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
                 outcome_yes = bool(payload)
                 payout = position.yes_shares if outcome_yes else position.no_shares
                 cash += payout
+            for pair_id in market_pair_ids[event_id]:
+                pair_positions.pop(pair_id, None)
+                refresh_pair_exposure_state(pair_id, timestamp_ms)
             refresh_exposure_state(event_id, timestamp_ms)
             mark_risk()
             ledger.append(
@@ -285,6 +328,7 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
         order = payload
         assert isinstance(order, LegIntent)
         advance_exposure_clock(order.market_id, timestamp_ms)
+        advance_pair_exposure_clock(order.pair_id, timestamp_ms)
         before_cash = cash
         before_position = position_snapshot(order.market_id)
         status = "zero_fill"
@@ -325,6 +369,12 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
                     else:
                         position.no_shares += shares
                     position.cash_cost += debit
+                    pair_position = pair_positions.setdefault(order.pair_id, Position())
+                    if order.side == "YES":
+                        pair_position.yes_shares += shares
+                    else:
+                        pair_position.no_shares += shares
+                    pair_position.cash_cost += debit
                     fill = Fill(
                         order_id=order.order_id,
                         pair_id=order.pair_id,
@@ -347,6 +397,7 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
                         status = "partial_fill"
                     reason = "executed"
         refresh_exposure_state(order.market_id, timestamp_ms)
+        refresh_pair_exposure_state(order.pair_id, timestamp_ms)
         mark_risk()
         ledger.append(
             {
@@ -372,6 +423,8 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
 
     if positions:
         raise RuntimeError("internal error: unsettled positions remain")
+    if pair_positions:
+        raise RuntimeError("internal error: unsettled pair positions remain")
     pair_stats: dict[str, dict] = {}
     for fill in fills:
         stats = pair_stats.setdefault(
@@ -399,7 +452,7 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
         default=0,
     )
     result = {
-        "schema_version": 2,
+        "schema_version": 3,
         "config": asdict(config),
         "counts": {
             **counts,
@@ -408,6 +461,7 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
             "pairs_with_single_side_filled": single_leg,
             "pairs_with_residual_inventory": residual_pairs,
             "unhedged_market_episodes": unhedged_episode_count,
+            "unhedged_pair_episodes": pair_unhedged_episode_count,
         },
         "cash": {
             "initial": config.initial_cash,
@@ -420,6 +474,9 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
             "max_unhedged_shares": max_unhedged_shares,
             "total_unhedged_ms": total_unhedged_ms,
             "max_unhedged_episode_ms": max_unhedged_episode_ms,
+            "max_pair_unhedged_shares": max_pair_unhedged_shares,
+            "total_pair_unhedged_ms": total_pair_unhedged_ms,
+            "max_pair_unhedged_episode_ms": max_pair_unhedged_episode_ms,
             "max_pair_arrival_gap_ms": max_pair_arrival_gap_ms,
             "max_conservative_drawdown": max_conservative_drawdown,
         },
@@ -429,6 +486,7 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
             "displayed depth is only a fill upper bound",
             "no queue position, hidden liquidity or market impact is inferred",
             "unmatched inventory is marked at zero for conservative drawdown",
+            "market-net and pair-local unhedged exposure are reported separately",
         ],
     }
     return result

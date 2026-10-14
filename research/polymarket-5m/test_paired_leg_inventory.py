@@ -29,6 +29,8 @@ def test_two_filled_legs_include_exact_fees_and_settlement():
     assert result["counts"]["pairs_with_single_side_filled"] == 0
     assert result["risk"]["total_unhedged_ms"] == 100
     assert result["risk"]["max_unhedged_episode_ms"] == 100
+    assert result["risk"]["total_pair_unhedged_ms"] == 100
+    assert result["risk"]["max_pair_unhedged_episode_ms"] == 100
     assert result["risk"]["max_pair_arrival_gap_ms"] == 100
     assert result["cash"]["net_pnl"] == pytest.approx(expected)
 
@@ -214,6 +216,18 @@ def test_unequal_two_leg_fills_report_residual_inventory():
     assert result["counts"]["pairs_with_both_sides_filled"] == 1
     assert result["counts"]["pairs_with_residual_inventory"] == 1
     assert result["risk"]["total_unhedged_ms"] == 500
+
+
+def test_opposite_single_legs_in_distinct_pairs_do_not_hide_pair_risk():
+    yes = leg("a-yes", "YES", arrival=100, ask=0.45)
+    no = leg("b-no", "NO", arrival=100, ask=0.45)
+    result = replay([yes, no])
+    assert result["risk"]["total_unhedged_ms"] == 0
+    assert result["counts"]["unhedged_market_episodes"] == 1
+    assert result["risk"]["total_pair_unhedged_ms"] == 1800
+    assert result["risk"]["max_pair_unhedged_episode_ms"] == 900
+    assert result["risk"]["max_pair_unhedged_shares"] == 5
+    assert result["counts"]["unhedged_pair_episodes"] == 2
 
 
 def test_order_at_own_settlement_fails_closed():
