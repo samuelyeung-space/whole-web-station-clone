@@ -109,6 +109,28 @@ def test_duplicate_order_ids_fail_closed():
         replay([order, order])
 
 
+def test_pair_id_spanning_markets_fails_closed():
+    yes = leg("p-yes", "YES", arrival=500, ask=0.5)
+    no = LegIntent(
+        **{
+            **yes.__dict__,
+            "order_id": "p-no",
+            "market_id": "m2",
+            "side": "NO",
+            "arrival_ms": 600,
+        }
+    )
+    with pytest.raises(ValueError, match="span markets"):
+        replay([yes, no])
+
+
+def test_duplicate_pair_side_fails_closed():
+    first = leg("p-first", "YES", arrival=500, ask=0.5)
+    second = leg("p-second", "YES", arrival=600, ask=0.5)
+    with pytest.raises(ValueError, match="one order per side"):
+        replay([first, second])
+
+
 def test_unequal_two_leg_fills_report_residual_inventory():
     result = replay(
         [
