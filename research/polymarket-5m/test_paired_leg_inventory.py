@@ -126,6 +126,56 @@ def test_nonboolean_settlement_outcome_fails_closed(value):
         replay([bad])
 
 
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("requested_shares", True),
+        ("requested_shares", "5"),
+        ("fixed_limit", "0.6"),
+        ("arrival_ask", None),
+        ("displayed_shares", False),
+    ],
+)
+def test_non_numeric_execution_fields_fail_closed(field, value):
+    valid = leg("p-yes", "YES", arrival=500, ask=0.5)
+    bad = LegIntent(**{**valid.__dict__, field: value})
+    with pytest.raises(ValueError, match="finite JSON number"):
+        replay([bad])
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("initial_cash", "1000"),
+        ("depth_haircut", True),
+        ("fee_rate", "0.07"),
+        ("extra_cost_per_share", None),
+    ],
+)
+def test_non_numeric_config_fields_fail_closed(field, value):
+    config = ReplayConfig(**{**ReplayConfig().__dict__, field: value})
+    with pytest.raises(ValueError, match="finite JSON number"):
+        replay([], config)
+
+
+@pytest.mark.parametrize("value", [0, 1, "false", None])
+def test_nonboolean_full_or_zero_fails_closed(value):
+    config = ReplayConfig(full_or_zero=value)
+    with pytest.raises(ValueError, match="must be boolean"):
+        replay([], config)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [("order_id", 1), ("pair_id", True), ("market_id", None)],
+)
+def test_non_string_identifiers_fail_closed(field, value):
+    valid = leg("p-yes", "YES", arrival=500, ask=0.5)
+    bad = LegIntent(**{**valid.__dict__, field: value})
+    with pytest.raises(ValueError, match="non-empty string"):
+        replay([bad])
+
+
 def test_duplicate_order_ids_fail_closed():
     order = leg("p-yes", "YES", arrival=500, ask=0.5)
     with pytest.raises(ValueError, match="unique"):
