@@ -124,6 +124,22 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
     if len(ids) != len(set(ids)):
         raise ValueError("order_id values must be unique")
 
+    # A pair is one YES/NO attempt in one market.  Failing closed here matters:
+    # the execution ledger is market-scoped, while the summary below is
+    # pair-scoped.  Reusing a pair_id across markets (or for two orders on the
+    # same side) would otherwise make unrelated fills look like a completed
+    # hedge and corrupt the reported arrival gap/residual inventory.
+    pair_legs: dict[str, dict[Side, str]] = {}
+    pair_markets: dict[str, str] = {}
+    for order in orders:
+        prior_market = pair_markets.setdefault(order.pair_id, order.market_id)
+        if prior_market != order.market_id:
+            raise ValueError("pair_id values must not span markets")
+        legs = pair_legs.setdefault(order.pair_id, {})
+        if order.side in legs:
+            raise ValueError("pair_id values must contain at most one order per side")
+        legs[order.side] = order.order_id
+
     market_meta: dict[str, tuple[int, bool]] = {}
     for order in orders:
         meta = (order.settlement_ms, order.outcome_yes)
