@@ -70,9 +70,20 @@ def taker_fee(shares: float, price: float, fee_rate: float) -> float:
     return shares * fee_rate * price * (1.0 - price)
 
 
-def _finite(value: float, name: str) -> None:
-    if not math.isfinite(value):
-        raise ValueError(f"{name} must be finite")
+def _number(value: object, name: str) -> None:
+    """Require a finite JSON-number value without coercion.
+
+    The replay input is JSON, so the only valid numeric runtime types are int
+    and float.  Reject bool explicitly (it is an int subclass) and reject
+    strings rather than interpreting values such as ``"0"`` or ``"false"``.
+    """
+    if type(value) not in (int, float) or not math.isfinite(value):
+        raise ValueError(f"{name} must be a finite JSON number")
+
+
+def _identifier(value: object, name: str) -> None:
+    if type(value) is not str or not value:
+        raise ValueError(f"{name} must be a non-empty string")
 
 
 def _timestamp(value: object, name: str) -> None:
@@ -84,8 +95,8 @@ def _timestamp(value: object, name: str) -> None:
 
 
 def validate_intent(intent: LegIntent) -> None:
-    if not intent.order_id or not intent.pair_id or not intent.market_id:
-        raise ValueError("order_id, pair_id and market_id are required")
+    for name in ("order_id", "pair_id", "market_id"):
+        _identifier(getattr(intent, name), name)
     if intent.side not in ("YES", "NO"):
         raise ValueError("side must be YES or NO")
     for name in ("decision_ms", "arrival_ms", "settlement_ms"):
@@ -102,7 +113,7 @@ def validate_intent(intent: LegIntent) -> None:
         "arrival_ask",
         "displayed_shares",
     ):
-        _finite(float(getattr(intent, name)), name)
+        _number(getattr(intent, name), name)
     if intent.requested_shares <= 0 or intent.displayed_shares < 0:
         raise ValueError("share quantities are invalid")
     if not 0 < intent.fixed_limit < 1 or not 0 < intent.arrival_ask < 1:
@@ -111,7 +122,9 @@ def validate_intent(intent: LegIntent) -> None:
 
 def validate_config(config: ReplayConfig) -> None:
     for name in ("initial_cash", "depth_haircut", "fee_rate", "extra_cost_per_share"):
-        _finite(float(getattr(config, name)), name)
+        _number(getattr(config, name), name)
+    if type(config.full_or_zero) is not bool:
+        raise ValueError("full_or_zero must be boolean")
     if config.initial_cash <= 0:
         raise ValueError("initial_cash must be positive")
     if not 0 <= config.depth_haircut <= 1:
