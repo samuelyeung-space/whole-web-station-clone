@@ -103,6 +103,29 @@ def test_invalid_input_fails_closed(bad):
         replay([bad])
 
 
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("decision_ms", -1),
+        ("arrival_ms", 500.5),
+        ("settlement_ms", True),
+    ],
+)
+def test_malformed_event_clocks_fail_closed(field, value):
+    valid = leg("p-yes", "YES", arrival=500, ask=0.5)
+    bad = LegIntent(**{**valid.__dict__, field: value})
+    with pytest.raises(ValueError, match="non-negative integer"):
+        replay([bad])
+
+
+@pytest.mark.parametrize("value", [0, 1, "false", None])
+def test_nonboolean_settlement_outcome_fails_closed(value):
+    valid = leg("p-yes", "YES", arrival=500, ask=0.5)
+    bad = LegIntent(**{**valid.__dict__, "outcome_yes": value})
+    with pytest.raises(ValueError, match="must be boolean"):
+        replay([bad])
+
+
 def test_duplicate_order_ids_fail_closed():
     order = leg("p-yes", "YES", arrival=500, ask=0.5)
     with pytest.raises(ValueError, match="unique"):
