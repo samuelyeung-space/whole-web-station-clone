@@ -75,11 +75,23 @@ def _finite(value: float, name: str) -> None:
         raise ValueError(f"{name} must be finite")
 
 
+def _timestamp(value: object, name: str) -> None:
+    # bool is a subclass of int in Python, so use an exact type check.  Loose
+    # coercion here can silently reorder events or settle a market at the wrong
+    # instant.
+    if type(value) is not int or value < 0:
+        raise ValueError(f"{name} must be a non-negative integer")
+
+
 def validate_intent(intent: LegIntent) -> None:
     if not intent.order_id or not intent.pair_id or not intent.market_id:
         raise ValueError("order_id, pair_id and market_id are required")
     if intent.side not in ("YES", "NO"):
         raise ValueError("side must be YES or NO")
+    for name in ("decision_ms", "arrival_ms", "settlement_ms"):
+        _timestamp(getattr(intent, name), name)
+    if type(intent.outcome_yes) is not bool:
+        raise ValueError("outcome_yes must be boolean")
     if intent.arrival_ms < intent.decision_ms:
         raise ValueError("arrival_ms precedes decision_ms")
     if intent.settlement_ms <= intent.arrival_ms:
