@@ -27,6 +27,7 @@ class LegIntent:
     decision_ms: int
     arrival_ms: int
     settlement_ms: int
+    cash_release_ms: int
     outcome_yes: bool
     requested_shares: float
     fixed_limit: float
@@ -99,7 +100,7 @@ def validate_intent(intent: LegIntent) -> None:
         _identifier(getattr(intent, name), name)
     if intent.side not in ("YES", "NO"):
         raise ValueError("side must be YES or NO")
-    for name in ("decision_ms", "arrival_ms", "settlement_ms"):
+    for name in ("decision_ms", "arrival_ms", "settlement_ms", "cash_release_ms"):
         _timestamp(getattr(intent, name), name)
     if type(intent.outcome_yes) is not bool:
         raise ValueError("outcome_yes must be boolean")
@@ -107,6 +108,8 @@ def validate_intent(intent: LegIntent) -> None:
         raise ValueError("arrival_ms precedes decision_ms")
     if intent.settlement_ms <= intent.arrival_ms:
         raise ValueError("settlement_ms must follow arrival_ms")
+    if intent.cash_release_ms < intent.settlement_ms:
+        raise ValueError("cash_release_ms must not precede settlement_ms")
     for name in (
         "requested_shares",
         "fixed_limit",
@@ -168,23 +171,25 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
     for pair_id, market_id in pair_markets.items():
         market_pair_ids.setdefault(market_id, []).append(pair_id)
 
-    market_meta: dict[str, tuple[int, bool]] = {}
+    market_meta: dict[str, tuple[int, int, bool]] = {}
     for order in orders:
-        meta = (order.settlement_ms, order.outcome_yes)
+        meta = (order.settlement_ms, order.cash_release_ms, order.outcome_yes)
         prior = market_meta.setdefault(order.market_id, meta)
         if prior != meta:
             raise ValueError("inconsistent settlement metadata within market")
 
     events: list[tuple[int, int, str, object]] = []
-    for market_id, (settlement_ms, outcome_yes) in market_meta.items():
+    for market_id, (settlement_ms, cash_release_ms, outcome_yes) in market_meta.items():
         events.append((settlement_ms, 0, market_id, outcome_yes))
+        events.append((cash_release_ms, 1, market_id, outcome_yes))
     for order in orders:
-        events.append((order.arrival_ms, 1, order.order_id, order))
+        events.append((order.arrival_ms, 2, order.order_id, order))
     events.sort(key=lambda row: (row[0], row[1], row[2]))
 
     cash = config.initial_cash
     positions: dict[str, Position] = {}
     pair_positions: dict[str, Position] = {}
+    pending_payouts: dict[str, float] = {}
     fills: list[Fill] = []
     ledger: list[dict] = []
     counts = {
@@ -213,6 +218,7 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
     peak_conservative_equity = config.initial_cash
     max_conservative_drawdown = 0.0
     cash_min = cash
+    max_pending_payout = 0.0
 
     def position_snapshot(market_id: str) -> dict[str, float]:
         position = positions.get(market_id, Position())
@@ -278,7 +284,7 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
             min(position.yes_shares, position.no_shares)
             for position in positions.values()
         )
-        equity = cash + matched_value
+        equity = cash + matched_value + sum(pending_payouts.values())
         max_gross_exposure = max(max_gross_exposure, gross)
         cash_min = min(cash_min, cash)
         peak_conservative_equity = max(peak_conservative_equity, equity)
@@ -304,7 +310,10 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
             if position is not None:
                 outcome_yes = bool(payload)
                 payout = position.yes_shares if outcome_yes else position.no_shares
-                cash += payout
+            pending_payouts[event_id] = payout
+            max_pending_payout = max(
+                max_pending_payout, sum(pending_payouts.values())
+            )
             for pair_id in market_pair_ids[event_id]:
                 pair_positions.pop(pair_id, None)
                 refresh_pair_exposure_state(pair_id, timestamp_ms)
@@ -318,9 +327,28 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
                     "outcome_yes": bool(payload),
                     "cash_before": before_cash,
                     "cash_after": cash,
-                    "payout": payout,
+                    "payout_locked": payout,
                     "position_before": before_position,
                     "position_after": position_snapshot(event_id),
+                }
+            )
+            continue
+
+        if event_kind == 1:
+            before_cash = cash
+            payout = pending_payouts.pop(event_id)
+            cash += payout
+            mark_risk()
+            ledger.append(
+                {
+                    "timestamp_ms": timestamp_ms,
+                    "event": "cash_release",
+                    "market_id": event_id,
+                    "cash_before": before_cash,
+                    "cash_after": cash,
+                    "payout_released": payout,
+                    "settlement_ms": market_meta[event_id][0],
+                    "release_delay_ms": timestamp_ms - market_meta[event_id][0],
                 }
             )
             continue
@@ -425,6 +453,8 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
         raise RuntimeError("internal error: unsettled positions remain")
     if pair_positions:
         raise RuntimeError("internal error: unsettled pair positions remain")
+    if pending_payouts:
+        raise RuntimeError("internal error: unreleased payouts remain")
     pair_stats: dict[str, dict] = {}
     for fill in fills:
         stats = pair_stats.setdefault(
@@ -452,7 +482,7 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
         default=0,
     )
     result = {
-        "schema_version": 3,
+        "schema_version": 4,
         "config": asdict(config),
         "counts": {
             **counts,
@@ -468,6 +498,7 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
             "minimum": cash_min,
             "final": cash,
             "net_pnl": cash - config.initial_cash,
+            "max_pending_payout": max_pending_payout,
         },
         "risk": {
             "max_gross_cash_exposure": max_gross_exposure,
@@ -479,6 +510,17 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
             "max_pair_unhedged_episode_ms": max_pair_unhedged_episode_ms,
             "max_pair_arrival_gap_ms": max_pair_arrival_gap_ms,
             "max_conservative_drawdown": max_conservative_drawdown,
+            "total_cash_release_delay_ms": sum(
+                cash_release_ms - settlement_ms
+                for settlement_ms, cash_release_ms, _ in market_meta.values()
+            ),
+            "max_cash_release_delay_ms": max(
+                (
+                    cash_release_ms - settlement_ms
+                    for settlement_ms, cash_release_ms, _ in market_meta.values()
+                ),
+                default=0,
+            ),
         },
         "fills": [asdict(fill) for fill in fills],
         "ledger": ledger,
@@ -487,6 +529,7 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
             "no queue position, hidden liquidity or market impact is inferred",
             "unmatched inventory is marked at zero for conservative drawdown",
             "market-net and pair-local unhedged exposure are reported separately",
+            "cash_release_ms must be observed or explicitly stressed; market settlement does not imply immediate spendability",
         ],
     }
     return result
@@ -515,3 +558,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
