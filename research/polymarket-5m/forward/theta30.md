@@ -5,11 +5,11 @@
 Frozen at: `2026-10-03T13:44:25Z`
 Strategy fingerprint: `d63dea81dd8b5e43dc833cc754632d28a19fe9dd675bbedbcf66c55a27ef198e`
 
-- Post-freeze markets: 269
-- Orders / persistent-depth fills: 13 / 9 (69.2%)
-- Judged fills / days: 9 / 2
-- Net EV: -5.39 cents/share
+- Post-freeze markets: 319
+- Orders / persistent-depth fills: 17 / 10 (58.8%)
+- Judged fills / days: 10 / 3
+- Net EV: -4.38 cents/share
 - One-sided day-cluster lower bound: +nan cents/share
-- Fair-price exact p: 0.9134
+- Fair-price exact p: 0.8972
 
 Passing the paper gate requires the first frozen fill sample to clear both the 1% day-cluster lower-bound and exact fair-price tests. Genuine exchange fills are a separate required gate.
