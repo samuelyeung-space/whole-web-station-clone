@@ -38,7 +38,7 @@ def leg(
 def test_two_filled_legs_include_exact_fees_and_settlement():
     result = replay([leg("p-yes", "YES", arrival=500, ask=0.45), leg("p-no", "NO", arrival=600, ask=0.45)])
     expected = 5 - 5 * 0.9 - 2 * taker_fee(5, 0.45, 0.07)
-    assert result["schema_version"] == 6
+    assert result["schema_version"] == 7
     assert result["counts"]["pairs_with_both_sides_filled"] == 1
     assert result["counts"]["pairs_with_single_side_filled"] == 0
     assert result["risk"]["total_unhedged_ms"] == 100
@@ -47,6 +47,13 @@ def test_two_filled_legs_include_exact_fees_and_settlement():
     assert result["risk"]["max_pair_unhedged_episode_ms"] == 100
     assert result["risk"]["max_pair_arrival_gap_ms"] == 100
     assert result["cash"]["net_pnl"] == pytest.approx(expected)
+
+
+def test_taker_fee_uses_decimal_five_place_half_up_per_order():
+    # Raw fee is exactly 0.086625.  Decimal half-up is 0.08663; leaving it
+    # unrounded or using ties-to-even would disagree with the frozen replay
+    # accounting convention.
+    assert taker_fee(5, 0.45, 0.07) == 0.08663
 
 
 def test_second_leg_cash_reject_creates_unhedged_loss():
