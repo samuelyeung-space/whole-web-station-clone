@@ -33,6 +33,7 @@ class LegIntent:
     fixed_limit: float
     arrival_ask: float
     displayed_shares: float
+    send_ms: int | None = None
 
 
 @dataclass(frozen=True)
@@ -42,6 +43,7 @@ class ReplayConfig:
     fee_rate: float = 0.07
     full_or_zero: bool = False
     extra_cost_per_share: float = 0.0
+    reserve_cash_at_send: bool = False
 
 
 @dataclass
@@ -106,6 +108,12 @@ def validate_intent(intent: LegIntent) -> None:
         raise ValueError("outcome_yes must be boolean")
     if intent.arrival_ms < intent.decision_ms:
         raise ValueError("arrival_ms precedes decision_ms")
+    if intent.send_ms is not None:
+        _timestamp(intent.send_ms, "send_ms")
+        if intent.send_ms < intent.decision_ms:
+            raise ValueError("send_ms precedes decision_ms")
+        if intent.arrival_ms < intent.send_ms:
+            raise ValueError("arrival_ms precedes send_ms")
     if intent.settlement_ms <= intent.arrival_ms:
         raise ValueError("settlement_ms must follow arrival_ms")
     if intent.cash_release_ms < intent.settlement_ms:
@@ -128,6 +136,8 @@ def validate_config(config: ReplayConfig) -> None:
         _number(getattr(config, name), name)
     if type(config.full_or_zero) is not bool:
         raise ValueError("full_or_zero must be boolean")
+    if type(config.reserve_cash_at_send) is not bool:
+        raise ValueError("reserve_cash_at_send must be boolean")
     if config.initial_cash <= 0:
         raise ValueError("initial_cash must be positive")
     if not 0 <= config.depth_haircut <= 1:
@@ -148,6 +158,8 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
     orders = list(intents)
     for order in orders:
         validate_intent(order)
+        if config.reserve_cash_at_send and order.send_ms is None:
+            raise ValueError("send_ms is required when reserve_cash_at_send is enabled")
     ids = [order.order_id for order in orders]
     if len(ids) != len(set(ids)):
         raise ValueError("order_id values must be unique")
@@ -183,13 +195,18 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
         events.append((settlement_ms, 0, market_id, outcome_yes))
         events.append((cash_release_ms, 1, market_id, outcome_yes))
     for order in orders:
-        events.append((order.arrival_ms, 2, order.order_id, order))
+        if config.reserve_cash_at_send:
+            assert order.send_ms is not None
+            events.append((order.send_ms, 2, order.order_id, order))
+        events.append((order.arrival_ms, 3, order.order_id, order))
     events.sort(key=lambda row: (row[0], row[1], row[2]))
 
     cash = config.initial_cash
     positions: dict[str, Position] = {}
     pair_positions: dict[str, Position] = {}
     pending_payouts: dict[str, float] = {}
+    reservations: dict[str, float] = {}
+    send_rejected: set[str] = set()
     fills: list[Fill] = []
     ledger: list[dict] = []
     counts = {
@@ -199,6 +216,8 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
         "zero_fills": 0,
         "price_rejects": 0,
         "cash_rejects": 0,
+        "send_cash_rejects": 0,
+        "arrival_cash_rejects": 0,
     }
     max_gross_exposure = 0.0
     max_unhedged_shares = 0.0
@@ -218,6 +237,8 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
     peak_conservative_equity = config.initial_cash
     max_conservative_drawdown = 0.0
     cash_min = cash
+    available_cash_min = cash
+    max_cash_reserved = 0.0
     max_pending_payout = 0.0
 
     def position_snapshot(market_id: str) -> dict[str, float]:
@@ -279,6 +300,7 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
     def mark_risk() -> None:
         nonlocal max_gross_exposure, max_unhedged_shares, max_pair_unhedged_shares
         nonlocal peak_conservative_equity, max_conservative_drawdown, cash_min
+        nonlocal available_cash_min, max_cash_reserved
         gross = sum(position.cash_cost for position in positions.values())
         matched_value = sum(
             min(position.yes_shares, position.no_shares)
@@ -287,6 +309,11 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
         equity = cash + matched_value + sum(pending_payouts.values())
         max_gross_exposure = max(max_gross_exposure, gross)
         cash_min = min(cash_min, cash)
+        reserved = sum(reservations.values())
+        if reserved > cash + 1e-9:
+            raise RuntimeError("internal error: cash reservations exceed cash")
+        available_cash_min = min(available_cash_min, cash - reserved)
+        max_cash_reserved = max(max_cash_reserved, reserved)
         peak_conservative_equity = max(peak_conservative_equity, equity)
         max_conservative_drawdown = max(
             max_conservative_drawdown, peak_conservative_equity - equity
@@ -355,9 +382,55 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
 
         order = payload
         assert isinstance(order, LegIntent)
+        if event_kind == 2:
+            before_reserved = sum(reservations.values())
+            available_before = cash - before_reserved
+            # Reserve a fail-closed upper bound.  The fee curve p*(1-p) is at
+            # most 0.25 for every executable price, so this covers any fill at
+            # or below the fixed limit without borrowing from other in-flight
+            # orders.
+            reserve = order.requested_shares * (
+                order.fixed_limit
+                + config.fee_rate * 0.25
+                + config.extra_cost_per_share
+            )
+            status = "reserved"
+            reason = "worst_case_cash_reserved"
+            if reserve > available_before + 1e-12:
+                reserve = 0.0
+                send_rejected.add(order.order_id)
+                counts["cash_rejects"] += 1
+                counts["send_cash_rejects"] += 1
+                status = "rejected"
+                reason = "insufficient_shared_cash_at_send"
+            else:
+                reservations[order.order_id] = reserve
+            mark_risk()
+            ledger.append(
+                {
+                    "timestamp_ms": timestamp_ms,
+                    "event": "order_send",
+                    "order_id": order.order_id,
+                    "pair_id": order.pair_id,
+                    "market_id": order.market_id,
+                    "side": order.side,
+                    "status": status,
+                    "reason": reason,
+                    "cash": cash,
+                    "reserved_before": before_reserved,
+                    "reserved_after": sum(reservations.values()),
+                    "available_before": available_before,
+                    "available_after": cash - sum(reservations.values()),
+                    "reservation": reserve,
+                }
+            )
+            continue
+
         advance_exposure_clock(order.market_id, timestamp_ms)
         advance_pair_exposure_clock(order.pair_id, timestamp_ms)
         before_cash = cash
+        before_reserved = sum(reservations.values())
+        own_reservation = reservations.pop(order.order_id, 0.0)
         before_position = position_snapshot(order.market_id)
         status = "zero_fill"
         reason = "no_displayed_depth"
@@ -365,7 +438,10 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
         fee = 0.0
         extra_cost = 0.0
         debit = 0.0
-        if order.arrival_ask > order.fixed_limit + 1e-12:
+        if order.order_id in send_rejected:
+            counts["zero_fills"] += 1
+            reason = "insufficient_shared_cash_at_send"
+        elif order.arrival_ask > order.fixed_limit + 1e-12:
             counts["price_rejects"] += 1
             counts["zero_fills"] += 1
             reason = "arrival_ask_above_fixed_limit"
@@ -383,6 +459,7 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
                 debit = shares * order.arrival_ask + fee + extra_cost
                 if debit > cash + 1e-12:
                     counts["cash_rejects"] += 1
+                    counts["arrival_cash_rejects"] += 1
                     counts["zero_fills"] += 1
                     reason = "insufficient_shared_cash"
                     shares = 0.0
@@ -390,6 +467,18 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
                     extra_cost = 0.0
                     debit = 0.0
                 else:
+                    if config.reserve_cash_at_send:
+                        if debit > own_reservation + 1e-9:
+                            raise RuntimeError(
+                                "internal error: actual debit exceeds reservation"
+                            )
+                        available_after_other_reservations = cash - sum(
+                            reservations.values()
+                        )
+                        if debit > available_after_other_reservations + 1e-9:
+                            raise RuntimeError(
+                                "internal error: fill spends another order's reservation"
+                            )
                     cash -= debit
                     position = positions.setdefault(order.market_id, Position())
                     if order.side == "YES":
@@ -441,6 +530,10 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
                 "filled_shares": shares,
                 "cash_before": before_cash,
                 "cash_after": cash,
+                "reserved_before": before_reserved,
+                "reserved_after": sum(reservations.values()),
+                "reservation_released": own_reservation,
+                "available_after": cash - sum(reservations.values()),
                 "cash_debit": debit,
                 "fee": fee,
                 "extra_cost": extra_cost,
@@ -455,6 +548,8 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
         raise RuntimeError("internal error: unsettled pair positions remain")
     if pending_payouts:
         raise RuntimeError("internal error: unreleased payouts remain")
+    if reservations:
+        raise RuntimeError("internal error: unreleased cash reservations remain")
     pair_stats: dict[str, dict] = {}
     for fill in fills:
         stats = pair_stats.setdefault(
@@ -482,7 +577,7 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
         default=0,
     )
     result = {
-        "schema_version": 4,
+        "schema_version": 5,
         "config": asdict(config),
         "counts": {
             **counts,
@@ -496,6 +591,9 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
         "cash": {
             "initial": config.initial_cash,
             "minimum": cash_min,
+            "minimum_available": available_cash_min,
+            "max_reserved": max_cash_reserved,
+            "reserved_final": sum(reservations.values()),
             "final": cash,
             "net_pnl": cash - config.initial_cash,
             "max_pending_payout": max_pending_payout,
@@ -530,6 +628,7 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
             "unmatched inventory is marked at zero for conservative drawdown",
             "market-net and pair-local unhedged exposure are reported separately",
             "cash_release_ms must be observed or explicitly stressed; market settlement does not imply immediate spendability",
+            "reserve_cash_at_send requires an observed send_ms and uses a worst-case fee reservation until the arrival event",
         ],
     }
     return result

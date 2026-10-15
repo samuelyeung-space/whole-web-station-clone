@@ -38,7 +38,7 @@ def leg(
 def test_two_filled_legs_include_exact_fees_and_settlement():
     result = replay([leg("p-yes", "YES", arrival=500, ask=0.45), leg("p-no", "NO", arrival=600, ask=0.45)])
     expected = 5 - 5 * 0.9 - 2 * taker_fee(5, 0.45, 0.07)
-    assert result["schema_version"] == 4
+    assert result["schema_version"] == 5
     assert result["counts"]["pairs_with_both_sides_filled"] == 1
     assert result["counts"]["pairs_with_single_side_filled"] == 0
     assert result["risk"]["total_unhedged_ms"] == 100
@@ -254,6 +254,110 @@ def test_nonboolean_full_or_zero_fails_closed(value):
     config = ReplayConfig(full_or_zero=value)
     with pytest.raises(ValueError, match="must be boolean"):
         replay([], config)
+
+
+@pytest.mark.parametrize("value", [0, 1, "false", None])
+def test_nonboolean_reserve_cash_at_send_fails_closed(value):
+    config = ReplayConfig(reserve_cash_at_send=value)
+    with pytest.raises(ValueError, match="must be boolean"):
+        replay([], config)
+
+
+def test_send_reservation_prevents_inflight_cash_reuse():
+    first = LegIntent(
+        **{**leg("a-yes", "YES", arrival=500, ask=0.5).__dict__, "send_ms": 100}
+    )
+    second = LegIntent(
+        **{
+            **leg("b-yes", "YES", arrival=600, ask=0.5).__dict__,
+            "send_ms": 200,
+        }
+    )
+    result = replay(
+        [first, second],
+        ReplayConfig(initial_cash=5.0, reserve_cash_at_send=True),
+    )
+    assert result["counts"]["fills"] == 1
+    assert result["counts"]["cash_rejects"] == 1
+    assert result["counts"]["send_cash_rejects"] == 1
+    assert result["counts"]["arrival_cash_rejects"] == 0
+    assert result["cash"]["max_reserved"] == pytest.approx(3.0875)
+    assert result["cash"]["minimum_available"] == pytest.approx(1.9125)
+    assert result["ledger"][0]["event"] == "order_send"
+    assert result["ledger"][1]["reason"] == "insufficient_shared_cash_at_send"
+    assert result["ledger"][3]["reason"] == "insufficient_shared_cash_at_send"
+
+
+def test_cash_release_precedes_same_timestamp_send_reservation():
+    first = LegIntent(
+        **{
+            **leg(
+                "a-yes",
+                "YES",
+                arrival=100,
+                ask=0.5,
+                settlement=400,
+                cash_release=500,
+            ).__dict__,
+            "send_ms": 50,
+        }
+    )
+    second = LegIntent(
+        order_id="b-yes",
+        pair_id="b",
+        market_id="m2",
+        side="YES",
+        decision_ms=499,
+        arrival_ms=600,
+        settlement_ms=1000,
+        cash_release_ms=1000,
+        outcome_yes=True,
+        requested_shares=5,
+        fixed_limit=0.6,
+        arrival_ask=0.5,
+        displayed_shares=5,
+        send_ms=500,
+    )
+    result = replay(
+        [first, second],
+        ReplayConfig(initial_cash=3.2, reserve_cash_at_send=True),
+    )
+    assert result["counts"]["full_fills"] == 2
+    assert result["counts"]["send_cash_rejects"] == 0
+    at_500 = [row["event"] for row in result["ledger"] if row["timestamp_ms"] == 500]
+    assert at_500 == ["cash_release", "order_send"]
+
+
+@pytest.mark.parametrize(
+    ("send_ms", "message"),
+    [
+        (None, "required"),
+        (-1, "non-negative integer"),
+        (True, "non-negative integer"),
+        (501, "arrival_ms precedes send_ms"),
+    ],
+)
+def test_send_reservation_requires_valid_causal_clock(send_ms, message):
+    order = LegIntent(
+        **{**leg("p-yes", "YES", arrival=500, ask=0.5).__dict__, "send_ms": send_ms}
+    )
+    with pytest.raises(ValueError, match=message):
+        replay([order], ReplayConfig(reserve_cash_at_send=True))
+
+
+def test_worst_case_fee_reservation_covers_lower_price_fill():
+    order = LegIntent(
+        **{
+            **leg("p-yes", "YES", arrival=500, ask=0.5).__dict__,
+            "fixed_limit": 0.9,
+            "send_ms": 100,
+        }
+    )
+    result = replay([order], ReplayConfig(reserve_cash_at_send=True))
+    send = result["ledger"][0]
+    arrival = result["ledger"][1]
+    assert arrival["cash_debit"] <= send["reservation"]
+    assert result["cash"]["reserved_final"] == 0
 
 
 @pytest.mark.parametrize(
