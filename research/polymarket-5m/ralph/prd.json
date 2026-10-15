@@ -8,7 +8,10 @@
     "settlementProxyEvaluatorSha256": "72b137362e4b47da6be0e0260b25649cc9ae1da31b23c1faed1e3ffc48b5b679",
     "mixEvaluatorSha256": "ab6c4f80e339c14f0af8c6a59e12222dae41d14a969db4fcaa155c5a5b86d963",
     "strictPrebuildSha256": "4b7f847bc67319604652955b06eea6644ebd9c545cb555fe0ece14cdc5a13e08",
-    "absorptionEvaluatorSha256": "b5fb6f3957097a6f03e4851bee748077214ad541d60755b6b5515c36ff3512b9"
+    "absorptionEvaluatorSha256": "b5fb6f3957097a6f03e4851bee748077214ad541d60755b6b5515c36ff3512b9",
+    "pairedLegReplaySchema": 6,
+    "pairedLegSharedDepthMode": "opt-in snapshot_id-bound shared displayed-depth consumption; no queue or hidden-liquidity inference",
+    "pairedLegSharedDepthAuditUtc": "2026-10-15T21:11:31Z"
   },
   "userStories": [
     {

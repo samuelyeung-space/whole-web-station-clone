@@ -38,7 +38,7 @@ def leg(
 def test_two_filled_legs_include_exact_fees_and_settlement():
     result = replay([leg("p-yes", "YES", arrival=500, ask=0.45), leg("p-no", "NO", arrival=600, ask=0.45)])
     expected = 5 - 5 * 0.9 - 2 * taker_fee(5, 0.45, 0.07)
-    assert result["schema_version"] == 5
+    assert result["schema_version"] == 6
     assert result["counts"]["pairs_with_both_sides_filled"] == 1
     assert result["counts"]["pairs_with_single_side_filled"] == 0
     assert result["risk"]["total_unhedged_ms"] == 100
@@ -261,6 +261,78 @@ def test_nonboolean_reserve_cash_at_send_fails_closed(value):
     config = ReplayConfig(reserve_cash_at_send=value)
     with pytest.raises(ValueError, match="must be boolean"):
         replay([], config)
+
+
+@pytest.mark.parametrize("value", [0, 1, "false", None])
+def test_nonboolean_consume_snapshot_depth_fails_closed(value):
+    config = ReplayConfig(consume_snapshot_depth=value)
+    with pytest.raises(ValueError, match="must be boolean"):
+        replay([], config)
+
+
+def test_snapshot_depth_pool_prevents_concurrent_double_use():
+    first = LegIntent(
+        **{
+            **leg("a-yes", "YES", arrival=500, ask=0.4).__dict__,
+            "snapshot_id": "book-7",
+        }
+    )
+    second = LegIntent(
+        **{
+            **leg("b-yes", "YES", arrival=500, ask=0.4).__dict__,
+            "snapshot_id": "book-7",
+        }
+    )
+    result = replay(
+        [first, second], ReplayConfig(consume_snapshot_depth=True)
+    )
+    assert result["counts"]["full_fills"] == 1
+    assert result["counts"]["zero_fills"] == 1
+    assert result["counts"]["snapshot_depth_rejects"] == 1
+    assert result["snapshot_depth"]["initial_shares"] == 5
+    assert result["snapshot_depth"]["consumed_shares"] == 5
+    assert result["snapshot_depth"]["remaining_shares"] == 0
+    arrivals = [row for row in result["ledger"] if row["event"] == "order_arrival"]
+    assert arrivals[0]["snapshot_depth_before"] == 5
+    assert arrivals[0]["snapshot_depth_after"] == 0
+    assert arrivals[1]["reason"] == "shared_snapshot_depth_exhausted"
+
+
+def test_new_snapshot_can_represent_replenished_depth():
+    first = LegIntent(
+        **{
+            **leg("a-yes", "YES", arrival=500, ask=0.4).__dict__,
+            "snapshot_id": "book-7",
+        }
+    )
+    second = LegIntent(
+        **{
+            **leg("b-yes", "YES", arrival=600, ask=0.4).__dict__,
+            "snapshot_id": "book-8",
+        }
+    )
+    result = replay(
+        [first, second], ReplayConfig(consume_snapshot_depth=True)
+    )
+    assert result["counts"]["full_fills"] == 2
+    assert result["snapshot_depth"]["pool_count"] == 2
+    assert result["snapshot_depth"]["consumed_shares"] == 10
+
+
+def test_snapshot_depth_mode_requires_exact_consistent_identity():
+    missing = leg("p-yes", "YES", arrival=500, ask=0.4)
+    with pytest.raises(ValueError, match="snapshot_id is required"):
+        replay([missing], ReplayConfig(consume_snapshot_depth=True))
+
+    first = LegIntent(**{**missing.__dict__, "snapshot_id": "book-7"})
+    second = LegIntent(
+        **{
+            **leg("q-yes", "YES", arrival=600, ask=0.41).__dict__,
+            "snapshot_id": "book-7",
+        }
+    )
+    with pytest.raises(ValueError, match="inconsistent quote metadata"):
+        replay([first, second], ReplayConfig(consume_snapshot_depth=True))
 
 
 def test_send_reservation_prevents_inflight_cash_reuse():

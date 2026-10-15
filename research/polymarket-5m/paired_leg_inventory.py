@@ -34,6 +34,7 @@ class LegIntent:
     arrival_ask: float
     displayed_shares: float
     send_ms: int | None = None
+    snapshot_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -44,6 +45,7 @@ class ReplayConfig:
     full_or_zero: bool = False
     extra_cost_per_share: float = 0.0
     reserve_cash_at_send: bool = False
+    consume_snapshot_depth: bool = False
 
 
 @dataclass
@@ -114,6 +116,8 @@ def validate_intent(intent: LegIntent) -> None:
             raise ValueError("send_ms precedes decision_ms")
         if intent.arrival_ms < intent.send_ms:
             raise ValueError("arrival_ms precedes send_ms")
+    if intent.snapshot_id is not None:
+        _identifier(intent.snapshot_id, "snapshot_id")
     if intent.settlement_ms <= intent.arrival_ms:
         raise ValueError("settlement_ms must follow arrival_ms")
     if intent.cash_release_ms < intent.settlement_ms:
@@ -138,6 +142,8 @@ def validate_config(config: ReplayConfig) -> None:
         raise ValueError("full_or_zero must be boolean")
     if type(config.reserve_cash_at_send) is not bool:
         raise ValueError("reserve_cash_at_send must be boolean")
+    if type(config.consume_snapshot_depth) is not bool:
+        raise ValueError("consume_snapshot_depth must be boolean")
     if config.initial_cash <= 0:
         raise ValueError("initial_cash must be positive")
     if not 0 <= config.depth_haircut <= 1:
@@ -160,6 +166,10 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
         validate_intent(order)
         if config.reserve_cash_at_send and order.send_ms is None:
             raise ValueError("send_ms is required when reserve_cash_at_send is enabled")
+        if config.consume_snapshot_depth and order.snapshot_id is None:
+            raise ValueError(
+                "snapshot_id is required when consume_snapshot_depth is enabled"
+            )
     ids = [order.order_id for order in orders]
     if len(ids) != len(set(ids)):
         raise ValueError("order_id values must be unique")
@@ -190,6 +200,29 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
         if prior != meta:
             raise ValueError("inconsistent settlement metadata within market")
 
+    # Multiple intents can be evaluated against one recorded top-of-book
+    # snapshot.  Treating the displayed size as fresh for every order would
+    # let concurrent strategies consume the same liquidity repeatedly.  The
+    # opt-in qualification mode binds each quote to an exact snapshot id and
+    # shares one depth pool per market/token/snapshot.
+    snapshot_depth: dict[tuple[str, Side, str], dict[str, float]] = {}
+    if config.consume_snapshot_depth:
+        for order in orders:
+            assert order.snapshot_id is not None
+            key = (order.market_id, order.side, order.snapshot_id)
+            quote = {
+                "arrival_ask": order.arrival_ask,
+                "displayed_shares": order.displayed_shares,
+                "initial": order.displayed_shares * config.depth_haircut,
+                "remaining": order.displayed_shares * config.depth_haircut,
+            }
+            prior = snapshot_depth.setdefault(key, quote)
+            if (
+                prior["arrival_ask"] != quote["arrival_ask"]
+                or prior["displayed_shares"] != quote["displayed_shares"]
+            ):
+                raise ValueError("inconsistent quote metadata within snapshot")
+
     events: list[tuple[int, int, str, object]] = []
     for market_id, (settlement_ms, cash_release_ms, outcome_yes) in market_meta.items():
         events.append((settlement_ms, 0, market_id, outcome_yes))
@@ -218,6 +251,7 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
         "cash_rejects": 0,
         "send_cash_rejects": 0,
         "arrival_cash_rejects": 0,
+        "snapshot_depth_rejects": 0,
     }
     max_gross_exposure = 0.0
     max_unhedged_shares = 0.0
@@ -438,6 +472,9 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
         fee = 0.0
         extra_cost = 0.0
         debit = 0.0
+        depth_key: tuple[str, Side, str] | None = None
+        snapshot_depth_before: float | None = None
+        snapshot_depth_after: float | None = None
         if order.order_id in send_rejected:
             counts["zero_fills"] += 1
             reason = "insufficient_shared_cash_at_send"
@@ -446,13 +483,22 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
             counts["zero_fills"] += 1
             reason = "arrival_ask_above_fixed_limit"
         else:
-            available = order.displayed_shares * config.depth_haircut
+            if config.consume_snapshot_depth:
+                assert order.snapshot_id is not None
+                depth_key = (order.market_id, order.side, order.snapshot_id)
+                snapshot_depth_before = snapshot_depth[depth_key]["remaining"]
+                available = snapshot_depth_before
+            else:
+                available = order.displayed_shares * config.depth_haircut
             shares = min(order.requested_shares, available)
             if config.full_or_zero and shares + 1e-12 < order.requested_shares:
                 shares = 0.0
                 reason = "full_or_zero_depth_shortfall"
             if shares <= 1e-12:
                 counts["zero_fills"] += 1
+                if config.consume_snapshot_depth and available <= 1e-12:
+                    counts["snapshot_depth_rejects"] += 1
+                    reason = "shared_snapshot_depth_exhausted"
             else:
                 fee = taker_fee(shares, order.arrival_ask, config.fee_rate)
                 extra_cost = shares * config.extra_cost_per_share
@@ -506,6 +552,15 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
                         cash_debit=debit,
                     )
                     fills.append(fill)
+                    if depth_key is not None:
+                        snapshot_depth[depth_key]["remaining"] -= shares
+                        if snapshot_depth[depth_key]["remaining"] < -1e-9:
+                            raise RuntimeError(
+                                "internal error: snapshot depth over-consumed"
+                            )
+                        snapshot_depth[depth_key]["remaining"] = max(
+                            0.0, snapshot_depth[depth_key]["remaining"]
+                        )
                     if shares + 1e-12 >= order.requested_shares:
                         counts["full_fills"] += 1
                         status = "full_fill"
@@ -513,6 +568,8 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
                         counts["partial_fills"] += 1
                         status = "partial_fill"
                     reason = "executed"
+        if depth_key is not None:
+            snapshot_depth_after = snapshot_depth[depth_key]["remaining"]
         refresh_exposure_state(order.market_id, timestamp_ms)
         refresh_pair_exposure_state(order.pair_id, timestamp_ms)
         mark_risk()
@@ -537,6 +594,9 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
                 "cash_debit": debit,
                 "fee": fee,
                 "extra_cost": extra_cost,
+                "snapshot_id": order.snapshot_id,
+                "snapshot_depth_before": snapshot_depth_before,
+                "snapshot_depth_after": snapshot_depth_after,
                 "position_before": before_position,
                 "position_after": position_snapshot(order.market_id),
             }
@@ -577,7 +637,7 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
         default=0,
     )
     result = {
-        "schema_version": 5,
+        "schema_version": 6,
         "config": asdict(config),
         "counts": {
             **counts,
@@ -621,6 +681,16 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
             ),
         },
         "fills": [asdict(fill) for fill in fills],
+        "snapshot_depth": {
+            "pool_count": len(snapshot_depth),
+            "initial_shares": sum(row["initial"] for row in snapshot_depth.values()),
+            "consumed_shares": sum(
+                row["initial"] - row["remaining"] for row in snapshot_depth.values()
+            ),
+            "remaining_shares": sum(
+                row["remaining"] for row in snapshot_depth.values()
+            ),
+        },
         "ledger": ledger,
         "limitations": [
             "displayed depth is only a fill upper bound",
@@ -629,6 +699,7 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
             "market-net and pair-local unhedged exposure are reported separately",
             "cash_release_ms must be observed or explicitly stressed; market settlement does not imply immediate spendability",
             "reserve_cash_at_send requires an observed send_ms and uses a worst-case fee reservation until the arrival event",
+            "consume_snapshot_depth requires a stable snapshot_id and prevents repeated use of one recorded depth pool",
         ],
     }
     return result
