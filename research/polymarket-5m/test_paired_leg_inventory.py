@@ -5,7 +5,19 @@ import pytest
 from paired_leg_inventory import LegIntent, ReplayConfig, replay, taker_fee
 
 
-def leg(order_id, side, *, arrival, ask, depth=5, settlement=1000, outcome=True):
+def leg(
+    order_id,
+    side,
+    *,
+    arrival,
+    ask,
+    depth=5,
+    settlement=1000,
+    cash_release=None,
+    outcome=True,
+):
+    if cash_release is None:
+        cash_release = settlement
     return LegIntent(
         order_id=order_id,
         pair_id=order_id.split("-")[0],
@@ -14,6 +26,7 @@ def leg(order_id, side, *, arrival, ask, depth=5, settlement=1000, outcome=True)
         decision_ms=0,
         arrival_ms=arrival,
         settlement_ms=settlement,
+        cash_release_ms=cash_release,
         outcome_yes=outcome,
         requested_shares=5,
         fixed_limit=0.6,
@@ -25,6 +38,7 @@ def leg(order_id, side, *, arrival, ask, depth=5, settlement=1000, outcome=True)
 def test_two_filled_legs_include_exact_fees_and_settlement():
     result = replay([leg("p-yes", "YES", arrival=500, ask=0.45), leg("p-no", "NO", arrival=600, ask=0.45)])
     expected = 5 - 5 * 0.9 - 2 * taker_fee(5, 0.45, 0.07)
+    assert result["schema_version"] == 4
     assert result["counts"]["pairs_with_both_sides_filled"] == 1
     assert result["counts"]["pairs_with_single_side_filled"] == 0
     assert result["risk"]["total_unhedged_ms"] == 100
@@ -72,7 +86,15 @@ def test_full_or_zero_kills_insufficient_depth():
 
 
 def test_settlement_releases_cash_before_same_timestamp_arrival():
-    first = leg("a-yes", "YES", arrival=100, ask=0.5, settlement=500, outcome=True)
+    first = leg(
+        "a-yes",
+        "YES",
+        arrival=100,
+        ask=0.5,
+        settlement=400,
+        cash_release=500,
+        outcome=True,
+    )
     second = LegIntent(
         order_id="b-yes",
         pair_id="b",
@@ -81,6 +103,7 @@ def test_settlement_releases_cash_before_same_timestamp_arrival():
         decision_ms=499,
         arrival_ms=500,
         settlement_ms=1000,
+        cash_release_ms=1000,
         outcome_yes=True,
         requested_shares=5,
         fixed_limit=0.6,
@@ -90,6 +113,58 @@ def test_settlement_releases_cash_before_same_timestamp_arrival():
     result = replay([first, second], ReplayConfig(initial_cash=3.0))
     assert result["counts"]["full_fills"] == 2
     assert result["counts"]["cash_rejects"] == 0
+    assert result["risk"]["max_cash_release_delay_ms"] == 100
+
+
+def test_cash_cannot_be_reused_before_spendable_timestamp():
+    first = leg(
+        "a-yes",
+        "YES",
+        arrival=100,
+        ask=0.5,
+        settlement=400,
+        cash_release=600,
+        outcome=True,
+    )
+    second = LegIntent(
+        order_id="b-yes",
+        pair_id="b",
+        market_id="m2",
+        side="YES",
+        decision_ms=499,
+        arrival_ms=500,
+        settlement_ms=1000,
+        cash_release_ms=1000,
+        outcome_yes=True,
+        requested_shares=5,
+        fixed_limit=0.6,
+        arrival_ask=0.5,
+        displayed_shares=5,
+    )
+    result = replay([first, second], ReplayConfig(initial_cash=3.0))
+    assert result["counts"]["full_fills"] == 1
+    assert result["counts"]["cash_rejects"] == 1
+    assert result["ledger"][2]["event"] == "order_arrival"
+    assert result["ledger"][2]["reason"] == "insufficient_shared_cash"
+    assert result["ledger"][3]["event"] == "cash_release"
+
+
+def test_unhedged_risk_ends_at_settlement_not_cash_release():
+    result = replay(
+        [
+            leg(
+                "p-yes",
+                "YES",
+                arrival=100,
+                ask=0.5,
+                settlement=500,
+                cash_release=900,
+            )
+        ]
+    )
+    assert result["risk"]["total_unhedged_ms"] == 400
+    assert result["risk"]["total_pair_unhedged_ms"] == 400
+    assert result["risk"]["max_cash_release_delay_ms"] == 400
 
 
 @pytest.mark.parametrize(
@@ -111,6 +186,7 @@ def test_invalid_input_fails_closed(bad):
         ("decision_ms", -1),
         ("arrival_ms", 500.5),
         ("settlement_ms", True),
+        ("cash_release_ms", 1000.5),
     ],
 )
 def test_malformed_event_clocks_fail_closed(field, value):
@@ -125,6 +201,19 @@ def test_nonboolean_settlement_outcome_fails_closed(value):
     valid = leg("p-yes", "YES", arrival=500, ask=0.5)
     bad = LegIntent(**{**valid.__dict__, "outcome_yes": value})
     with pytest.raises(ValueError, match="must be boolean"):
+        replay([bad])
+
+
+def test_cash_release_before_settlement_fails_closed():
+    bad = leg(
+        "p-yes",
+        "YES",
+        arrival=500,
+        ask=0.5,
+        settlement=1000,
+        cash_release=999,
+    )
+    with pytest.raises(ValueError, match="must not precede"):
         replay([bad])
 
 
@@ -243,4 +332,8 @@ def test_ledger_reconciles_cash_path():
     assert rows[0]["cash_after"] == pytest.approx(1000 - rows[0]["cash_debit"])
     assert rows[1]["event"] == "settlement"
     assert rows[1]["cash_before"] == rows[0]["cash_after"]
-    assert rows[1]["cash_after"] == result["cash"]["final"]
+    assert rows[1]["cash_after"] == rows[0]["cash_after"]
+    assert rows[2]["event"] == "cash_release"
+    assert rows[2]["cash_before"] == rows[1]["cash_after"]
+    assert rows[2]["cash_after"] == result["cash"]["final"]
+
