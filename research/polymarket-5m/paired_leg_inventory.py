@@ -11,6 +11,7 @@ import argparse
 import json
 import math
 from dataclasses import asdict, dataclass
+from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 from typing import Iterable, Literal
 
@@ -71,8 +72,19 @@ class Fill:
 
 
 def taker_fee(shares: float, price: float, fee_rate: float) -> float:
-    """Crypto taker-fee model used by the frozen research replays."""
-    return shares * fee_rate * price * (1.0 - price)
+    """Crypto taker fee rounded per order to five decimal places.
+
+    The frozen strategy replays use decimal half-up rounding rather than an
+    unrounded binary float or Python's ties-to-even ``round``.  Fee rounding is
+    applied to the aggregate order fee, not independently to every share.
+    """
+    raw = (
+        Decimal(str(shares))
+        * Decimal(str(fee_rate))
+        * Decimal(str(price))
+        * (Decimal("1") - Decimal(str(price)))
+    )
+    return float(raw.quantize(Decimal("0.00001"), rounding=ROUND_HALF_UP))
 
 
 def _number(value: object, name: str) -> None:
@@ -420,13 +432,16 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
             before_reserved = sum(reservations.values())
             available_before = cash - before_reserved
             # Reserve a fail-closed upper bound.  The fee curve p*(1-p) is at
-            # most 0.25 for every executable price, so this covers any fill at
-            # or below the fixed limit without borrowing from other in-flight
-            # orders.
-            reserve = order.requested_shares * (
-                order.fixed_limit
-                + config.fee_rate * 0.25
-                + config.extra_cost_per_share
+            # most 0.25 for every executable price.  Use the same per-order
+            # five-decimal rounding as execution so a half-up quantum can
+            # never make the actual debit exceed its reservation.
+            maximum_fee = taker_fee(
+                order.requested_shares, 0.5, config.fee_rate
+            )
+            reserve = (
+                order.requested_shares
+                * (order.fixed_limit + config.extra_cost_per_share)
+                + maximum_fee
             )
             status = "reserved"
             reason = "worst_case_cash_reserved"
@@ -637,7 +652,7 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
         default=0,
     )
     result = {
-        "schema_version": 6,
+        "schema_version": 7,
         "config": asdict(config),
         "counts": {
             **counts,
