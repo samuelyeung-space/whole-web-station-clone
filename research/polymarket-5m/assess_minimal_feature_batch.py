@@ -15,7 +15,7 @@ def close(a,b):
 def assess(root):
     root=Path(root);batch=json.loads((root/'batch_completion.json').read_text())
     if batch['status']!='completed_development_simulation':raise ValueError('unfinished batch')
-    totals=Counter();modes={};signatures={};market_sets={};daily={}
+    totals=Counter();modes={};signatures={};market_sets={};daily={};latency_pairs=[]
     for mode,metadata in batch['outputs'].items():
         path=Path(metadata['run_path']);completion=json.loads((path/'completion.json').read_text())
         registration=json.loads((path/'registration.json').read_text())
@@ -42,6 +42,29 @@ def assess(root):
                         close(row['payout_usd'],qty if row['winner']==row['side'] else 0)
             groups=defaultdict(list)
             for row in rows:groups[(row['candidate_id'],row['latency_ms'])].append(row)
+            if scenario_name=='shares100_base_release0':
+                for cid in sorted({k[0] for k in groups}):
+                    for delay in (600,1000):
+                        ledgers=[]
+                        for latency in (500,delay):
+                            ledgers.append({(a['market_id'],a['decision_ms'],a['side']):a for a in groups[(cid,latency)]})
+                            if len(ledgers[-1])!=len(groups[(cid,latency)]):raise ValueError('duplicate latency signal key')
+                        components={k:{'signals':0,'base_shares':0.,'slow_shares':0.,'base_pnl_usd':0.,'slow_pnl_usd':0.,'delta_pnl_usd':0.}
+                            for k in ('both_filled','base_only_fill','slow_only_fill','neither_filled')}
+                        incomplete=False
+                        for signal in set(ledgers[0])|set(ledgers[1]):
+                            a,b=(x.get(signal) for x in ledgers)
+                            qa=(a or {}).get('filled_shares',0);qb=(b or {}).get('filled_shares',0)
+                            if (qa and not a['settled']) or (qb and not b['settled']):incomplete=True;continue
+                            pa=(a or {}).get('net_pnl_usd') or 0;pb=(b or {}).get('net_pnl_usd') or 0
+                            kind='both_filled' if qa and qb else 'base_only_fill' if qa else 'slow_only_fill' if qb else 'neither_filled'
+                            c=components[kind];c['signals']+=1;c['base_shares']+=qa;c['slow_shares']+=qb;c['base_pnl_usd']+=pa;c['slow_pnl_usd']+=pb;c['delta_pnl_usd']+=pb-pa
+                        delta_pnl=None if incomplete else sum(c['delta_pnl_usd'] for c in components.values())
+                        ss=[next(r for r in metrics if r['scenario']==scenario_name and r['candidate_id']==cid and r['latency_ms']==lat) for lat in (500,delay)]
+                        if delta_pnl is not None and all(r['net_pnl_usd'] is not None for r in ss):close(delta_pnl,ss[1]['net_pnl_usd']-ss[0]['net_pnl_usd'])
+                        latency_pairs.append({'mode':mode,'candidate_id':cid,'base_latency_ms':500,'slow_latency_ms':delay,
+                            'incomplete':incomplete,'components':components,
+                            'total_delta_pnl_usd':delta_pnl})
             cash_groups=defaultdict(list)
             with (directory/'cash_ledger.csv').open(newline='') as stream:
                 for row in csv.DictReader(stream):
@@ -93,6 +116,7 @@ def assess(root):
         'base500_status_counts':dict(Counter(r['status'] for r in base)),
         'base500_positive_variants':sum(r['net_pnl_usd']>0 for r in valid),'identical_primary_ledgers':duplicate_groups,
         'pairwise_signal_market_overlap':overlap,'base500_daily_by_decision_date':daily,'independent_audit_counts':dict(totals),
+        'base_latency_pnl_decomposition':latency_pairs,
         'new_candidates':8,'economic_scenario_rows':81,'qualified_independent_mechanisms':0,'formal_oos_result':None,
         'runtime':{'python':platform.python_version(),'numpy':numpy.__version__,'sklearn':sklearn.__version__},
         'inference_limits':['All inputs are previously-consumed Oct7-9 development, not seven complete days or OOS.',
