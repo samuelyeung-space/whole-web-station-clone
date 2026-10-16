@@ -1,0 +1,7 @@
+# Core replay/demo use the standard library; these are needed by the full
+# legacy feature parity tests and optional historical feature adapters.
+# Installing these packages does not train any model or enable live trading.
+numpy==2.3.5
+scikit-learn==1.8.0
+scipy==1.17.0
+threadpoolctl==3.6.0
