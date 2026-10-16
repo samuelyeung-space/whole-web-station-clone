@@ -23,6 +23,8 @@ def verify(directory,original_assessment):
     for mode,metadata in original['modes'].items():
         run=Path(metadata['run_path']);prior=json.loads((run/'registration.json').read_text())
         if reg['events_sha256']!=prior['events_sha256']:raise ValueError('risk tape differs from original economic tape')
+        if sha(Path(__file__).with_name('replay_engine.py'))!=prior['strategies']['engine_code_sha256']:
+            raise ValueError('fee proxy dependency differs from original economic engine')
         for name in ('attempts.jsonl.gz','cash_ledger.csv'):
             if sha(run/'shares100_base_release0'/name)!=reg['ledger_sha256'][mode+'/'+name]:
                 raise ValueError('original economic ledger changed')
@@ -49,6 +51,7 @@ def verify(directory,original_assessment):
         last=d['last'];mode,cid,latency=key
         economic=next(r for r in original['modes'][mode]['metrics'] if r['candidate_id']==cid and r['latency_ms']==latency
             and r['scenario']=='shares100_base_release0')
+        close(economic['initial_cash_usd'],1000);close(economic['requested_shares'],100)
         close(last['cash_usd'],economic['ending_cash_usd'])
         if economic['status']=='simulated_complete':
             if last['open_positions'] or last['locked_known_payout_usd']:raise ValueError('terminal inventory not empty')
@@ -60,6 +63,7 @@ def verify(directory,original_assessment):
     receipt={'schema':'indicative-liquidation-independent-check-v1','status':'passed','accounts':len(by_account),
         'snapshot_rows':count,'original_tape_hash_matches_all_economic_registrations':True,
         'original_ledger_hashes_match':True,'ending_cash_and_pnl_unchanged':True,'snapshot_crc_eof_verified':True,
+        'fee_proxy_dependency_matches_original_engine':True,'benchmark_cash_usd':1000,'benchmark_requested_shares':100,
         'risk_assessment_sha256':sha(root/'assessment.json'),'verifier_code_sha256':sha(__file__),
         'new_economic_replays':0,'formal_oos_result':None}
     (root/'independent_check.json').write_text(json.dumps(receipt,indent=2)+'\n');print(json.dumps(receipt))

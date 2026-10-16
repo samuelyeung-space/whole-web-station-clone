@@ -97,12 +97,13 @@ class LiquidationTests(unittest.TestCase):
                 writer=csv.DictWriter(f,fieldnames=list(cc[0]));writer.writeheader();writer.writerows(cc)
             assessment={'modes':{'isolated':{'run_path':str(run),'metrics':[{'candidate_id':'c','latency_ms':500,
                 'scenario':'shares100_base_release0','ending_cash_usd':1040,'status':'simulated_complete',
-                'net_pnl_usd':40,'max_realized_drawdown_usd':0}]}}}
+                'net_pnl_usd':40,'max_realized_drawdown_usd':0,'initial_cash_usd':1000,'requested_shares':100}]}}}
             ap=root/'assessment.json';ap.write_text(json.dumps(assessment))
             ep=root/'events.jsonl';ep.write_text('\n'.join(json.dumps(r) for r in [
                 {'type':'market','recv_ms':500,'market_id':'m','end_ms':5000},
                 {'type':'book','market_id':'m',**book()}])+'\n')
-            (run/'registration.json').write_text(json.dumps({'events_sha256':sha(ep)}))
+            (run/'registration.json').write_text(json.dumps({'events_sha256':sha(ep),
+                'strategies':{'engine_code_sha256':sha(Path(__file__).with_name('replay_engine.py'))}}))
             audit(ep,ap,root/'output');r=json.loads((root/'output/assessment.json').read_text())
             self.assertEqual(r['new_economic_replays'],0)
             self.assertEqual(r['account_results'][0]['final']['cash_usd'],1040)
