@@ -35,7 +35,12 @@ modeled. The original aggregate-order fee-rounding proxy remains disclosed.
 python replay_liquidation_audit.py --events /path/to/cache/events.jsonl.gz \
   --assessment /path/to/completed/assessment.json --output /new/audit/path
 python -m unittest test_replay_liquidation_audit -v
+python verify_liquidation_artifact.py --directory /new/audit/path \
+  --original-assessment /path/to/completed/assessment.json
 ```
 
 Preserve exact earlier model/economic code hashes and all frozen windows.
 Private tapes, cash events and valuation snapshots stay out of the public repo.
+The independent verifier rechecks the original run's event hash and both modes'
+economic-ledger hashes, reads every snapshot through gzip EOF/CRC, recomputes
+all interval drawdowns, and reconciles terminal equity and unchanged net PnL.
