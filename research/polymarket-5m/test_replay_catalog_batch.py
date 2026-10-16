@@ -92,6 +92,38 @@ class CatalogBatchTests(unittest.TestCase):
         self.assertAlmostEqual(base_up['net_pnl_usd'], 2.916)
         self.assertEqual(split['new_backtests'], 32)
 
+    def test_parallel_economics_equal_serial_and_resume_without_new_execution(self):
+        serial = self.run_batch()
+        serial_shards = json.loads((Path(serial['batch_path'])/'shards.json').read_text())
+        self.args.workers = 2
+        self.args.out = str(self.root/'parallel_runs')
+        parallel = self.run_batch()
+        parallel_shards = json.loads((Path(parallel['batch_path'])/'shards.json').read_text())
+        self.assertEqual(self.metrics(serial['batch_path']), self.metrics(parallel['batch_path']))
+        self.assertEqual([x['index'] for x in parallel_shards], [0,1])
+        for left,right in zip(serial_shards,parallel_shards):
+            self.assertEqual(left['candidate_ids'],right['candidate_ids'])
+            self.assertEqual(left['run_key'],right['run_key'])
+            lroot,rroot=Path(left['run_path']),Path(right['run_path'])
+            for p in lroot.glob('*/cash_ledger.csv'):
+                self.assertEqual(p.read_bytes(),(rroot/p.relative_to(lroot)).read_bytes())
+            import gzip
+            for p in lroot.glob('*/attempts.jsonl.gz'):
+                with gzip.open(p,'rb') as l, gzip.open(rroot/p.relative_to(lroot),'rb') as r:
+                    self.assertEqual(l.read(),r.read())
+        again=self.run_batch()
+        self.assertEqual(again['new_backtests'],0)
+        self.assertTrue(again['cache_hit'])
+
+    def test_worker_bounds_and_parallel_shared_are_rejected(self):
+        for workers in [0,9]:
+            self.args.workers=workers
+            with self.assertRaisesRegex(ValueError,'workers'):
+                self.run_batch()
+        self.args.workers=2; self.args.mode='shared'
+        with self.assertRaisesRegex(ValueError,'isolated mode only'):
+            self.run_batch()
+
     def test_resume_calls_full_cache_checks_without_new_execution(self):
         first = self.run_batch()
         before = (Path(first['batch_path']) / 'registration.json').read_bytes()

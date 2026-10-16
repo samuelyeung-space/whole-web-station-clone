@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 from collections import Counter
+from concurrent.futures import ProcessPoolExecutor, as_completed
 import copy
 from datetime import datetime, timezone
 import gc
@@ -34,6 +35,7 @@ def parser():
                     help='maximum candidates per isolated run, in original catalog order')
     ap.add_argument('--batch-dir', required=True,
                     help='full-catalog registrations, compact metrics and resume progress')
+    ap.add_argument('--workers', type=int, default=1, help='isolated shard worker processes; shared portfolios cannot be partitioned')
     return ap
 
 
@@ -57,10 +59,56 @@ def ordered_selectors(specs, loaded, runner):
     return selectors
 
 
+def execute_shard(args, shard, code, plugin_hashes, dataset_key, tape_sha256):
+    import replay_runner as runner
+    # Abort source drift before initiating the next economic run.
+    for filename, digest in code.items():
+        if lab.sha(Path(__file__).parent / filename) != digest:
+            raise ValueError('replay source changed during catalog batch: ' + filename)
+    subset = runner.load_strategies(shard['strategy_specs'])
+    if (subset.registration['candidate_sha256'] != shard['candidate_sha256'] or
+            any(plugin_hashes[name] != digest
+                for name, digest in subset.plugin_code_sha256.items())):
+        raise ValueError('strategy changed after full-catalog registration')
+    shard_args = copy.deepcopy(args)
+    shard_args.strategy = shard['strategy_specs']
+    shard_args.priority = None
+    result = lab.run_cached(shard_args)
+    run_path = Path(result['run_path'])
+    actual = json.loads((run_path / 'registration.json').read_text())
+    if (actual['strategies']['candidate_sha256'] != shard['candidate_sha256'] or
+            actual['strategies']['plugin_code_sha256'] != subset.plugin_code_sha256 or
+            actual['cache_key'] != dataset_key or
+            actual['events_sha256'] != tape_sha256):
+        raise ValueError('shard result does not match full-catalog registration')
+    rows = json.loads((run_path / 'metrics.json').read_text())
+    if set(row['candidate_id'] for row in rows) != set(shard['candidate_ids']):
+        raise ValueError('shard output does not cover all registered candidates')
+    return shard, result, actual, rows
+
+
+def completed_shards(args, shards, code, plugin_hashes, dataset_key, tape_sha256):
+    workers = getattr(args, 'workers', 1)
+    if workers == 1:
+        for shard in shards:
+            yield execute_shard(args, shard, code, plugin_hashes, dataset_key, tape_sha256)
+        return
+    with ProcessPoolExecutor(max_workers=workers) as pool:
+        futures = [pool.submit(execute_shard, args, shard, code, plugin_hashes, dataset_key, tape_sha256) for shard in shards]
+        try:
+            for future in as_completed(futures):
+                yield future.result()
+        finally:
+            for future in futures:
+                future.cancel()
+
+
 def run_batch(args):
     started = time.perf_counter()
     if args.mode != 'isolated':
         raise ValueError('catalog sharding supports isolated mode only; shared cash/depth cannot be split')
+    if getattr(args, 'workers', 1) < 1 or getattr(args, 'workers', 1) > 8:
+        raise ValueError('workers must be between 1 and 8')
     if args.batch_size <= 0:
         raise ValueError('batch-size must be positive')
     # Isolated priority changes only iteration order. Keep the original catalog
@@ -126,30 +174,9 @@ def run_batch(args):
                 raise ValueError('batch output corrupted: ' + name)
     metrics, completed, new_backtests = [], [], 0
     try:
-        for shard in shards:
-            # Abort source drift before initiating the next economic run.
-            for filename, digest in code.items():
-                if lab.sha(Path(__file__).parent / filename) != digest:
-                    raise ValueError('replay source changed during catalog batch: ' + filename)
-            subset = runner.load_strategies(shard['strategy_specs'])
-            if (subset.registration['candidate_sha256'] != shard['candidate_sha256'] or
-                    any(loaded.plugin_code_sha256[name] != digest
-                        for name, digest in subset.plugin_code_sha256.items())):
-                raise ValueError('strategy changed after full-catalog registration')
-            shard_args = copy.deepcopy(args)
-            shard_args.strategy = shard['strategy_specs']
-            shard_args.priority = None
-            result = lab.run_cached(shard_args)
+        for shard, result, actual, rows in completed_shards(
+                args, shards, code, loaded.plugin_code_sha256, manifest['dataset_key'], manifest['tape_sha256']):
             run_path = Path(result['run_path'])
-            actual = json.loads((run_path / 'registration.json').read_text())
-            if (actual['strategies']['candidate_sha256'] != shard['candidate_sha256'] or
-                    actual['strategies']['plugin_code_sha256'] != subset.plugin_code_sha256 or
-                    actual['cache_key'] != manifest['dataset_key'] or
-                    actual['events_sha256'] != manifest['tape_sha256']):
-                raise ValueError('shard result does not match full-catalog registration')
-            rows = json.loads((run_path / 'metrics.json').read_text())
-            if set(row['candidate_id'] for row in rows) != set(shard['candidate_ids']):
-                raise ValueError('shard output does not cover all registered candidates')
             metrics.extend(rows)
             new_backtests += result['new_backtests']
             completed.append({'index': shard['index'], 'candidate_ids': shard['candidate_ids'],
@@ -165,7 +192,7 @@ def run_batch(args):
                 'new_execution_scenario_rows_this_invocation': new_backtests})
             print(json.dumps({'batch_progress': len(completed), 'total_shards': len(shards),
                   'registered_candidates': len(ids), 'shard_cache_hit': result['cache_hit']}), flush=True)
-            del subset, rows, result
+            del rows, result
             gc.collect()
         # Compact output order depends only on registered catalog and scenario
         # order, not on PnL. Detailed executions remain in their original runs.
@@ -198,6 +225,7 @@ def run_batch(args):
             'net_pnl_sum_across_candidates': None,
             'aggregation_policy': 'Independent candidates/latencies/scenarios cannot be summed as a portfolio.'}
         # Persist stable evidence independent of whether this call hit caches.
+        completed.sort(key=lambda item: item['index'])
         stable_shards = [{k: v for k, v in item.items() if k not in {'cache_hit', 'new_backtests'}}
                          for item in completed]
         atomic_dump(destination / 'metrics.json', metrics)
