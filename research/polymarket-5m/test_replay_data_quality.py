@@ -60,8 +60,8 @@ class DataQualityTests(unittest.TestCase):
         self.assertEqual(inspect(events, start)["primary_blocker"], "no_official_outcome")
     def test_absent_span_is_separate(self):
         start = (T0 // q.SLOT) * q.SLOT
-        result = q.summarize([], [[start + q.SLOT, start + 2*q.SLOT]])
-        self.assertEqual(result["slots"][0]["primary_blocker"], "no_declared_recording_span")
+        result = q.summarize([], [[start, start + q.SLOT], [start + 2*q.SLOT, start + 3*q.SLOT]])
+        self.assertEqual(result["slots"][1]["primary_blocker"], "no_declared_recording_span")
     def test_no_silent_invalid_intervals(self):
         with self.assertRaises(ValueError):
             q.summarize([], [[0, 0]])
