@@ -6,6 +6,7 @@ on:
       - .github/workflows/polymarket-replay-acceptance.yml
       - research/polymarket-5m/replay_cli.py
       - research/polymarket-5m/test_replay_cli.py
+      - research/polymarket-5m/requirements-replay.txt
   workflow_dispatch:
 permissions:
   contents: read
@@ -24,13 +25,14 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Install test dependency
-        run: python -m pip install numpy==2.2.6
+      - name: Install pinned verification dependencies
+        run: python -m pip install -r research/polymarket-5m/requirements-replay.txt
       - name: Export replay source only
         run: |
           mkdir -p replay-delivery/source
-          find research/polymarket-5m -maxdepth 1 -type f \( -name '*.py' -o -name '*.md' \) -exec cp '{}' replay-delivery/source/ \;
+          find research/polymarket-5m -maxdepth 1 -type f \( -name '*.py' -o -name '*.md' -o -name 'requirements-replay.txt' \) -exec cp '{}' replay-delivery/source/ \;
           git rev-parse HEAD > replay-delivery/SOURCE_COMMIT.txt
+          python -m pip freeze > replay-delivery/installed-dependencies.txt
       - name: Offline regression tests
         working-directory: research/polymarket-5m
         run: |
