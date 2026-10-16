@@ -1,0 +1,19 @@
+name: Replay data quality audit tests
+on:
+  push:
+    branches: [codex/replay-data-quality-20261017]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Test standalone quality checks
+        working-directory: research/polymarket-5m
+        run: python -m unittest test_replay_data_quality -v
