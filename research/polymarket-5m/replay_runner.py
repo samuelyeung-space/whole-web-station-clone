@@ -18,6 +18,7 @@ import sys
 from typing import Callable, Iterable
 
 import replay_engine as ex
+import replay_plugin_identity as plugin_identity
 
 
 PORTFOLIO_ID = "__SHARED_TAKER_PORTFOLIO__"
@@ -32,33 +33,10 @@ def _sha(path):
 
 
 def _load_current_source(name):
-    """Execute the exact source bytes we register, bypassing sys.modules/pyc.
-
-    A plain import may reuse an already loaded module or timestamp/size-valid
-    bytecode after a same-second edit. That would make a source hash incorrectly
-    describe the executed rule. Standard module metadata and relative imports
-    are preserved, but this loader deliberately supports Python source plugins
-    only. Module dependencies are governed by the run's environment/code manifest.
-    """
-    spec = importlib.util.find_spec(name)
-    if (spec is None or spec.origin is None or spec.loader is None
-            or not spec.origin.endswith(".py")):
-        raise ValueError(f"{name} must resolve to a hashable Python source plugin")
-    path = Path(spec.origin).resolve()
-    source = path.read_bytes()
-    digest = hashlib.sha256(source).hexdigest()
-    module = importlib.util.module_from_spec(spec)
-    previous = sys.modules.get(name)
-    sys.modules[name] = module
-    try:
-        exec(compile(source, str(path), "exec", dont_inherit=True), module.__dict__)
-    except BaseException:
-        if previous is None:
-            sys.modules.pop(name, None)
-        else:
-            sys.modules[name] = previous
-        raise
-    return module, path, digest
+    """Load an immutable source closure, including imported signal helpers."""
+    module, snapshot = plugin_identity.load_plugin(name)
+    source = snapshot.sources[name]
+    return module, source.path, source.sha256, snapshot
 
 
 def _check_contract(value, owner):
@@ -90,6 +68,7 @@ class LoadedStrategies:
     signal_functions: dict[str, Callable]
     plugin_code_sha256: dict[str, str]
     registration: dict
+    plugin_snapshots: dict
 
 
 def load_strategies(specs: list[str]) -> LoadedStrategies:
@@ -104,6 +83,7 @@ def load_strategies(specs: list[str]) -> LoadedStrategies:
     if not isinstance(specs, (list, tuple)) or not specs:
         raise ValueError("at least one module:candidate-id strategy is required")
     candidates, functions, hashes, sources, modules = [], {}, {}, {}, {}
+    snapshots = {}
     for spec in specs:
         if not isinstance(spec, str) or ":" not in spec:
             raise ValueError("strategy must be module:candidate-id or module:*")
@@ -111,7 +91,7 @@ def load_strategies(specs: list[str]) -> LoadedStrategies:
         if not name or not wanted:
             raise ValueError("empty module or candidate ID")
         if name not in modules:
-            plugin, source_path, source_digest = _load_current_source(name)
+            plugin, source_path, source_digest, snapshot = _load_current_source(name)
             for declaration in (getattr(plugin, "EXECUTION_CONTRACT", None),
                                 getattr(plugin, "EXECUTION_STYLE", None)):
                 _check_contract(declaration, name)
@@ -129,6 +109,7 @@ def load_strategies(specs: list[str]) -> LoadedStrategies:
                 raise ValueError(f"{name} catalog must contain nonempty string IDs")
             if len(set(catalog_ids)) != len(catalog_ids):
                 raise ValueError(f"{name} has duplicate catalog IDs")
+            snapshots[name] = snapshot
             hashes[name] = source_digest
             sources[name] = str(source_path)
             modules[name] = (plugin, catalog)
@@ -156,12 +137,14 @@ def load_strategies(specs: list[str]) -> LoadedStrategies:
         "strategy_specs": list(specs), "candidate_rules": candidates,
         "candidate_sha256": ex.fingerprint(candidates),
         "plugin_code_sha256": hashes, "plugin_source_paths": sources,
+        "plugin_dependency_identity": {n: s.identity for n, s in snapshots.items()},
+        "plugin_dependency_paths": {n: s.source_paths for n, s in snapshots.items()},
         "default_priority": [c["id"] for c in candidates],
         "execution_contract": CONTRACT, "formal_oos_result": None,
         "candidate_count": len(candidates),
         "runner_code_sha256": _sha(__file__), "engine_code_sha256": _sha(ex.__file__),
     }
-    return LoadedStrategies(candidates, functions, hashes, registration)
+    return LoadedStrategies(candidates, functions, hashes, registration, snapshots)
 
 
 def _feature_error(event, candidate, market):
@@ -202,6 +185,8 @@ def execute(events: Iterable[dict], specs, config=None, mode="isolated", priorit
     if not isinstance(config, ex.ReplayConfig):
         raise TypeError("config must be ReplayConfig or a config dictionary")
     # Do not execute source that changed after registration.
+    for snapshot in loaded.plugin_snapshots.values():
+        snapshot.verify()
     for name, path in loaded.registration["plugin_source_paths"].items():
         if _sha(path) != loaded.plugin_code_sha256[name]:
             raise ValueError(f"plugin code changed after registration: {name}")

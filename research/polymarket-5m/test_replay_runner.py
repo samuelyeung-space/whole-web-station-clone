@@ -224,8 +224,9 @@ class ReplayRunnerTests(unittest.TestCase):
         self.assertEqual(loaded.plugin_code_sha256[name], hashlib.sha256(changed).hexdigest())
         result = rr.execute(self.events(), loaded, self.config())
         self.assertFalse(result["attempts"])
-        # Subsequent imports also see the currently compiled module.
-        self.assertIsNone(importlib.import_module(name).signal({}, {}))
+        # Snapshot execution does not overwrite foreign sys.modules entries.
+        self.assertIs(importlib.import_module(name), original)
+        self.assertEqual(original.signal({}, {}), "Up")
 
     def test_source_loader_preserves_package_spec_and_relative_imports(self):
         package = "test_package_" + uuid.uuid4().hex

@@ -127,11 +127,27 @@ strategy order; it submits at most one first order per market. It is a new
 joint account simulation, not the sum of the three isolated candidate PnLs.
 
 To evaluate the entire already-registered grid on an admitted merged cache,
-replace the three `--strategy` arguments by `--strategy 'mine500_catalog:*'`.
-That evaluates all 720 registered candidate rows, including explicitly blocked
-rows for missing features. It does not claim 720 independent mechanisms or
-720 executable strategies. Changing strategy rules or feature definitions
-requires a new run identity and cannot inherit the Oct10/11 freezes.
+use the bounded parallel catalog driver:
+
+```sh
+python replay_catalog_batch.py --cache cache/datasets/CONTENT_HASH \
+  --strategy 'mine500_catalog:*' --batch-dir batches/catalog \
+  --out runs/catalog --batch-size 90 --workers 3 \
+  --mode isolated --shares 5 --cash 1000 \
+  --latencies-ms 500,600,1000 --stresses base
+```
+
+This registers all 720 candidate rules before executing any shard, including
+explicitly blocked rows for missing features. A completed shard is verified and
+reused on resume; unfinished work continues without turning reuse into a new
+trial. Workers split isolated candidates, never a shared account. Shared
+portfolios must run together through `replay_lab.py run --mode shared` so that
+cash, first-signal priority and competing signals remain in one event stream.
+`--workers` accepts 1–8 (default 1); choose it for available memory and CPU.
+Parallel and serial execution are checked for identical attempts and cash.
+There are not 720 independent mechanisms or 720 necessarily executable
+strategies. A change to a rule or feature requires a new run identity and cannot
+inherit the Oct10/11 freezes.
 
 ### Consolidated multi-day diagnostics
 
@@ -189,7 +205,21 @@ def signal(candidate, features):
 
 Use `--strategy my_strategy:EXAMPLE-1` or `my_strategy:*`. Each run writes candidate rules, plugin/source and engine hashes, parameters and input identity **before** executing. Plugin source bytes are freshly compiled; old imported functions or `.pyc` cannot silently masquerade as a new version. Repeating identical inputs/rules/configuration verifies and reuses the completed result; changing them creates a new registered run.
 
-JPR/MAR modules use the same interface. Their additional fields must already exist in the tape. For the previously frozen feature/model workflow, use `cached_strategy_replay.py prepare --endpoint ... --prices ... --scores ... --cache feature-cache`, then pass its `events.jsonl.gz` to `replay_lab.py import`. This does not fit a new model. A new feature definition requires a new causal preprocessing artifact; missing columns are never synthesized by this runner.
+Static local Python imports are included transitively in the plugin identity,
+including package initializers; changing a helper changes the run key. Workers
+reject changes made after registration. The interpreter and loader identity are
+also recorded. This supports small offline pure-feature plugins, not arbitrary
+application imports: dynamic imports, runtime code generation, namespace
+packages and third-party extensions are rejected. It is a reproducibility
+contract, not a security sandbox.
+
+JPR/MAR modules use the same interface. Use the frozen saved-score and saved-feature
+adapters described in [FROZEN_JPR_MAR.md](FROZEN_JPR_MAR.md), then import their
+enriched tapes. These adapters retain decisions without predictions and verify
+training cutoffs, source hashes and local availability times. They do not fit a
+new model. The older `cached_strategy_replay.py` path is not the admission path
+for these unified experiments. A new feature definition needs a new causal
+preprocessing artifact; missing columns are never synthesized by this runner.
 
 ## Shared $1000, fixed 100-share order requests
 
@@ -231,3 +261,26 @@ python -m unittest discover -p 'test_replay_*.py' -v
 ```
 
 Acceptance results, measured durations, real-data reconciliation and exact code identity are recorded separately in `REPLAY_ACCEPTANCE_20261016.md` / `replay_acceptance_20261016.json`. No raw/private event data is committed to Git.
+
+## Measured runtime and portable evidence
+
+The Oct16 development runs illustrate scale, not a runtime guarantee. On the
+recorded six-tape scope (27.016 hours of fragments), 96 JPR rules × three delays
+took about 229 seconds for the baseline warm run; 144 MAR rules × three delays
+took about 373 seconds. Cold score/feature admission and cache creation were
+additional work. A 17-tape historical catalog of 720 rows × three delays took
+about 3,122 seconds with the serial shard driver. Large first imports must read
+and validate all source bytes; adding a rule to an existing cache does not
+require converting the raw archives again. Times depend on candidate count,
+event count, report volume and available CPU.
+
+Private acceptance data is distributed separately from this Git repository.
+The restore command verifies each ZIP, chunk and reassembled file:
+
+```sh
+python replay_payloads.py restore --index payload_index.json \
+  --payload-dir payloads --destination restored
+```
+
+Download all parts referenced by the index first. The index preserves exact data and
+run identities; it is not a new evaluation or permission to combine PnLs.

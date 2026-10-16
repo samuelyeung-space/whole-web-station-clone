@@ -86,7 +86,7 @@ def run_cached(args, cache_path=None):
     modules = [sys.modules[__name__], ds, runner, runner.ex, reports,
                importlib.import_module('mine500_constraints')]
     code = {Path(m.__file__).name: sha(m.__file__) for m in modules}
-    strategy_identity = {k: v for k, v in loaded.registration.items() if k != 'plugin_source_paths'}
+    strategy_identity = {k: v for k, v in loaded.registration.items() if k not in {'plugin_source_paths', 'plugin_dependency_paths'}}
     identity = {'schema': 'replay-lab-run-v1', 'cache_key': manifest['dataset_key'],
         'events_sha256': manifest['tape_sha256'], 'strategies': strategy_identity,
         'mode': args.mode, 'priority': args.priority, 'scenarios': configs,
@@ -107,6 +107,7 @@ def run_cached(args, cache_path=None):
     stage = Path(tempfile.mkdtemp(prefix=key+'.pending.', dir=root))
     registration = {**identity, 'run_key': key,
         'plugin_source_paths': loaded.registration['plugin_source_paths'],
+        'plugin_dependency_paths': loaded.registration['plugin_dependency_paths'],
         'registered_at_utc': datetime.now(timezone.utc).isoformat(),
         'cash_scope': 'shared portfolio per latency' if args.mode == 'shared' else 'separate per candidate and latency',
         'input_data_role': 'consumed_development', 'model_fitting': False,

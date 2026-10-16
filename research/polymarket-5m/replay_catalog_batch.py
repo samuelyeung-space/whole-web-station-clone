@@ -50,7 +50,9 @@ def ordered_selectors(specs, loaded, runner):
     for spec in specs:
         part = runner.load_strategies([spec])
         name = spec.rsplit(':', 1)[0]
-        if part.plugin_code_sha256[name] != loaded.plugin_code_sha256[name]:
+        if (part.plugin_code_sha256[name] != loaded.plugin_code_sha256[name] or
+                part.registration['plugin_dependency_identity'][name] !=
+                loaded.registration['plugin_dependency_identity'][name]):
             raise ValueError('plugin changed while registering full catalog: ' + name)
         selectors.extend(name + ':' + candidate['id'] for candidate in part.candidates)
         rules.extend(part.candidates)
@@ -59,7 +61,7 @@ def ordered_selectors(specs, loaded, runner):
     return selectors
 
 
-def execute_shard(args, shard, code, plugin_hashes, dataset_key, tape_sha256):
+def execute_shard(args, shard, code, plugin_hashes, dependency_identity, dataset_key, tape_sha256):
     import replay_runner as runner
     # Abort source drift before initiating the next economic run.
     for filename, digest in code.items():
@@ -68,7 +70,9 @@ def execute_shard(args, shard, code, plugin_hashes, dataset_key, tape_sha256):
     subset = runner.load_strategies(shard['strategy_specs'])
     if (subset.registration['candidate_sha256'] != shard['candidate_sha256'] or
             any(plugin_hashes[name] != digest
-                for name, digest in subset.plugin_code_sha256.items())):
+                for name, digest in subset.plugin_code_sha256.items()) or
+            any(dependency_identity[name] != value
+                for name, value in subset.registration['plugin_dependency_identity'].items())):
         raise ValueError('strategy changed after full-catalog registration')
     shard_args = copy.deepcopy(args)
     shard_args.strategy = shard['strategy_specs']
@@ -78,6 +82,7 @@ def execute_shard(args, shard, code, plugin_hashes, dataset_key, tape_sha256):
     actual = json.loads((run_path / 'registration.json').read_text())
     if (actual['strategies']['candidate_sha256'] != shard['candidate_sha256'] or
             actual['strategies']['plugin_code_sha256'] != subset.plugin_code_sha256 or
+            actual['strategies']['plugin_dependency_identity'] != subset.registration['plugin_dependency_identity'] or
             actual['cache_key'] != dataset_key or
             actual['events_sha256'] != tape_sha256):
         raise ValueError('shard result does not match full-catalog registration')
@@ -87,14 +92,14 @@ def execute_shard(args, shard, code, plugin_hashes, dataset_key, tape_sha256):
     return shard, result, actual, rows
 
 
-def completed_shards(args, shards, code, plugin_hashes, dataset_key, tape_sha256):
+def completed_shards(args, shards, code, plugin_hashes, dependency_identity, dataset_key, tape_sha256):
     workers = getattr(args, 'workers', 1)
     if workers == 1:
         for shard in shards:
-            yield execute_shard(args, shard, code, plugin_hashes, dataset_key, tape_sha256)
+            yield execute_shard(args, shard, code, plugin_hashes, dependency_identity, dataset_key, tape_sha256)
         return
     with ProcessPoolExecutor(max_workers=workers) as pool:
-        futures = [pool.submit(execute_shard, args, shard, code, plugin_hashes, dataset_key, tape_sha256) for shard in shards]
+        futures = [pool.submit(execute_shard, args, shard, code, plugin_hashes, dependency_identity, dataset_key, tape_sha256) for shard in shards]
         try:
             for future in as_completed(futures):
                 yield future.result()
@@ -123,7 +128,7 @@ def run_batch(args):
     if args.priority is not None and list(args.priority) != ids:
         raise ValueError('isolated catalog batches require default catalog priority/order')
     selectors = ordered_selectors(args.strategy, loaded, runner)
-    strategy = {k: v for k, v in loaded.registration.items() if k != 'plugin_source_paths'}
+    strategy = {k: v for k, v in loaded.registration.items() if k not in {'plugin_source_paths', 'plugin_dependency_paths'}}
     configuration = {key: copy.deepcopy(value) for key, value in vars(args).items()
                      if key not in {'cache', 'out', 'batch_dir', 'plugin_dir', 'strategy', 'command'}}
     # Paths do not alter economics. Exact source identity and data digest do.
@@ -155,6 +160,7 @@ def run_batch(args):
             'registered_candidate_count': len(ids), 'candidate_ids_in_catalog_order': ids,
             'input_cache_path': str(Path(args.cache).resolve()),
             'plugin_source_paths': loaded.registration['plugin_source_paths'],
+            'plugin_dependency_paths': loaded.registration['plugin_dependency_paths'],
             'cash_scope': 'separate per candidate and latency and scenario',
             'multiple_testing_denominator_floor_this_catalog': len(ids),
             'multiple_testing_note': 'All catalog candidates registered before any shard runs. '
@@ -175,7 +181,7 @@ def run_batch(args):
     metrics, completed, new_backtests = [], [], 0
     try:
         for shard, result, actual, rows in completed_shards(
-                args, shards, code, loaded.plugin_code_sha256, manifest['dataset_key'], manifest['tape_sha256']):
+                args, shards, code, loaded.plugin_code_sha256, loaded.registration['plugin_dependency_identity'], manifest['dataset_key'], manifest['tape_sha256']):
             run_path = Path(result['run_path'])
             metrics.extend(rows)
             new_backtests += result['new_backtests']
