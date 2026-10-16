@@ -30,7 +30,8 @@ def rows(books=None, features=None, outcome=True, healthy=True, side_specific=Fa
     return base, start
 
 def inspect(events, start, required=("r_5s",), max_age=250):
-    return q.summarize(events, [[start, start + q.SLOT]], required, max_age)["slots"][0]
+    report = q.summarize(events, [[start, start + q.SLOT]], required, max_age)
+    return next(row for row in report["slots"] if row["slot_start_ms"] == start)
 
 class DataQualityTests(unittest.TestCase):
     def test_complete_native_inputs(self):
@@ -46,7 +47,8 @@ class DataQualityTests(unittest.TestCase):
         self.assertEqual(result["primary_blocker"], "no_market_registration")
     def test_partial_span_is_not_full(self):
         events, start = rows(books=True, features={"r_5s": 1.0})
-        result = q.summarize(events, [[start + 1, start + q.SLOT]])["slots"][0]
+        report = q.summarize(events, [[start + 1, start + q.SLOT]])
+        result = next(row for row in report["slots"] if row["slot_start_ms"] == start)
         self.assertEqual(result["primary_blocker"], "partial_declared_recording_span")
     def test_missing_feature_kept_explicit(self):
         events, start = rows(books=True, features={"r_5s": None})
@@ -61,7 +63,8 @@ class DataQualityTests(unittest.TestCase):
     def test_absent_span_is_separate(self):
         start = (T0 // q.SLOT) * q.SLOT
         result = q.summarize([], [[start, start + q.SLOT], [start + 2*q.SLOT, start + 3*q.SLOT]])
-        self.assertEqual(result["slots"][1]["primary_blocker"], "no_declared_recording_span")
+        gap = next(row for row in result["slots"] if row["slot_start_ms"] == start + q.SLOT)
+        self.assertEqual(gap["primary_blocker"], "no_declared_recording_span")
     def test_no_silent_invalid_intervals(self):
         with self.assertRaises(ValueError):
             q.summarize([], [[0, 0]])
