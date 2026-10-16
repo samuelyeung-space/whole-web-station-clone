@@ -1,0 +1,268 @@
+{
+  "schema": "legacy-batch-coverage-summary-v1",
+  "evidence_checked_date": "2026-10-16",
+  "scope": "Only 9 forward artifacts with run creation on Oct1/2; not all available recordings",
+  "input_artifacts": 9,
+  "successful_artifacts": 9,
+  "newly_ingested_artifacts": 8,
+  "previously_ingested_artifacts": 1,
+  "total_rows": 21468393,
+  "wall_seconds": 156.85107445399626,
+  "daily": {
+    "2026-10-01": {
+      "theoretical_5m_slots": 288,
+      "slots_with_any_book_receipt": 220,
+      "slots_without_book_receipts": 68,
+      "registered_market_ids": 224,
+      "book_rows": 247098,
+      "btc_price_rows": 605674,
+      "complete_healthy_markets": null,
+      "signals": null,
+      "attempts": null,
+      "fills": null,
+      "pnl": null
+    },
+    "2026-10-02": {
+      "theoretical_5m_slots": 288,
+      "slots_with_any_book_receipt": 233,
+      "slots_without_book_receipts": 55,
+      "registered_market_ids": 236,
+      "book_rows": 265380,
+      "btc_price_rows": 899934,
+      "complete_healthy_markets": null,
+      "signals": null,
+      "attempts": null,
+      "fills": null,
+      "pnl": null
+    },
+    "2026-10-03": {
+      "theoretical_5m_slots": 288,
+      "slots_with_any_book_receipt": 42,
+      "slots_without_book_receipts": 246,
+      "registered_market_ids": 43,
+      "book_rows": 44818,
+      "btc_price_rows": 36551,
+      "complete_healthy_markets": null,
+      "signals": null,
+      "attempts": null,
+      "fills": null,
+      "pnl": null
+    }
+  },
+  "archives": [
+    {
+      "run_id": 36807987110,
+      "artifact_id": 11149495242,
+      "archive_sha256": "df26545b10da2401b7eb9ecf9efdbbac78c83f637336e982d0c140ee84b22701",
+      "cache_key": "db0207329995326dd0ac87ca0f29b91191d3c6cd8b9dabc7114b5b9cd032bccf",
+      "total_rows": 2113707,
+      "streams": 12,
+      "markets": 56,
+      "book_rows": 57452,
+      "first_book_receipt": "2026-10-01T02:54:33.913000+00:00",
+      "last_book_receipt": "2026-10-01T07:24:33.155000+00:00",
+      "unclocked_rows": 168,
+      "native_btc_missing_fields": [
+        {
+          "size": 107264,
+          "aggressor_side": 107264,
+          "buyer_is_maker": 107264,
+          "connection_epoch": 107264,
+          "stream_sequence": 107264
+        }
+      ],
+      "strict_execution_ready": false
+    },
+    {
+      "run_id": 36835222993,
+      "artifact_id": 11166177296,
+      "archive_sha256": "c8df8b32fb03b97ce6b671df7a4440232245f35d50751799c4c57cabf78fd54d",
+      "cache_key": "a4777c54afa79570324e15f4fd832d67a4e31cbc4ca84a431be66220deaa03d1",
+      "total_rows": 2207507,
+      "streams": 12,
+      "markets": 56,
+      "book_rows": 61956,
+      "first_book_receipt": "2026-10-01T08:16:35.542000+00:00",
+      "last_book_receipt": "2026-10-01T12:46:34.639000+00:00",
+      "unclocked_rows": 169,
+      "native_btc_missing_fields": [
+        {
+          "size": 127996,
+          "aggressor_side": 127996,
+          "buyer_is_maker": 127996,
+          "connection_epoch": 127996,
+          "stream_sequence": 127996
+        }
+      ],
+      "strict_execution_ready": false
+    },
+    {
+      "run_id": 36869869857,
+      "artifact_id": 11187022674,
+      "archive_sha256": "a00392cabb891541fe929b56a74c5ce3924ff0b9e1273978cd13e6eba1aacd3f",
+      "cache_key": "425eb8fbaae013331c02e97d7ab473b64ae0c3a30c46d1e1ae481db30500ea2e",
+      "total_rows": 3404937,
+      "streams": 12,
+      "markets": 56,
+      "book_rows": 65790,
+      "first_book_receipt": "2026-10-01T13:36:43.765000+00:00",
+      "last_book_receipt": "2026-10-01T18:06:42.147000+00:00",
+      "unclocked_rows": 169,
+      "native_btc_missing_fields": [
+        {
+          "size": 279964,
+          "aggressor_side": 279964,
+          "buyer_is_maker": 279964,
+          "connection_epoch": 279964,
+          "stream_sequence": 279964
+        }
+      ],
+      "strict_execution_ready": false
+    },
+    {
+      "run_id": 36912544596,
+      "artifact_id": 11201759880,
+      "archive_sha256": "6a82a0b32fcddd289c248368cb0d8d3ef8c35edbe728f242f5129a61453b191d",
+      "cache_key": "bfb50d7381979e95debc6f131c1a9362bac2701a545c85fd77e14c92532657e2",
+      "total_rows": 2117652,
+      "streams": 12,
+      "markets": 56,
+      "book_rows": 61900,
+      "first_book_receipt": "2026-10-01T19:13:03.387000+00:00",
+      "last_book_receipt": "2026-10-01T23:43:02.641000+00:00",
+      "unclocked_rows": 170,
+      "native_btc_missing_fields": [
+        {
+          "size": 90450,
+          "aggressor_side": 90450,
+          "buyer_is_maker": 90450,
+          "connection_epoch": 90450,
+          "stream_sequence": 90450
+        }
+      ],
+      "strict_execution_ready": false
+    },
+    {
+      "run_id": 36946930986,
+      "artifact_id": 11211928328,
+      "archive_sha256": "27ff07b00e02ba7f8e1dbb65b15c1b24f56d3c67fa7b900e44bba634273c48d3",
+      "cache_key": "ef01035c147a75a570e4362bae00e245458f2cd33d61d8870e39a5ae8b1d2ccc",
+      "total_rows": 2681336,
+      "streams": 12,
+      "markets": 56,
+      "book_rows": 62506,
+      "first_book_receipt": "2026-10-02T00:38:18.908000+00:00",
+      "last_book_receipt": "2026-10-02T05:08:17.837000+00:00",
+      "unclocked_rows": 168,
+      "native_btc_missing_fields": [
+        {
+          "size": 203195,
+          "aggressor_side": 203195,
+          "buyer_is_maker": 203195,
+          "connection_epoch": 203195,
+          "stream_sequence": 203195
+        }
+      ],
+      "strict_execution_ready": false
+    },
+    {
+      "run_id": 36972067946,
+      "artifact_id": 11223529440,
+      "archive_sha256": "5b6547cbeffea39a7955ecb821d676af392374a6655075f2bc0d90f29d9f1d8c",
+      "cache_key": "219f0f5f2f1189c3ff14e4bf2d59b103224a6bd8133896e96876bae40bf0ff09",
+      "total_rows": 2221080,
+      "streams": 12,
+      "markets": 56,
+      "book_rows": 64952,
+      "first_book_receipt": "2026-10-02T06:08:19.480000+00:00",
+      "last_book_receipt": "2026-10-02T10:38:18.372000+00:00",
+      "unclocked_rows": 182,
+      "native_btc_missing_fields": [
+        {
+          "size": 172699,
+          "aggressor_side": 172699,
+          "buyer_is_maker": 172699,
+          "connection_epoch": 172699,
+          "stream_sequence": 172699
+        }
+      ],
+      "strict_execution_ready": false
+    },
+    {
+      "run_id": 37002779006,
+      "artifact_id": 11242782114,
+      "archive_sha256": "c2e939b392158ce00dc09788d4855870b45208f952a1819f02dfb760c4d702ed",
+      "cache_key": "cec577943ab5b33b0cc83dfcf121fb4dadaea44fd5020e66c2829f7954932918",
+      "total_rows": 2853374,
+      "streams": 12,
+      "markets": 56,
+      "book_rows": 61010,
+      "first_book_receipt": "2026-10-02T11:46:15.707000+00:00",
+      "last_book_receipt": "2026-10-02T16:16:14.377000+00:00",
+      "unclocked_rows": 273,
+      "native_btc_missing_fields": [
+        {
+          "size": 346952,
+          "aggressor_side": 346952,
+          "buyer_is_maker": 346952,
+          "connection_epoch": 346952,
+          "stream_sequence": 346952
+        }
+      ],
+      "strict_execution_ready": false
+    },
+    {
+      "run_id": 37041041140,
+      "artifact_id": 11255423861,
+      "archive_sha256": "39a5428779aa2937000fa420430dfa11cd0fc46c67d3ea7d82b503303b22bc5f",
+      "cache_key": "1a73b86d59d8a307e4655276a1bb033a91b33cef958e0bc4b9c5cf83f139b07b",
+      "total_rows": 2437399,
+      "streams": 12,
+      "markets": 55,
+      "book_rows": 62708,
+      "first_book_receipt": "2026-10-02T17:30:01.877000+00:00",
+      "last_book_receipt": "2026-10-02T22:00:00.468000+00:00",
+      "unclocked_rows": 234,
+      "native_btc_missing_fields": [
+        {
+          "size": 166263,
+          "aggressor_side": 166263,
+          "buyer_is_maker": 166263,
+          "connection_epoch": 166263,
+          "stream_sequence": 166263
+        }
+      ],
+      "strict_execution_ready": false
+    },
+    {
+      "run_id": 37075141917,
+      "artifact_id": 11262924595,
+      "archive_sha256": "0dfc5a47450fe81a4455a9458cad246a72788dec98fd0b9e96a52a541c115ed6",
+      "cache_key": "98f113393a326418b954da151eac5ad8a98b74103eafabd2915991bf226f2a24",
+      "total_rows": 1431401,
+      "streams": 12,
+      "markets": 56,
+      "book_rows": 59022,
+      "first_book_receipt": "2026-10-02T22:57:25.977000+00:00",
+      "last_book_receipt": "2026-10-03T03:27:24.572000+00:00",
+      "unclocked_rows": 246,
+      "native_btc_missing_fields": [
+        {
+          "size": 47376,
+          "aggressor_side": 47376,
+          "buyer_is_maker": 47376,
+          "connection_epoch": 47376,
+          "stream_sequence": 47376
+        }
+      ],
+      "strict_execution_ready": false
+    }
+  ],
+  "source_latest_commit": "7aa7767d1484dce44bb9d250e8c835702074ca8f",
+  "source_increment": "Legacy C/D/F/G/I/J tables updated with recording 38801525953; not corrected V3 qualification. Shadow run has no downloadable artifact.",
+  "code_commit": "b6bd60e112b855365d46cc0cf43c56793e6a4305",
+  "new_strategy_evaluations": 0,
+  "pnl": null,
+  "formal_oos_result": null,
+  "qualified_mechanisms": 0
+}
