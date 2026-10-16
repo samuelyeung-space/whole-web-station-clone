@@ -133,6 +133,42 @@ class ReplayLabCliTests(unittest.TestCase):
         self.assertIsNone(error["pnl"])
         self.assertFalse((self.root / "runs").exists())
 
+    def test_assumed_constraints_need_explicit_flag_and_still_enforce_minimum_and_tick(self):
+        rows = [json.loads(line) for line in self.tape.read_text().splitlines()]
+        rows[0].update(strict_execution_admitted=False, metadata_availability_assumed=True,
+                       assumptions={"constraints": "retrospective Gamma values"},
+                       limitations=["Synthetic historical sensitivity with assumed constraints"])
+        rows[2]["constraints_source"] = "retrospective_recorded_Gamma"
+        self.tape.write_text("".join(json.dumps(row) + "\n" for row in rows))
+        strict = self.pipeline()
+        strict_path = Path(strict["run_path"])
+        strict_metrics = json.loads((strict_path / "metrics.json").read_text())
+        self.assertTrue(all(row["net_pnl_usd"] is None and
+                            row["status_counts"].get("rejected_missing_required_constraints_at_decision") == 1
+                            for row in strict_metrics))
+        admitted = self.pipeline("--allow-assumed-constraints")
+        admitted_path = Path(admitted["run_path"])
+        metrics = json.loads((admitted_path / "metrics.json").read_text())
+        self.assertTrue(all(row["full_fills"] == 1 and abs(row["net_pnl_usd"] - 58.32) < 1e-9
+                            for row in metrics))
+        self.assertNotEqual(strict["run_key"], admitted["run_key"])
+        for path, required in ((strict_path, True), (admitted_path, False)):
+            registration = json.loads((path / "registration.json").read_text())
+            self.assertIs(registration["scenarios"][0]["config"]["require_constraints"], required)
+        report = next(admitted_path.glob("*/report.md")).read_text()
+        self.assertIn("不是严格执行验证", report)
+        self.assertIn("retrospective Gamma values", report)
+        below = self.pipeline("--allow-assumed-constraints", "--shares", "4")
+        below_metrics = json.loads((Path(below["run_path"]) / "metrics.json").read_text())
+        self.assertTrue(all(row["status"] == "blocked_below_market_min_order_size" for row in below_metrics))
+        rows[3]["up_asks"] = [[.405, 100]]
+        self.tape.write_text("".join(json.dumps(row) + "\n" for row in rows))
+        off_tick = self.pipeline("--allow-assumed-constraints")
+        tick_metrics = json.loads((Path(off_tick["run_path"]) / "metrics.json").read_text())
+        self.assertTrue(all(row["full_fills"] == 0 and
+                            row["status_counts"].get("rejected_limit_not_on_token_tick_at_decision") == 1
+                            for row in tick_metrics))
+
 
 if __name__ == "__main__":
     unittest.main()

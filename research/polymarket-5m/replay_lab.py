@@ -37,7 +37,7 @@ def numbers(text, kind=float):
     return result
 
 
-def import_inputs(paths, root, input_type='auto'):
+def import_inputs(paths, root, input_type='auto', allow_unresolved_history=False):
     from replay_dataset import ingest
     from replay_raw import prepare_raw
     normalized = []
@@ -50,7 +50,8 @@ def import_inputs(paths, root, input_type='auto'):
         if kind == 'normalized':
             normalized.append(path)
         else:
-            result = prepare_raw(path, Path(root)/'raw')
+            result = (prepare_raw(path, Path(root)/'raw', allow_unresolved=True)
+                      if allow_unresolved_history else prepare_raw(path, Path(root)/'raw'))
             raw.append({k: result[k] for k in ('cache_key', 'cache_hit', 'elapsed_seconds')})
             normalized.append(result['normalized_path'])
     result = ingest(normalized, Path(root)/'datasets')
@@ -79,7 +80,8 @@ def run_cached(args, cache_path=None):
             latencies_ms=args.latencies_ms, max_quote_age_ms=args.max_quote_age_ms,
             depth_fraction=depth, extra_cost_per_filled_share_usd=extra,
             cash_release_delay_ms=delay, full_or_zero=args.full_or_zero,
-            require_constraints=True)
+            require_constraints=not getattr(args, 'allow_assumed_constraints', False),
+            side_specific_books=getattr(args, 'side_specific_books', False))
         configs.append({'name': f'shares{size:g}_{stress}_release{delay}', 'config': asdict(config)})
     modules = [sys.modules[__name__], ds, runner, runner.ex, reports,
                importlib.import_module('mine500_constraints')]
@@ -129,11 +131,13 @@ def run_cached(args, cache_path=None):
             raise ValueError('require-full-days must be nonnegative')
         if args.require_full_days and longest_run < args.require_full_days:
             raise ValueError(f'request requires {args.require_full_days} consecutive complete recording days; only {len(complete_days)} complete days, longest run {longest_run}; see dataset coverage')
-        events = list(ds.iter_events(cache))
         metrics = []
         for scenario in configs:
             tick = time.perf_counter()
-            result = runner.execute(events, loaded, scenario['config'], mode=args.mode, priority=args.priority)
+            # The engine consumes receipt-ordered events once. Stream each
+            # scenario instead of materializing weeks of nested book objects.
+            # iter_events re-verifies the immutable tape before each scenario.
+            result = runner.execute(ds.iter_events(cache), loaded, scenario['config'], mode=args.mode, priority=args.priority)
             result['scenario'] = scenario['name']
             result['wall_seconds_execution'] = time.perf_counter()-tick
             scenario_dir = stage/scenario['name']
@@ -173,6 +177,10 @@ def add_run_options(parser, with_cache=True):
     parser.add_argument('--cash', type=float, default=1000.)
     parser.add_argument('--stresses', default='base', help='base,half_depth,plus_1cent; scenarios never summed')
     parser.add_argument('--full-or-zero', action='store_true', help='full-depth sensitivity, not actual FAK')
+    parser.add_argument('--side-specific-books', action='store_true',
+                        help='explicit recorded-side historical lane; missing opposite books stay blocked')
+    parser.add_argument('--allow-assumed-constraints', action='store_true',
+                        help='historical sensitivity only: enforce supplied tick/minimum values but allow missing official contemporaneous provenance')
     parser.add_argument('--max-quote-age-ms', type=int, default=250)
     parser.add_argument('--require-full-days', type=int, default=0, help='reject request if complete recording days are insufficient')
 
@@ -183,19 +191,22 @@ def main(argv=None):
     p = sub.add_parser('import', help='admit one or more local normalized tapes or recording ZIP/TGZ/directories')
     p.add_argument('--input', nargs='+', required=True); p.add_argument('--cache-root', required=True)
     p.add_argument('--input-type', choices=['auto', 'raw', 'normalized'], default='auto')
+    p.add_argument('--allow-unresolved-history', action='store_true', help='keep missing outcomes as null in development intake')
     r = sub.add_parser('run', help='replay plugins against one reusable cache'); add_run_options(r)
     p = sub.add_parser('pipeline', help='import once then run; safe to repeat after new inputs arrive')
     p.add_argument('--input', nargs='+', required=True); p.add_argument('--cache-root', required=True)
-    p.add_argument('--input-type', choices=['auto', 'raw', 'normalized'], default='auto'); add_run_options(p, False)
+    p.add_argument('--input-type', choices=['auto', 'raw', 'normalized'], default='auto')
+    p.add_argument('--allow-unresolved-history', action='store_true', help='keep missing outcomes as null in development intake')
+    add_run_options(p, False)
     p = sub.add_parser('inspect', help='show verified coverage and data limitations'); p.add_argument('--cache', required=True)
     p = sub.add_parser('catalog', help='inspect plugins without evaluating signals')
     p.add_argument('--strategy', action='append', required=True); p.add_argument('--plugin-dir', action='append', default=[])
     args = ap.parse_args(argv)
     try:
         if args.command == 'import':
-            result = import_inputs(args.input, args.cache_root, args.input_type)
+            result = import_inputs(args.input, args.cache_root, args.input_type, args.allow_unresolved_history)
         elif args.command == 'pipeline':
-            data = import_inputs(args.input, args.cache_root, args.input_type)
+            data = import_inputs(args.input, args.cache_root, args.input_type, args.allow_unresolved_history)
             result = run_cached(args, data['cache_path'])
         elif args.command == 'run':
             result = run_cached(args)

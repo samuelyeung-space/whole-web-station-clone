@@ -16,13 +16,13 @@ import mine500_replay_v2 as replay
 def sha(path):
     with Path(path).open('rb') as f:return hashlib.file_digest(f,'sha256').hexdigest()
 
-def normalize(parent,projection,stream_audit,out):
+def normalize(parent,projection,stream_audit,out, *, allow_unresolved=False):
     parent,projection,out=map(Path,(parent,projection,out));root=parent/'bundle-btc/strict'
     evidence=json.loads(Path(stream_audit).read_text());manifest=json.loads((root/'manifest.json').read_text())
     projected=json.loads((projection/'manifest.json').read_text())
     if 'clob' in evidence['stream_validation_errors'] or any(k.startswith('clob_') for k in evidence['count_mismatches']):
         raise ValueError('CLOB contract or counts failed')
-    if evidence['run_id']!=manifest['run_id'] or not manifest['recorder_complete'] or manifest['missing_resolved_market_ids']:
+    if evidence['run_id']!=manifest['run_id'] or not manifest['recorder_complete'] or (manifest['missing_resolved_market_ids'] and not allow_unresolved):
         raise ValueError('recording identity or completeness mismatch')
     for name in ('manifest.json','clob_events.jsonl.gz','market_registry.csv.gz','market_outcomes.csv.gz'):
         if sha(root/name)!=evidence['input_sha256'][name]:raise ValueError('audited input drift: '+name)
@@ -77,6 +77,8 @@ def normalize(parent,projection,stream_audit,out):
             'base_adapter_sha256':sha(adapter.__file__)},
         'coverage_start_ms':start,'coverage_end_ms':end,'observed_hours':(end-start)/3600000,
         'decision_grid_ms':1000,'supported_latencies_ms':[500,600,1000],
+        'unresolved_market_policy':'retain_orders_and_null_unresolved_pnl' if allow_unresolved else 'original_complete_outcomes_gate',
+        'recorded_missing_outcome_market_ids':manifest['missing_resolved_market_ids'],
         'book_resolution':'decision_and_match_projection','original_manifest_complete':manifest['complete'],
         'limitations':['new development lane; no original freeze inheritance','displayed-depth upper bound, not actual fills',
             'aggressor direction and official TWAP tails absent','Gamma availability is not actual spendable cash; no cash reuse needed at five shares and <=56 markets',

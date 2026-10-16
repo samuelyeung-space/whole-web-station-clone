@@ -54,6 +54,7 @@ class ReplayConfig:
     depth_fraction: float = 1.0
     extra_cost_per_filled_share_usd: float = 0.0
     cash_release_delay_ms: int = 0
+    side_specific_books: bool = False
 
     def __post_init__(self):
         if type(self.cash_release_delay_ms) is not int or self.cash_release_delay_ms < 0:
@@ -70,6 +71,8 @@ class ReplayConfig:
             raise ValueError("max_quote_age_ms must be a nonnegative integer")
         if type(self.require_constraints) is not bool:
             raise ValueError("require_constraints must be boolean")
+        if type(self.side_specific_books) is not bool:
+            raise ValueError("side_specific_books must be boolean")
         if not _number(self.depth_fraction) or not 0 < self.depth_fraction <= 1:
             raise ValueError("depth_fraction must be in (0, 1]")
         for name in ("min_notional_usd", "extra_cost_per_filled_share_usd"):
@@ -125,9 +128,46 @@ def _levels(value):
     return sorted(levels.items())
 
 
-def _book(raw, now, config):
+def _book(raw, now, config, requested_side=None, execution_book_sides=None):
+    """Validate executable depth without reconstructing an unrecorded token.
+
+    The default retains the original two-token contract. The explicit historical
+    side lane requires an original selected-token receipt timestamp and health
+    flag; envelope freshness or the other token's health cannot substitute.
+    """
     if raw is None:
         return None, "missing_book"
+    if config.side_specific_books:
+        if requested_side not in ("Up", "Down"):
+            raise ValueError("side-specific book validation requires Up or Down")
+        side = requested_side.lower()
+        if execution_book_sides is not None and requested_side not in execution_book_sides:
+            return None, "missing_" + side + "_book"
+        if raw.get(side + "_asks") is None:
+            return None, "missing_" + side + "_book"
+        side_recv = raw.get(side + "_recv_ms")
+        if not _number(side_recv):
+            return None, "missing_" + side + "_book_timestamp"
+        # The stored receipt must itself be known by the enclosing event, not
+        # merely by the later matching time.
+        if (not _number(raw.get("recv_ms")) or raw["recv_ms"] > now or side_recv > raw["recv_ms"]
+                or not 0 <= now - side_recv <= config.max_quote_age_ms):
+            return None, "stale_" + side + "_book"
+        health = raw.get("side_healthy")
+        side_health = (health.get(requested_side, health.get(side))
+                       if isinstance(health, dict) else raw.get(side + "_healthy"))
+        if type(side_health) is not bool:
+            return None, "missing_" + side + "_book_health"
+        if side_health is not True:
+            return None, "unhealthy_" + side + "_book"
+        fee = raw.get("fee_rate")
+        if not _number(fee) or not 0 <= fee <= 1:
+            return None, "missing_or_invalid_fee"
+        try:
+            return {requested_side: _levels(raw[side + "_asks"]),
+                    "fee_rate": float(fee)}, None
+        except ValueError as exc:
+            return None, str(exc) + "_" + side
     if raw.get("healthy") is not True:
         return None, "unhealthy_book"
     age = now - raw["recv_ms"]
@@ -290,7 +330,8 @@ def replay_events(events: Iterable[dict], candidates: list[dict],
         if market is None or when >= market["end_ms"]:
             attempt["status"] = "rejected_market_closed_at_match"
             return
-        book, error = _book(books.get(attempt["market_id"]), when, config)
+        book, error = _book(books.get(attempt["market_id"]), when, config, attempt["side"],
+                            (dataset or {}).get("execution_book_sides"))
         if error:
             attempt["status"] = "rejected_" + error + "_at_match"
             return
@@ -375,6 +416,12 @@ def replay_events(events: Iterable[dict], candidates: list[dict],
                     raise ValueError("projection does not support requested total latency")
                 if type(grid) is not int or grid <= 0:
                     raise ValueError("projection requires fixed positive decision_grid_ms")
+                if config.side_specific_books:
+                    sides = event.get("execution_book_sides")
+                    if (not isinstance(sides, list) or not sides
+                            or any(side not in ("Up", "Down") for side in sides)
+                            or len(set(sides)) != len(sides)):
+                        raise ValueError("side-specific projection requires explicit unique execution_book_sides")
             return
         market_id = event.get("market_id")
         if not isinstance(market_id, str) or not market_id:
@@ -404,9 +451,13 @@ def replay_events(events: Iterable[dict], candidates: list[dict],
             constraint_updates[market_id] = merged
             return
         if kind == "book":
-            if (dataset and dataset.get("book_resolution") == "decision_and_match_projection"
-                    and any(name not in event for name in ("up_recv_ms", "down_recv_ms"))):
-                raise ValueError("projected books must preserve both original side receipt timestamps")
+            if dataset and dataset.get("book_resolution") == "decision_and_match_projection":
+                if config.side_specific_books:
+                    if any(side.lower() + "_recv_ms" not in event
+                           for side in dataset["execution_book_sides"]):
+                        raise ValueError("projected books must preserve declared original side receipt timestamps")
+                elif any(name not in event for name in ("up_recv_ms", "down_recv_ms")):
+                    raise ValueError("projected books must preserve both original side receipt timestamps")
             # Invalid new books replace old books too. Never resurrect stale depth.
             books[market_id] = event
             return
@@ -481,7 +532,8 @@ def replay_events(events: Iterable[dict], candidates: list[dict],
             if side not in ("Up", "Down"):
                 raise ValueError(f"invalid signal return for {cid}: {side!r}")
             seen.add((cid, market_id))
-            book, book_error = _book(books.get(market_id), now, config)
+            book, book_error = _book(books.get(market_id), now, config, side,
+                                     (dataset or {}).get("execution_book_sides"))
             for latency in config.latencies_ms:
                 ledger = ledgers[(cid, latency)]
                 attempt = {"candidate_id": cid, "latency_ms": latency, "market_id": market_id,
@@ -581,7 +633,8 @@ def replay_events(events: Iterable[dict], candidates: list[dict],
             qty = sum(row["filled_shares"] for row in filled)
             incomplete = any(row["status"] == "incomplete_match_horizon" for row in rows) or len(filled) != len(settled)
             missing_execution_inputs = any(any(marker in row["status"] for marker in (
-                "missing_book", "missing_or_invalid_fee", "missing_asks", "invalid_asks",
+                "missing_book", "missing_up_book", "missing_down_book",
+                "missing_or_invalid_fee", "missing_asks", "invalid_asks",
                 "fee_changed_after_decision", "invalid_min_order_size_metadata",
                 "missing_required_constraints", "invalid_constraint_timestamp", "invalid_up_tick_size_metadata",
                 "invalid_down_tick_size_metadata")) for row in rows)
@@ -649,6 +702,7 @@ def replay_events(events: Iterable[dict], candidates: list[dict],
         "fee_rounding_limitation": "Official precision is 5 decimal places and fees smaller than 0.00001 round to zero. Aggregate-order scope and HALF_UP tie handling are assumptions. Actual maker-trade partitions and venue rounding granularity are unavailable; this is not an exact exchange bill.",
         "fee_precision_reference": {"url": "https://docs.polymarket.com/trading/fees", "checked_utc_date": "2026-10-11"},
         "latency_clock": "local_decision_to_match_total_including_venue_wait",
+        "book_validation_mode": "selected_side_original_receipt_health_and_depth" if config.side_specific_books else "both_sides_required",
         "recording_coverage_policy": "decision_and_match_must_share_one_inclusive_observed_interval_when_supplied",
         "capital_scope": "each_candidate_and_latency_has_independent_cash_do_not_sum",
         "diagnostics": dict(diagnostics), "summary": summary, "attempts": attempts,

@@ -149,7 +149,7 @@ def extract_recording(source, destination):
     return manifests[0].parent.parent.parent
 
 
-def prepare_raw(source, cache_root):
+def prepare_raw(source, cache_root, *, allow_unresolved=False):
     """Return a reusable normalized tape, or retain failed-intake diagnostics."""
     import historical_stream_audit as audit
     import historical_spot_development as normalizer
@@ -171,7 +171,8 @@ def prepare_raw(source, cache_root):
     codes = {Path(m.__file__).name: sha(m.__file__) for m in
              (audit, normalizer, projection, adapter, contracts)}
     codes['replay_raw.py'] = sha(__file__)
-    identity = {'schema': 'replay-raw-v1', 'inputs': inputs, 'code_sha256': codes}
+    identity = {'schema': 'replay-raw-v1', 'inputs': inputs, 'code_sha256': codes,
+                'unresolved_policy': 'retain_null' if allow_unresolved else 'original_complete_gate'}
     key = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
     destination = cache_root/key
     if destination.exists():
@@ -198,7 +199,11 @@ def prepare_raw(source, cache_root):
         auditpath = stage/'stream_audit.json'
         auditpath.write_text(json.dumps(evidence, indent=2, allow_nan=False))
         projection.project(parent/'bundle-btc/strict/source_events.jsonl.gz', stage/'spot')
-        evidence = normalizer.normalize(parent, stage/'spot', auditpath, stage/'normalized.jsonl.gz')
+        if allow_unresolved:
+            evidence = normalizer.normalize(parent, stage/'spot', auditpath,
+                                             stage/'normalized.jsonl.gz', allow_unresolved=True)
+        else:
+            evidence = normalizer.normalize(parent, stage/'spot', auditpath, stage/'normalized.jsonl.gz')
         (stage/'normalization.json').write_text(json.dumps(evidence, indent=2, allow_nan=False))
         validate_normalized(stage/'normalized.jsonl.gz', evidence)
         # Derived source streams are regenerable; keep small audit files and the

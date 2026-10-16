@@ -324,7 +324,8 @@ def ingest(paths, cache_root):
     splits = {s['header']['split'] for s in scans}
     if len(splits) != 1:
         raise ValueError('mixed input split prohibited; ingest each research split separately')
-    fields = ('book_resolution', 'decision_grid_ms', 'supported_latencies_ms')
+    fields = ('book_resolution', 'decision_grid_ms', 'supported_latencies_ms',
+              'execution_book_sides')
     for field in fields:
         values = {_json(s['header'].get(field)) for s in scans}
         if len(values) != 1:

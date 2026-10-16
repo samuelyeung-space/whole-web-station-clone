@@ -162,3 +162,4 @@ def main():
         print(json.dumps({k:v for k,v in result.items() if k != 'manifest'}))
 
 if __name__ == '__main__': main()
+

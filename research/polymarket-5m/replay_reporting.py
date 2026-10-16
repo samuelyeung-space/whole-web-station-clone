@@ -311,7 +311,9 @@ def write_reports(out_dir, result: dict, coverage_manifest: dict | None, registr
              '这是历史录制上的开发仿真。盘口深度仅给出成交容量上界，不代表真实成交。', '',
              f'资金口径：{scope}。不同延迟和压力情景是相关对照，不能相加。',
              '每天理论为 288 个五分钟时段；七天为 2016 个时段。下表覆盖数必须依据录制清单，信号数和成交数不能替代覆盖数。',
-             '日归属按市场开始时间的 UTC 日期；资金回收按官方结果本地获知时间及登记的回收延迟。',
+             ('日归属按市场开始时间的 UTC 日期；资金回收按输入登记的历史假设时间及回收延迟，不能当作实测结算可用时间。'
+              if result.get('inherited_execution_assumptions') else
+              '日归属按市场开始时间的 UTC 日期；资金回收按官方结果本地获知时间及登记的回收延迟。'),
              '回撤仅为已实现收益回撤，未计算逐时盯市回撤。缺失或未结算结果保持 null；CSV 空白表示 null。', '',
              '| UTC 市场日 | 理论时段 | 注册市场 | 录制跨度触及 | 完整跨度时段 | 录制秒数 |',
              '|---|---:|---:|---:|---:|---:|']
@@ -321,6 +323,11 @@ def write_reports(out_dir, result: dict, coverage_manifest: dict | None, registr
             fmt(info.get('complete_span_slots')), fmt(info.get('observed_seconds'))]) + ' |')
     if not coverage:
         lines.append('| 未提供覆盖清单 | null | null | null | null | null |')
+    if result.get('inherited_execution_assumptions'):
+        lines += ['', '**本批属于历史敏感性仿真：费用、交易约束或结算获知时间含显式假设，不是严格执行验证。**',
+                  '源数据限制：']
+        lines += ['- ' + str(x) for x in result.get('limitations', [])]
+        lines += ['执行假设：`' + json.dumps(result['inherited_execution_assumptions'], ensure_ascii=False, sort_keys=True) + '`']
     lines += ['', '录制跨度只说明时间区间覆盖，不能证明完整健康的双边盘口或逐笔成交；未提供的覆盖值为 null。', '',
              '| 候选 | 总延迟 ms | 首信号/尝试 | 已发单 | 成交订单 | 全成/部分 | 失败或未成 | 成交份数 | 费用 $ | 净收益 $ | 每份净收益 $ |',
              '|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|']

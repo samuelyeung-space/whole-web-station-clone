@@ -339,4 +339,32 @@ def execute(events: Iterable[dict], specs, config=None, mode="isolated", priorit
         "long binary taker held to official settlement only; no maker, short, hedge or scale-in execution",
         "realized drawdown only; cash release uses configured delay after locally known official outcome",
         "isolated candidate results and alternative latency scenarios must not be added"]
+    headers = []
+    def collect(header):
+        if not isinstance(header, dict):
+            return
+        headers.append(header)
+        for source in header.get('provenance', {}).get('source_headers', []):
+            collect(source)
+    collect(result.get('dataset'))
+    for header in headers:
+        for limitation in header.get('limitations', []):
+            if limitation not in result['limitations']:
+                result['limitations'].append(limitation)
+    result['inherited_execution_assumptions'] = [
+        {'dataset_id': h.get('dataset_id'), 'assumptions': h.get('assumptions'),
+         'strict_execution_admitted': h.get('strict_execution_admitted'),
+         'label_verified': h.get('label_verified')}
+        for h in headers if h.get('metadata_availability_assumed') or h.get('strict_execution_admitted') is False]
+    if not config.require_constraints:
+        result['inherited_execution_assumptions'].append({
+            'source': 'explicit_run_configuration',
+            'strict_execution_admitted': False,
+            'assumptions': {'constraint_provenance': 'official contemporaneous provenance not required; supplied tick/minimum still enforced'}})
+    if result['inherited_execution_assumptions']:
+        result['evidence_lane'] = 'limited_historical_sensitivity_not_strict_execution'
+        result['limitations'] = [x for x in result['limitations']
+            if x not in ('long binary taker held to official settlement only; no maker, short, hedge or scale-in execution',
+                         'realized drawdown only; cash release uses configured delay after locally known official outcome')]
+        result['limitations'].append('upstream settlement labels and explicitly assumed execution metadata; no verified local outcome availability')
     return result
