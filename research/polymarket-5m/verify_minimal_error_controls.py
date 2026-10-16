@@ -33,6 +33,8 @@ def verify(root,old):
                     if xx[k]!=yy[k]:raise ValueError('summary parity failed '+k)
                 comparisons.append({'scenario':scenario,'new':new,'old':previous,'latency_ms':latency,'attempts':len(x[(new,latency)]),'exact_attempts_and_summary_equal':True})
     base={r['candidate_id']:r for r in a['base500_all']};matched=[]
+    primary_groups=groups(path(a)/'shares100_base_release0')
+    new_attempts=[row for c in candidates()[:8] for row in primary_groups[(c['id'],500)]]
     for c in candidates()[:8]:
         actual,control=base[c['id']],base[c['id']+'-MATCHED']
         stress=[r for r in a['modes']['isolated']['metrics'] if r['candidate_id']==c['id']]
@@ -42,6 +44,9 @@ def verify(root,old):
     result={'status':'passed','assessment_sha256':sha(root/'assessment.json'),'old_assessment_sha256':sha(old/'assessment.json'),
         'exact_original_rule_comparisons':comparisons,'new_rules_with_matched_controls':matched,
         'excluded_identity_fields':['candidate_id','attempt_id (global catalog-dependent row ordinal)'],
+        'new_primary_rule_attempts':len(new_attempts),
+        'new_primary_unique_signal_markets':len({r['market_id'] for r in new_attempts}),
+        'new_primary_unique_decision_utc_dates':len({int(r['decision_ms']//86400000) for r in new_attempts}),
         'warning':'different first signals imply different cash/fill sets; PnL differences are not treatment effects or OOS',
         'formal_oos_result':None}
     (root/'independent_controls.json').write_text(json.dumps(result,indent=2)+'\n')
