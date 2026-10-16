@@ -19,7 +19,8 @@ from typing import Any
 
 DAY_MS = 86_400_000
 MISSING_EXECUTION_MARKERS = (
-    'missing_book', 'missing_or_invalid_fee', 'missing_asks', 'invalid_asks',
+    'missing_book', 'missing_up_book', 'missing_down_book',
+    'missing_or_invalid_fee', 'missing_asks', 'invalid_asks',
     'fee_changed_after_decision', 'invalid_min_order_size_metadata',
     'missing_required_constraints', 'invalid_constraint_timestamp',
     'invalid_up_tick_size_metadata', 'invalid_down_tick_size_metadata',

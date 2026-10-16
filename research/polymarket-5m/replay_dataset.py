@@ -143,7 +143,10 @@ def _check_event(event, header, markets, outcomes, previous):
         for name in names:
             if name not in event:
                 continue
-            if not _number(event[name]) or event[name] <= 0:
+            # Explicit null invalidates an earlier constraint (for example on
+            # reconnect). Preserve it: the execution engine must fail closed
+            # until a later causal valid observation restores this field.
+            if event[name] is not None and (not _number(event[name]) or event[name] <= 0):
                 raise ValueError('constraints must be finite and positive')
             at = event.get(name + '_available_ms', now)
             if not _number(at) or at > now:
@@ -185,6 +188,10 @@ def _scan(path):
                         issues['missing_feature_availability:' + name] += 1
                     elif available[name] > now:
                         issues['future_feature:' + name] += 1
+        elif kind == 'constraint':
+            for name in ('min_order_size', 'up_tick_size', 'down_tick_size'):
+                if name in event and event[name] is None:
+                    issues['null_constraint:' + name] += 1
         elif kind == 'book':
             for side in ('up','down'):
                 if not _number(event.get(side+'_recv_ms',now)):
@@ -298,9 +305,18 @@ def verify_cache(cache_dir):
 
 
 def iter_events(cache_dir):
-    """Hash-verify the immutable tape before yielding any event."""
+    """Hash-verify the immutable canonical tape before yielding any event.
+
+    Ingest already parsed, validated and serialized every record with finite
+    JSON checks. Repeating that serialization on every replay only burns CPU;
+    verified unchanged cache bytes can be decoded directly. External inputs
+    still go through _records/_scan and retain all admission checks.
+    """
     verify_cache(cache_dir)
-    yield from _records(Path(cache_dir) / 'events.jsonl.gz')
+    with gzip.open(Path(cache_dir) / 'events.jsonl.gz', 'rt', encoding='utf-8') as stream:
+        for line in stream:
+            if line.strip():
+                yield json.loads(line)
 
 
 def ingest(paths, cache_root):

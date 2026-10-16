@@ -106,6 +106,43 @@ class ReportsTests(unittest.TestCase):
             self.assertEqual(d['unresolved_positions'], '1')
             self.assertIn('null', Path(paths['report']).read_text())
 
+    def test_missing_side_book_does_not_turn_profitable_subset_into_complete_day(self):
+        for marker in ('missing_down_book', 'missing_up_book',
+                       'missing_down_book_timestamp', 'missing_up_book_health'):
+            with self.subTest(marker=marker), tempfile.TemporaryDirectory() as directory:
+                missing = attempt(market_id='b', side='Down', submitted=False,
+                    status='rejected_' + marker + '_at_decision', filled_shares=0,
+                    cost_usd=0, fees_usd=0, settled=False, payout_usd=None,
+                    net_pnl_usd=None, reserved_usd_at_decision=0,
+                    cash_after_match=None, cash_after_settlement=None,
+                    decision_ms=START+301_000, match_ms=START+301_500)
+                missing_only_day = dict(missing, market_id='c',
+                    decision_ms=START+86_401_000, match_ms=START+86_401_500)
+                data = manifest()
+                data['markets'].extend([
+                    {'market_id': 'b', 'start_ms': START+300_000, 'end_ms': START+600_000},
+                    {'market_id': 'c', 'start_ms': START+86_400_000, 'end_ms': START+86_700_000}])
+                actual = result([attempt(), missing, missing_only_day])
+                actual['summary'][0].update(status='incomplete_missing_execution_inputs',
+                    net_pnl_usd=None, net_pnl_per_filled_share_usd=None)
+                paths = write_reports(directory, actual, data, {})
+                metrics = csv_rows(paths['metrics'])[0]
+                self.assertEqual(metrics['status'], 'incomplete_missing_execution_inputs')
+                self.assertEqual(metrics['net_pnl_usd'], '')
+                daily = {r['market_start_utc_date']: r for r in csv_rows(paths['daily'])}
+                for day in ('2026-10-08', '2026-10-09'):
+                    self.assertEqual(daily[day]['status'], 'incomplete_missing_execution_inputs')
+                    self.assertEqual(daily[day]['net_pnl_usd'], '')
+                    self.assertEqual(daily[day]['net_pnl_per_filled_share_usd'], '')
+                self.assertEqual(float(daily['2026-10-08']['realized_pnl_usd']), 1.75)
+                markets = {r['market_id']: r for r in csv_rows(paths['markets'])}
+                self.assertEqual(float(markets['a']['net_pnl_usd']), 1.75)
+                for mid in ('b', 'c'):
+                    self.assertEqual(markets[mid]['status'], 'incomplete_missing_execution_inputs')
+                    self.assertEqual(markets[mid]['net_pnl_usd'], '')
+                audit = json.loads(Path(paths['audit']).read_text())
+                self.assertEqual(audit['reporting']['reconciliation_differences'], [])
+
     def test_market_day_does_not_follow_late_outcome_cash_clock(self):
         row = attempt(settlement_ms=START + 86_500_000, cash_release_due_ms=START + 86_600_000)
         with tempfile.TemporaryDirectory() as directory:
