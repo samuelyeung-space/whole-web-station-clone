@@ -1,0 +1,42 @@
+name: Polymarket offline replay acceptance
+on:
+  push:
+    branches: [codex/btc5m-mine500-20261010]
+    paths:
+      - .github/workflows/polymarket-replay-acceptance.yml
+      - research/polymarket-5m/replay_cli.py
+      - research/polymarket-5m/test_replay_cli.py
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  offline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: research/polymarket-5m
+          persist-credentials: false
+      - name: Export replay source only
+        run: |
+          mkdir -p replay-delivery/source
+          find research/polymarket-5m -maxdepth 1 -type f \( -name '*.py' -o -name '*.md' \) -exec cp '{}' replay-delivery/source/ \;
+          git rev-parse HEAD > replay-delivery/SOURCE_COMMIT.txt
+      - name: Offline regression tests
+        working-directory: research/polymarket-5m
+        run: |
+          set -o pipefail
+          python3 -m unittest test_cached_strategy_replay test_legacy_recording_cache -v 2>&1 | tee ../../replay-base-tests.txt
+          if [ -f test_replay_cli.py ]; then
+            python3 -m unittest test_replay_cli -v 2>&1 | tee ../../replay-cli-tests.txt
+          fi
+      - name: Attach verification logs
+        if: always()
+        run: cp research/replay-*-tests.txt replay-delivery/ 2>/dev/null || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: offline-replay-source-and-tests
+          path: replay-delivery
+          retention-days: 7
