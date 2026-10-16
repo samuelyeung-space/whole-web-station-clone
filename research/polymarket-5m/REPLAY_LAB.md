@@ -205,6 +205,8 @@ def signal(candidate, features):
 
 Use `--strategy my_strategy:EXAMPLE-1` or `my_strategy:*`. Each run writes candidate rules, plugin/source and engine hashes, parameters and input identity **before** executing. Plugin source bytes are freshly compiled; old imported functions or `.pyc` cannot silently masquerade as a new version. Repeating identical inputs/rules/configuration verifies and reuses the completed result; changing them creates a new registered run.
 
+Before marking a result complete, and on every reuse, the lab also cross-checks each scenario audit against the final file sizes and hashes, fully decodes the compressed attempt ledger through its CRC/footer, and verifies its exact row count. A completion manifest that merely hashes truncated bytes cannot make those bytes valid. Integrity failures retain evidence and require an explicit, reconciled recovery; they do not silently turn into successful cache hits.
+
 Static local Python imports are included transitively in the plugin identity,
 including package initializers; changing a helper changes the run key. Workers
 reject changes made after registration. The interpreter and loader identity are

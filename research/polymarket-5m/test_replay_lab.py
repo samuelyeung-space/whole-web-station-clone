@@ -1,11 +1,16 @@
 """CLI integration acceptance: hand-computable synthetic data, not market results."""
 import json
+import gzip
+import hashlib
+import io
+from contextlib import redirect_stdout, redirect_stderr
 from pathlib import Path
 import subprocess
 import sys
 import tempfile
 import unittest
 import shutil
+from unittest.mock import patch
 
 
 HERE = Path(__file__).resolve().parent
@@ -123,6 +128,77 @@ class ReplayLabCliTests(unittest.TestCase):
         error = self.pipeline(expected=2)
         self.assertIn("corrupted", error["error"])
         self.assertIsNone(error["pnl"])
+
+    def rewrite_completion_hashes(self, target, update_audit=False):
+        """Model the incident where a final manifest records already bad bytes."""
+        ledger = next(target.glob('*/attempts.jsonl.gz'))
+        if update_audit:
+            audit_path = ledger.with_name('audit.json')
+            audit = json.loads(audit_path.read_text())
+            audit['reporting']['files']['attempts'].update(
+                sha256=hashlib.sha256(ledger.read_bytes()).hexdigest(), bytes=ledger.stat().st_size)
+            audit_path.write_text(json.dumps(audit))
+        completion_path = target / 'completion.json'
+        complete = json.loads(completion_path.read_text())
+        complete['output_sha256'] = {name: hashlib.sha256((target/name).read_bytes()).hexdigest()
+                                    for name in complete['output_sha256']}
+        completion_path.write_text(json.dumps(complete))
+
+    def test_matching_completion_hash_cannot_hide_truncated_report(self):
+        first = self.pipeline()
+        target = Path(first['run_path'])
+        ledger = next(target.glob('*/attempts.jsonl.gz'))
+        ledger.write_bytes(ledger.read_bytes()[:-8])
+        self.rewrite_completion_hashes(target)
+        error = self.pipeline(expected=2)
+        self.assertIn('audit/completion file integrity mismatch', error['error'])
+        self.assertIsNone(error['pnl'])
+
+    def test_matching_audit_and_completion_hashes_still_require_gzip_footer(self):
+        first = self.pipeline()
+        target = Path(first['run_path'])
+        ledger = next(target.glob('*/attempts.jsonl.gz'))
+        ledger.write_bytes(ledger.read_bytes()[:-8])
+        self.rewrite_completion_hashes(target, update_audit=True)
+        error = self.pipeline(expected=2)
+        self.assertIn('invalid completed attempt stream', error['error'])
+        self.assertIsNone(error['pnl'])
+
+    def test_valid_gzip_with_matching_hashes_cannot_drop_attempt_rows(self):
+        first = self.pipeline()
+        target = Path(first['run_path'])
+        ledger = next(target.glob('*/attempts.jsonl.gz'))
+        rows = gzip.decompress(ledger.read_bytes()).splitlines(keepends=True)
+        ledger.write_bytes(gzip.compress(b''.join(rows[:-1]), mtime=0))
+        self.rewrite_completion_hashes(target, update_audit=True)
+        error = self.pipeline(expected=2)
+        self.assertIn('attempt row count mismatch', error['error'])
+        self.assertIsNone(error['pnl'])
+
+    def test_corruption_after_scenario_audit_prevents_completion_publication(self):
+        import replay_lab as lab
+        import replay_reporting as reports
+        cache = self.cli('import', '--input', self.tape, '--cache-root', self.root/'cache')
+        write_reports = reports.write_reports
+
+        def corrupt_after_audit(*args, **kwargs):
+            paths = write_reports(*args, **kwargs)
+            ledger = Path(paths['attempts'])
+            ledger.write_bytes(ledger.read_bytes()[:-8])
+            return paths
+
+        stderr = io.StringIO()
+        with patch.object(reports, 'write_reports', side_effect=corrupt_after_audit), \
+                redirect_stdout(io.StringIO()), redirect_stderr(stderr):
+            status = lab.main(['run', '--cache', cache['cache_path'], '--out', str(self.root/'runs'),
+                '--plugin-dir', str(self.root), '--strategy', 'hand_strategy:HAND-1',
+                '--shares', '100', '--max-quote-age-ms', '1500'])
+        self.assertEqual(status, 2)
+        self.assertIn('audit/completion file integrity mismatch', stderr.getvalue())
+        self.assertFalse(list((self.root/'runs').glob('*/completion.json')))
+        failures = list((self.root/'runs').glob('*.pending.*/failed.json'))
+        self.assertEqual(len(failures), 1)
+        self.assertIsNone(json.loads(failures[0].read_text())['net_pnl_usd'])
 
     def test_normalized_input_missing_real_schema_metadata_fails_before_backtest(self):
         rows = [json.loads(line) for line in self.tape.read_text().splitlines()]

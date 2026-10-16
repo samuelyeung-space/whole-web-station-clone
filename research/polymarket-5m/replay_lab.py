@@ -7,6 +7,7 @@ from __future__ import annotations
 import argparse
 from dataclasses import asdict
 from datetime import datetime, timezone
+import gzip
 import hashlib
 import importlib
 import itertools
@@ -15,6 +16,7 @@ from pathlib import Path
 import sys
 import tempfile
 import time
+import zlib
 
 
 def sha(path):
@@ -28,6 +30,55 @@ def dump(path, data):
 
 def fingerprint(data):
     return hashlib.sha256(json.dumps(data, sort_keys=True, separators=(',', ':'), allow_nan=False).encode()).hexdigest()
+
+
+def verify_report_integrity(run_dir, scenarios, output_sha256):
+    """Cross-check completed bytes against scenario audits and decode all attempts.
+
+    A completion manifest can accidentally hash an already truncated file. Its
+    checksum alone is therefore insufficient evidence that a report is complete.
+    This is an output integrity gate; it does not change signals or economics.
+    """
+    root = Path(run_dir)
+    required = {'metrics': 'metrics.csv', 'daily': 'daily.csv', 'markets': 'markets.csv',
+                'cash_ledger': 'cash_ledger.csv', 'attempts': 'attempts.jsonl.gz',
+                'report': 'report.md'}
+    for scenario in scenarios:
+        name = scenario['name']
+        if Path(name).name != name or name in ('.', '..'):
+            raise ValueError('invalid report scenario name')
+        directory = root / name
+        audit_path = directory / 'audit.json'
+        audit = json.loads(audit_path.read_text())
+        if output_sha256.get(f'{name}/audit.json') != sha(audit_path):
+            raise ValueError('report audit/completion hash mismatch: ' + name)
+        reporting = audit['reporting']
+        files = reporting['files']
+        if set(files) != set(required):
+            raise ValueError('report audit file inventory mismatch: ' + name)
+        for kind, filename in required.items():
+            expected = files[kind]
+            path = directory / filename
+            relative = f'{name}/{filename}'
+            actual = sha(path)
+            if (expected['filename'] != filename or expected['bytes'] != path.stat().st_size
+                    or expected['sha256'] != actual or output_sha256.get(relative) != actual):
+                raise ValueError('report audit/completion file integrity mismatch: ' + relative)
+        expected_rows = reporting['attempt_row_count']
+        if type(expected_rows) is not int or expected_rows < 0:
+            raise ValueError('invalid report attempt row count: ' + name)
+        count = 0
+        try:
+            # Exhaust the stream: gzip verifies its footer/CRC only at EOF.
+            with gzip.open(directory / required['attempts'], 'rt', encoding='utf-8') as stream:
+                for line in stream:
+                    if not line.endswith('\n') or not isinstance(json.loads(line), dict):
+                        raise ValueError('attempt is not a complete JSON object line')
+                    count += 1
+        except (EOFError, OSError, UnicodeError, ValueError, zlib.error) as exc:
+            raise ValueError('invalid completed attempt stream: ' + name + ': ' + str(exc)) from exc
+        if count != expected_rows:
+            raise ValueError(f'report attempt row count mismatch: {name}: {count} != {expected_rows}')
 
 
 def numbers(text, kind=float):
@@ -102,6 +153,7 @@ def run_cached(args, cache_path=None):
         for name, digest in complete['output_sha256'].items():
             if sha(destination/name) != digest:
                 raise ValueError('cached run output corrupted: '+name)
+        verify_report_integrity(destination, configs, complete['output_sha256'])
         return {**complete, 'run_path': str(destination), 'cache_hit': True,
                 'lookup_elapsed_seconds': time.perf_counter()-started, 'new_backtests': 0}
     stage = Path(tempfile.mkdtemp(prefix=key+'.pending.', dir=root))
@@ -154,6 +206,7 @@ def run_cached(args, cache_path=None):
             'wall_seconds_total': time.perf_counter()-started,
             'formal_oos_result': None, 'qualified_strategies': 0,
             'output_sha256': {str(p.relative_to(stage)): sha(p) for p in sorted(stage.rglob('*')) if p.is_file()}}
+        verify_report_integrity(stage, configs, complete['output_sha256'])
         dump(stage/'completion.json', complete)
         stage.rename(destination)
         return {**complete, 'run_path': str(destination), 'cache_hit': False,

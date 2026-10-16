@@ -503,7 +503,9 @@ def replay_events(events: Iterable[dict], candidates: list[dict],
             elif not isinstance(features, dict) or not isinstance(available, dict):
                 error = "missing_feature_maps"
             else:
-                for name in set(candidate["required_features"]) | {"tau_s"}:
+                # Only the first invalid field is attributed. Keep that
+                # diagnostic stable across Python hash seeds and processes.
+                for name in sorted(set(candidate["required_features"]) | {"tau_s"}):
                     if not _number(features.get(name)):
                         error = "missing_or_invalid_feature:" + name
                         break
