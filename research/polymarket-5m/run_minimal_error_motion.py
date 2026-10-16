@@ -32,7 +32,8 @@ def run(root,resume=False):
         if (root/(label+'.stdout.log')).exists():raise ValueError('resume logs exist; do not overwrite attempts')
         (root/(label+'.stdout.log')).write_text(r.stdout);(root/(label+'.stderr.log')).write_text(r.stderr)
         if r.returncode:raise RuntimeError(name+' failed; logs retained')
-        value=json.loads(r.stdout.strip().splitlines()[-1]);print(json.dumps({'phase':name,**value}),flush=True)
+        value=json.loads(r.stdout.strip().splitlines()[-1])
+        print(json.dumps({'phase':name,**{k:value[k] for k in ('cache_path','run_path','new_backtests','status') if k in value}}),flush=True)
         return value
     if resume and (root/'import.stdout.log').exists():
         from replay_dataset import verify_cache

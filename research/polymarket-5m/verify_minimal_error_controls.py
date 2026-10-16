@@ -5,6 +5,10 @@ from collections import defaultdict
 from replay_lab import sha
 from minimal_error_motion_strategy import candidates
 
+def contrast(actual,control):
+    if actual is None or control is None:return None
+    return actual-control
+
 def verify(root,old):
     root=Path(root);old=Path(old)
     a=json.loads((root/'assessment.json').read_text());b=json.loads((old/'assessment.json').read_text())
@@ -33,7 +37,7 @@ def verify(root,old):
         actual,control=base[c['id']],base[c['id']+'-MATCHED']
         stress=[r for r in a['modes']['isolated']['metrics'] if r['candidate_id']==c['id']]
         matched.append({'id':c['id'],'rule':c,'primary':actual,'matched_admission_control':control,
-            'pnl_difference_not_causal':actual['net_pnl_usd']-control['net_pnl_usd'],
+            'pnl_difference_not_causal':contrast(actual['net_pnl_usd'],control['net_pnl_usd']),
             'all9_scenarios_positive':all(r['net_pnl_usd'] is not None and r['net_pnl_usd']>0 for r in stress)})
     result={'status':'passed','assessment_sha256':sha(root/'assessment.json'),'old_assessment_sha256':sha(old/'assessment.json'),
         'exact_original_rule_comparisons':comparisons,'new_rules_with_matched_controls':matched,

@@ -13,6 +13,10 @@ class Tests(unittest.TestCase):
     def test_repeatable_strategy_cli(self):
         from run_minimal_error_motion import strategy_args
         self.assertEqual(strategy_args(['m:a','m:b']),['--strategy','m:a','--strategy','m:b'])
+    def test_no_signal_is_not_zero_pnl(self):
+        from verify_minimal_error_controls import contrast
+        self.assertIsNone(contrast(None,-10));self.assertIsNone(contrast(5,None))
+        self.assertEqual(contrast(0,-10),10)
     def test_prefix(self):
         def run(n):
             en=Enricher();return [en.process(row(i*1000,.6+i*.001)) for i in range(n)]
