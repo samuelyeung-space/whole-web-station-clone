@@ -1,0 +1,38 @@
+name: Polymarket recorder offline checks
+on:
+  push:
+    branches: [codex/recorder-reliability-20261017]
+  pull_request:
+    paths:
+      - .github/workflows/polymarket-forward.yml
+      - research/polymarket-5m/buffered_recorder.py
+      - research/polymarket-5m/record_live_buffered.py
+      - research/polymarket-5m/capture_checkpoint.py
+      - research/polymarket-5m/test_capture_*.py
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  offline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: research/polymarket-5m
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt PyYAML
+      - name: Writer, checkpoint, supervision and workflow tests
+        run: python -m unittest test_capture_reliability test_capture_workflow -v
+      - name: Existing paper recorder contract with new writer
+        run: |
+          python - <<'PY'
+          import pytest, paper_trader as paper
+          from buffered_recorder import BufferedRecorder
+          from record_live_buffered import SupervisedTrader
+          paper.Recorder, paper.LiveTrader = BufferedRecorder, SupervisedTrader
+          raise SystemExit(pytest.main(['-q', 'test_paper_trader.py', '-p', 'no:cacheprovider']))
+          PY
