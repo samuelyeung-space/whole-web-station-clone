@@ -27,9 +27,16 @@ def resolve_cache(data_root, dataset_key):
     return cache
 
 
+def requires_legacy_assumptions(header):
+    if header.get('execution_mode') == 'up_only_limited' or header.get('strict_execution_admitted') is False:
+        return True
+    # Merged caches retain each original header in nested provenance.
+    sources = header.get('provenance', {}).get('source_headers', [])
+    return any(requires_legacy_assumptions(source) for source in sources)
+
+
 def command_for(args, cache, manifest):
-    header = manifest['dataset_header']
-    legacy = header.get('execution_mode') == 'up_only_limited' or header.get('strict_execution_admitted') is False
+    legacy = requires_legacy_assumptions(manifest['dataset_header'])
     if legacy and not args.accept_legacy_assumptions:
         raise ValueError('legacy input needs --accept-legacy-assumptions; it is not strict execution evidence')
     catalog = any(spec.rsplit(':', 1)[-1] == '*' for spec in args.strategy)
