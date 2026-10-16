@@ -31,8 +31,10 @@ class WorkflowTests(unittest.TestCase):
         self.assertLess(names.index('Save raw handoff independently of analysis'),names.index('Start the next capture without waiting for research'))
         upload=next(s for s in self.record['steps'] if s.get('id')=='raw_upload')
         self.assertIn("steps.checkpoint.outcome == 'success'",upload['if'])
-        self.assertEqual(upload['with']['compression-level'],'0')
-        self.assertEqual(upload['with']['if-no-files-found'],'error')
+        self.assertEqual(upload['uses'],'./.github/actions/publish-research-archive')
+        self.assertEqual(upload['with']['archive'],'${{ runner.temp }}/capture.tar')
+        self.assertEqual(upload['with']['prefix'],'source-recording-${{ github.run_id }}')
+        self.assertEqual(upload['with']['retention-days'],'1')
     def test_analysis_requires_successful_capture_and_handoff(self):
         self.assertEqual(self.analyze['needs'],'record')
         for name in ('capture_outcome','checkpoint_uploaded'):
@@ -83,3 +85,4 @@ class WorkflowTests(unittest.TestCase):
 
 
 if __name__=='__main__':unittest.main()
+

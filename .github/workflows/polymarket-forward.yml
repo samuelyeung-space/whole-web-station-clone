@@ -34,6 +34,7 @@ jobs:
       source_commit: ${{ steps.version.outputs.commit }}
       capture_outcome: ${{ steps.rec.outcome }}
       checkpoint_uploaded: ${{ steps.raw_upload.outcome }}
+      checkpoint_manifest_sha256: ${{ steps.raw_upload.outputs.manifest-sha256 }}
     runs-on: ubuntu-latest
     timeout-minutes: 355
     defaults:
@@ -91,14 +92,11 @@ jobs:
         id: raw_upload
         if: always() && steps.cfg.outputs.enabled == 'true' && steps.checkpoint.outcome == 'success'
         timeout-minutes: 15
-        uses: actions/upload-artifact@v4
+        uses: ./.github/actions/publish-research-archive
         with:
-          name: source-recording-${{ github.run_id }}
-          path: |
-            ${{ runner.temp }}/capture.tar
-            ${{ runner.temp }}/capture.tar.sha256
-          compression-level: 0
-          if-no-files-found: error
+          prefix: source-recording-${{ github.run_id }}
+          archive: ${{ runner.temp }}/capture.tar
+          parts-dir: ${{ runner.temp }}/capture-parts
           # Short-lived transport checkpoint; converted archives still retain 30 days.
           # This is not a substitute for a permanent raw-data object store.
           retention-days: 1
@@ -158,12 +156,26 @@ jobs:
       - run: pip install -r requirements.txt
       - uses: actions/download-artifact@v4
         with:
-          name: source-recording-${{ github.run_id }}
-          path: ${{ runner.temp }}/capture-handoff
+          name: source-recording-${{ github.run_id }}-index
+          path: ${{ runner.temp }}/capture-index
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: source-recording-${{ github.run_id }}-part-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/capture-parts
       - name: Verify and restore immutable raw capture
+        env:
+          EXPECTED_MANIFEST_SHA256: ${{ needs.record.outputs.checkpoint_manifest_sha256 }}
+          EXPECTED_PREFIX: source-recording-${{ github.run_id }}
+          EXPECTED_RUN_ID: ${{ github.run_id }}
         run: |
+          python restore_published_archive.py \
+            --index-dir "$RUNNER_TEMP/capture-index" --parts-dir "$RUNNER_TEMP/capture-parts" \
+            --out "$RUNNER_TEMP/capture.tar" \
+            --expected-manifest-sha256 "$EXPECTED_MANIFEST_SHA256" \
+            --expected-prefix "$EXPECTED_PREFIX" --expected-run-id "$EXPECTED_RUN_ID"
           python capture_checkpoint.py restore \
-            --archive "$RUNNER_TEMP/capture-handoff/capture.tar" --out "$RUNNER_TEMP/paper"
+            --archive "$RUNNER_TEMP/capture.tar" --out "$RUNNER_TEMP/paper"
 
       - name: Diagnose the recording
         if: needs.record.outputs.enabled == 'true'
@@ -315,6 +327,7 @@ jobs:
             > "$RUNNER_TEMP/paper/bundle-btc/strict/source-confirmation.json"
 
       - name: Keep the converted bundles (the raw messages run to gigabytes)
+        id: converted_pack
         if: always() && needs.record.outputs.enabled == 'true'
         run: |
           cd "$RUNNER_TEMP/paper"
@@ -326,13 +339,15 @@ jobs:
           tar czf "$RUNNER_TEMP/raw.tgz" -- "${files[@]}"
           tar tzf "$RUNNER_TEMP/raw.tgz" >/dev/null
           test -s "$RUNNER_TEMP/raw.tgz"
-      - uses: actions/upload-artifact@v4
-        if: always() && needs.record.outputs.enabled == 'true'
+      - name: Publish converted archive as individually downloadable parts
+        id: converted_upload
+        uses: ./.github/actions/publish-research-archive
+        if: always() && needs.record.outputs.enabled == 'true' && steps.converted_pack.outcome == 'success'
         with:
-          name: recording-${{ github.run_id }}
-          path: ${{ runner.temp }}/raw.tgz
+          prefix: recording-${{ github.run_id }}
+          archive: ${{ runner.temp }}/raw.tgz
+          parts-dir: ${{ runner.temp }}/converted-parts
           retention-days: 30
-          if-no-files-found: error
 
       - name: Tests C and D and a WeChat Work report (polymarket-shadow)
         if: always() && needs.record.outputs.enabled == 'true'
@@ -340,3 +355,4 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh workflow run polymarket-shadow.yml --ref "${{ github.ref_name }}"
+
