@@ -17,8 +17,6 @@ import math
 from pathlib import Path
 import time
 import numpy as np
-import pyarrow as pa
-import pyarrow.parquet as pq
 
 VERSION = 'lake-up-only-historical-v1'
 LEVELS = [f'{side}{level}{field}' for side in ('b', 'a') for level in range(1,6) for field in ('p','s')]
@@ -32,7 +30,21 @@ def sha(path):
 def _number(value):
     return isinstance(value,(int,float,np.number)) and not isinstance(value,(bool,np.bool_)) and math.isfinite(value)
 
+def parquet_modules():
+    """Load Arrow only for actual Parquet I/O, not legacy CSV/JSONL replay."""
+    try:
+        import pyarrow as pa
+        import pyarrow.parquet as pq
+    except ImportError as exc:
+        raise RuntimeError(
+            "Parquet input requires optional dependency pyarrow. "
+            "Install pyarrow to read Parquet; legacy ZIP CSV/JSONL replay does not require it."
+        ) from exc
+    return pa, pq
+
+
 def read_columns(paths, columns):
+    pa, pq = parquet_modules()
     tables = []
     for path in paths:
         p = Path(path)
@@ -175,6 +187,7 @@ def normalize(books_paths, spot_paths, markets_path, output, *, settlement_cutof
     b=read_columns(books_paths,BOOK_COLUMNS);s=read_columns(spot_paths,SPOT_COLUMNS)
     source_counts=Counter();book_source_counts=Counter()
     spot=Series(s['rcv_us'],np.column_stack([s['price'],s['ts_us']]),source_column=1,counts=source_counts)
+    _, pq = parquet_modules()
     market_rows=pq.ParquetFile(markets_path).read().to_pylist();markets={}
     for row in market_rows:
         slot,mid,winner=canonical_market(row)
