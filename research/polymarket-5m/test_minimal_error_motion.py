@@ -41,5 +41,17 @@ class Tests(unittest.TestCase):
                 self.assertEqual(signal(c,f),mfa.signal(old,f))
     def test_no_label_access(self):
         e={'type':'outcome','winner':'Up'};self.assertEqual(Enricher().process(copy.deepcopy(e)),e)
+    def test_exact_frozen_eco_plain_math(self):
+        from error_motion_features import Enricher as Old
+        new,old=Enricher(),Old()
+        for i in range(100):
+            e=row(i*1000+1000*(i>=70),.6+.001*i)
+            f=e['features'];reference=copy.deepcopy(e)
+            reference['features']['book_5']=f['mfa_trend_fixed']
+            reference['feature_available_ms']['book_5']=e['recv_ms']
+            a=new.process(e)['features'];b=old.process(reference)['features']
+            for h in (5,15):
+                for k in ('e','v','a','j','dq'):
+                    self.assertEqual(a.get(f'mem_fixed_{h}_{k}'),b.get(f'eco_plain_{h}_{k}'))
 
 if __name__=='__main__':unittest.main()
