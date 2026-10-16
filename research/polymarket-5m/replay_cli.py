@@ -107,7 +107,8 @@ def demo(argv):
     command = [sys.executable, str(HERE / 'replay_lab.py'), 'pipeline',
                '--input', str(tape), '--input-type', 'normalized',
                '--plugin-dir', str(root), '--strategy', 'portable_demo_strategy:DEMO-TAKER',
-               '--cache-root', str(root / 'cache'), '--out', str(root / 'runs')]
+               '--cache-root', str(root / 'cache'), '--out', str(root / 'runs'),
+               '--shares', '5', '--cash', '1000']
     completed = subprocess.run(command, capture_output=True, text=True, check=False)
     if completed.returncode:
         raise ValueError(completed.stderr.strip() or completed.stdout.strip())

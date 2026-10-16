@@ -225,7 +225,7 @@ def add_run_options(parser, with_cache=True):
     parser.add_argument('--plugin-dir', action='append', default=[])
     parser.add_argument('--mode', choices=['isolated', 'shared'], default='isolated')
     parser.add_argument('--priority', nargs='*', default=None, help='shared tie priority candidate IDs; default catalog order')
-    parser.add_argument('--shares', type=numbers, default=(5.,), help='comma-separated sizes, e.g. 5,10,20,100')
+    parser.add_argument('--shares', type=numbers, default=(100.,), help='benchmark: 100 shares with $1000 initial cash; other sizes are capacity sensitivities')
     parser.add_argument('--latencies-ms', type=lambda x: numbers(x, int), default=(500,600,1000))
     parser.add_argument('--release-delays-ms', type=lambda x: numbers(x,int), default=(0,))
     parser.add_argument('--cash', type=float, default=1000.)
