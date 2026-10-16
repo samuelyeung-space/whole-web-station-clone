@@ -46,11 +46,17 @@ def verify(directory,original_assessment):
         for name,computed in [('quote_model_drawdown_low_usd',d['dd_low']),('quote_model_drawdown_high_usd',d['dd_high']),
                 ('snapshots',d['snapshots']),('open_inventory_snapshots',d['open']),('fully_marked_open_snapshots',d['full'])]:
             close(result[name],computed)
-        last=d['last']
-        if last['open_positions'] or last['locked_known_payout_usd']:raise ValueError('terminal inventory not empty')
-        close(last['quote_model_equity_low_usd'],last['cash_usd'])
-        close(last['quote_model_equity_high_usd'],last['cash_usd'])
-        close(last['cash_usd'],1000+result['net_pnl_usd_unchanged'])
+        last=d['last'];mode,cid,latency=key
+        economic=next(r for r in original['modes'][mode]['metrics'] if r['candidate_id']==cid and r['latency_ms']==latency
+            and r['scenario']=='shares100_base_release0')
+        close(last['cash_usd'],economic['ending_cash_usd'])
+        if economic['status']=='simulated_complete':
+            if last['open_positions'] or last['locked_known_payout_usd']:raise ValueError('terminal inventory not empty')
+            close(last['quote_model_equity_low_usd'],last['cash_usd'])
+            close(last['quote_model_equity_high_usd'],last['cash_usd'])
+            close(last['cash_usd'],1000+result['net_pnl_usd_unchanged'])
+        elif result['net_pnl_usd_unchanged'] is not None:
+            raise ValueError('incomplete economic result must not invent terminal PnL')
     receipt={'schema':'indicative-liquidation-independent-check-v1','status':'passed','accounts':len(by_account),
         'snapshot_rows':count,'original_tape_hash_matches_all_economic_registrations':True,
         'original_ledger_hashes_match':True,'ending_cash_and_pnl_unchanged':True,'snapshot_crc_eof_verified':True,

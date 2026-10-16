@@ -6,6 +6,7 @@ from pathlib import Path
 import tempfile
 import unittest
 from replay_liquidation_audit import Account, audit, mark_position
+from verify_liquidation_artifact import sha, verify
 
 
 def book(**change):
@@ -101,6 +102,7 @@ class LiquidationTests(unittest.TestCase):
             ep=root/'events.jsonl';ep.write_text('\n'.join(json.dumps(r) for r in [
                 {'type':'market','recv_ms':500,'market_id':'m','end_ms':5000},
                 {'type':'book','market_id':'m',**book()}])+'\n')
+            (run/'registration.json').write_text(json.dumps({'events_sha256':sha(ep)}))
             audit(ep,ap,root/'output');r=json.loads((root/'output/assessment.json').read_text())
             self.assertEqual(r['new_economic_replays'],0)
             self.assertEqual(r['account_results'][0]['final']['cash_usd'],1040)
@@ -108,6 +110,10 @@ class LiquidationTests(unittest.TestCase):
             self.assertTrue(any(1250<s['recv_ms']<1251 and s['unknown_shares']==100 for s in snapshots))
             self.assertTrue(any(s['recv_ms']==5000 for s in snapshots))
             self.assertEqual(snapshots[-1]['open_positions'],0)
+            verify(root/'output',ap)
+            (run/'registration.json').write_text(json.dumps({'events_sha256':'wrong_tape'}))
+            with self.assertRaisesRegex(ValueError,'risk tape differs'):
+                verify(root/'output',ap)
 
 
 if __name__=='__main__':unittest.main()
