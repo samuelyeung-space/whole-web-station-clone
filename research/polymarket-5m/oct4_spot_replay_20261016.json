@@ -1,0 +1,1213 @@
+{
+  "schema": "oct4-historical-development-replay-v1",
+  "as_of": "2026-10-16",
+  "archive": {
+    "run_id": 37230483105,
+    "artifact_id": 11320971626,
+    "sha256": "a11791413fe7dea511186be0821071f26f40a1dce834f6479099f05887a09a86",
+    "expires_at": "2026-11-04T01:08:41Z"
+  },
+  "coverage_start_utc": "2026-10-04T20:01:53.134515+00:00",
+  "coverage_end_utc": "2026-10-05T00:32:02.675213+00:00",
+  "observed_hours": 4.50265019402398,
+  "coverage_by_utc_date": {
+    "2026-10-04": {
+      "registered": 48,
+      "overlaps_recording": 48,
+      "whole_5min_inside_recording_span": 47
+    },
+    "2026-10-05": {
+      "registered": 8,
+      "overlaps_recording": 7,
+      "whole_5min_inside_recording_span": 6
+    }
+  },
+  "expected_slots_per_full_utc_day": 288,
+  "covered_slots": 55,
+  "fully_contained_time_slots": 53,
+  "registered_markets": 56,
+  "gamma_outcomes": 55,
+  "healthy_complete_market_count": null,
+  "registered_candidates": 720,
+  "new_candidate_rules": 0,
+  "feature_evaluated_candidates": 500,
+  "blocked_candidates": 220,
+  "completed_scenario_rows": 6480,
+  "positive_baseline_500ms": 165,
+  "positive_all_three_baseline_latencies": 141,
+  "positive_all_nine_sensitivity_cells": 118,
+  "baseline_500ms_status_counts": {
+    "evaluated_no_fills": 64,
+    "simulated_complete": 384,
+    "evaluated_no_signal": 52,
+    "blocked_no_valid_feature_rows": 220
+  },
+  "baseline_500ms_candidate_market_signals": 9338,
+  "baseline_500ms_candidate_market_submitted": 7947,
+  "baseline_500ms_candidate_market_filled_orders": 5857,
+  "counts_are_correlated_candidate_market_pairs_not_unique_real_orders": true,
+  "selected_diagnostics": [
+    {
+      "candidate_id": "M500-439",
+      "scenario": "full_depth",
+      "latency_ms": 500,
+      "status": "simulated_complete",
+      "attempts": 25,
+      "submitted_orders": 25,
+      "markets": 25,
+      "full_fills": 22,
+      "partial_fills": 0,
+      "filled_shares": 110.0,
+      "fees_usd": 1.5104,
+      "extra_cost_usd": 0.0,
+      "net_pnl_usd": 33.08959999999999,
+      "net_pnl_per_filled_share_usd": 0.3008145454545454,
+      "max_realized_drawdown_usd": 3.8606600000000526,
+      "status_counts": {
+        "filled_full": 22,
+        "no_fill": 2,
+        "rejected_unhealthy_book_at_match": 1
+      }
+    },
+    {
+      "candidate_id": "M500-439",
+      "scenario": "full_depth",
+      "latency_ms": 600,
+      "status": "simulated_complete",
+      "attempts": 25,
+      "submitted_orders": 25,
+      "markets": 25,
+      "full_fills": 23,
+      "partial_fills": 0,
+      "filled_shares": 115.0,
+      "fees_usd": 1.53087,
+      "extra_cost_usd": 0.0,
+      "net_pnl_usd": 32.81912999999999,
+      "net_pnl_per_filled_share_usd": 0.2853837391304347,
+      "max_realized_drawdown_usd": 3.8606600000000526,
+      "status_counts": {
+        "filled_full": 23,
+        "no_fill": 2
+      }
+    },
+    {
+      "candidate_id": "M500-439",
+      "scenario": "full_depth",
+      "latency_ms": 1000,
+      "status": "simulated_complete",
+      "attempts": 25,
+      "submitted_orders": 25,
+      "markets": 25,
+      "full_fills": 19,
+      "partial_fills": 0,
+      "filled_shares": 95.0,
+      "fees_usd": 1.27406,
+      "extra_cost_usd": 0.0,
+      "net_pnl_usd": 27.325939999999996,
+      "net_pnl_per_filled_share_usd": 0.2876414736842105,
+      "max_realized_drawdown_usd": 3.8606600000000526,
+      "status_counts": {
+        "filled_full": 19,
+        "no_fill": 5,
+        "rejected_unhealthy_book_at_match": 1
+      }
+    },
+    {
+      "candidate_id": "M500-439",
+      "scenario": "half_depth",
+      "latency_ms": 500,
+      "status": "simulated_complete",
+      "attempts": 25,
+      "submitted_orders": 25,
+      "markets": 25,
+      "full_fills": 21,
+      "partial_fills": 1,
+      "filled_shares": 107.5,
+      "fees_usd": 1.4794,
+      "extra_cost_usd": 0.0,
+      "net_pnl_usd": 32.54559999999999,
+      "net_pnl_per_filled_share_usd": 0.3027497674418604,
+      "max_realized_drawdown_usd": 3.8606600000000526,
+      "status_counts": {
+        "filled_full": 21,
+        "no_fill": 2,
+        "filled_partial": 1,
+        "rejected_unhealthy_book_at_match": 1
+      }
+    },
+    {
+      "candidate_id": "M500-439",
+      "scenario": "half_depth",
+      "latency_ms": 600,
+      "status": "simulated_complete",
+      "attempts": 25,
+      "submitted_orders": 25,
+      "markets": 25,
+      "full_fills": 21,
+      "partial_fills": 2,
+      "filled_shares": 110.0,
+      "fees_usd": 1.48847,
+      "extra_cost_usd": 0.0,
+      "net_pnl_usd": 32.111529999999995,
+      "net_pnl_per_filled_share_usd": 0.29192299999999993,
+      "max_realized_drawdown_usd": 3.8606600000000526,
+      "status_counts": {
+        "filled_full": 21,
+        "filled_partial": 2,
+        "no_fill": 2
+      }
+    },
+    {
+      "candidate_id": "M500-439",
+      "scenario": "half_depth",
+      "latency_ms": 1000,
+      "status": "simulated_complete",
+      "attempts": 25,
+      "submitted_orders": 25,
+      "markets": 25,
+      "full_fills": 17,
+      "partial_fills": 2,
+      "filled_shares": 90.0,
+      "fees_usd": 1.20702,
+      "extra_cost_usd": 0.0,
+      "net_pnl_usd": 25.04298,
+      "net_pnl_per_filled_share_usd": 0.27825533333333335,
+      "max_realized_drawdown_usd": 3.860659999999939,
+      "status_counts": {
+        "filled_partial": 2,
+        "no_fill": 5,
+        "filled_full": 17,
+        "rejected_unhealthy_book_at_match": 1
+      }
+    },
+    {
+      "candidate_id": "M500-439",
+      "scenario": "plus_1cent",
+      "latency_ms": 500,
+      "status": "simulated_complete",
+      "attempts": 25,
+      "submitted_orders": 25,
+      "markets": 25,
+      "full_fills": 22,
+      "partial_fills": 0,
+      "filled_shares": 110.0,
+      "fees_usd": 1.5104,
+      "extra_cost_usd": 1.1,
+      "net_pnl_usd": 31.989600000000003,
+      "net_pnl_per_filled_share_usd": 0.2908145454545455,
+      "max_realized_drawdown_usd": 3.9606599999999617,
+      "status_counts": {
+        "filled_full": 22,
+        "no_fill": 2,
+        "rejected_unhealthy_book_at_match": 1
+      }
+    },
+    {
+      "candidate_id": "M500-439",
+      "scenario": "plus_1cent",
+      "latency_ms": 600,
+      "status": "simulated_complete",
+      "attempts": 25,
+      "submitted_orders": 25,
+      "markets": 25,
+      "full_fills": 23,
+      "partial_fills": 0,
+      "filled_shares": 115.0,
+      "fees_usd": 1.53087,
+      "extra_cost_usd": 1.1500000000000001,
+      "net_pnl_usd": 31.669130000000003,
+      "net_pnl_per_filled_share_usd": 0.2753837391304348,
+      "max_realized_drawdown_usd": 3.9606599999999617,
+      "status_counts": {
+        "filled_full": 23,
+        "no_fill": 2
+      }
+    },
+    {
+      "candidate_id": "M500-439",
+      "scenario": "plus_1cent",
+      "latency_ms": 1000,
+      "status": "simulated_complete",
+      "attempts": 25,
+      "submitted_orders": 25,
+      "markets": 25,
+      "full_fills": 19,
+      "partial_fills": 0,
+      "filled_shares": 95.0,
+      "fees_usd": 1.27406,
+      "extra_cost_usd": 0.9500000000000001,
+      "net_pnl_usd": 26.37594,
+      "net_pnl_per_filled_share_usd": 0.27764147368421055,
+      "max_realized_drawdown_usd": 3.9606599999999617,
+      "status_counts": {
+        "filled_full": 19,
+        "no_fill": 5,
+        "rejected_unhealthy_book_at_match": 1
+      }
+    },
+    {
+      "candidate_id": "M500-440",
+      "scenario": "full_depth",
+      "latency_ms": 500,
+      "status": "simulated_complete",
+      "attempts": 21,
+      "submitted_orders": 21,
+      "markets": 21,
+      "full_fills": 18,
+      "partial_fills": 0,
+      "filled_shares": 90.0,
+      "fees_usd": 1.26843,
+      "extra_cost_usd": 0.0,
+      "net_pnl_usd": 28.481569999999998,
+      "net_pnl_per_filled_share_usd": 0.3164618888888889,
+      "max_realized_drawdown_usd": 3.8606600000000526,
+      "status_counts": {
+        "filled_full": 18,
+        "rejected_unhealthy_book_at_match": 1,
+        "no_fill": 2
+      }
+    },
+    {
+      "candidate_id": "M500-440",
+      "scenario": "full_depth",
+      "latency_ms": 600,
+      "status": "simulated_complete",
+      "attempts": 21,
+      "submitted_orders": 21,
+      "markets": 21,
+      "full_fills": 17,
+      "partial_fills": 1,
+      "filled_shares": 89.53,
+      "fees_usd": 1.26036,
+      "extra_cost_usd": 0.0,
+      "net_pnl_usd": 28.691739999999996,
+      "net_pnl_per_filled_share_usd": 0.320470680218921,
+      "max_realized_drawdown_usd": 3.6504899999999907,
+      "status_counts": {
+        "filled_full": 17,
+        "rejected_unhealthy_book_at_match": 1,
+        "no_fill": 2,
+        "filled_partial": 1
+      }
+    },
+    {
+      "candidate_id": "M500-440",
+      "scenario": "full_depth",
+      "latency_ms": 1000,
+      "status": "simulated_complete",
+      "attempts": 21,
+      "submitted_orders": 21,
+      "markets": 21,
+      "full_fills": 14,
+      "partial_fills": 0,
+      "filled_shares": 70.0,
+      "fees_usd": 0.98583,
+      "extra_cost_usd": 0.0,
+      "net_pnl_usd": 26.164169999999995,
+      "net_pnl_per_filled_share_usd": 0.37377385714285705,
+      "max_realized_drawdown_usd": 1.6248700000001008,
+      "status_counts": {
+        "filled_full": 14,
+        "no_fill": 5,
+        "rejected_unhealthy_book_at_match": 2
+      }
+    },
+    {
+      "candidate_id": "M500-440",
+      "scenario": "half_depth",
+      "latency_ms": 500,
+      "status": "simulated_complete",
+      "attempts": 21,
+      "submitted_orders": 21,
+      "markets": 21,
+      "full_fills": 17,
+      "partial_fills": 1,
+      "filled_shares": 87.5,
+      "fees_usd": 1.23743,
+      "extra_cost_usd": 0.0,
+      "net_pnl_usd": 27.937569999999994,
+      "net_pnl_per_filled_share_usd": 0.3192865142857142,
+      "max_realized_drawdown_usd": 3.8606600000000526,
+      "status_counts": {
+        "filled_full": 17,
+        "rejected_unhealthy_book_at_match": 1,
+        "no_fill": 2,
+        "filled_partial": 1
+      }
+    },
+    {
+      "candidate_id": "M500-440",
+      "scenario": "half_depth",
+      "latency_ms": 600,
+      "status": "simulated_complete",
+      "attempts": 21,
+      "submitted_orders": 21,
+      "markets": 21,
+      "full_fills": 15,
+      "partial_fills": 3,
+      "filled_shares": 82.265,
+      "fees_usd": 1.1791,
+      "extra_cost_usd": 0.0,
+      "net_pnl_usd": 28.99695,
+      "net_pnl_per_filled_share_usd": 0.35248222208715735,
+      "max_realized_drawdown_usd": 2.6376799999998184,
+      "status_counts": {
+        "filled_full": 15,
+        "rejected_unhealthy_book_at_match": 1,
+        "filled_partial": 3,
+        "no_fill": 2
+      }
+    },
+    {
+      "candidate_id": "M500-440",
+      "scenario": "half_depth",
+      "latency_ms": 1000,
+      "status": "simulated_complete",
+      "attempts": 21,
+      "submitted_orders": 21,
+      "markets": 21,
+      "full_fills": 12,
+      "partial_fills": 2,
+      "filled_shares": 65.0,
+      "fees_usd": 0.91879,
+      "extra_cost_usd": 0.0,
+      "net_pnl_usd": 23.881209999999996,
+      "net_pnl_per_filled_share_usd": 0.3674032307692307,
+      "max_realized_drawdown_usd": 1.6248699999999872,
+      "status_counts": {
+        "filled_partial": 2,
+        "no_fill": 5,
+        "rejected_unhealthy_book_at_match": 2,
+        "filled_full": 12
+      }
+    },
+    {
+      "candidate_id": "M500-440",
+      "scenario": "plus_1cent",
+      "latency_ms": 500,
+      "status": "simulated_complete",
+      "attempts": 21,
+      "submitted_orders": 21,
+      "markets": 21,
+      "full_fills": 18,
+      "partial_fills": 0,
+      "filled_shares": 90.0,
+      "fees_usd": 1.26843,
+      "extra_cost_usd": 0.9,
+      "net_pnl_usd": 27.581570000000006,
+      "net_pnl_per_filled_share_usd": 0.306461888888889,
+      "max_realized_drawdown_usd": 3.960660000000189,
+      "status_counts": {
+        "filled_full": 18,
+        "rejected_unhealthy_book_at_match": 1,
+        "no_fill": 2
+      }
+    },
+    {
+      "candidate_id": "M500-440",
+      "scenario": "plus_1cent",
+      "latency_ms": 600,
+      "status": "simulated_complete",
+      "attempts": 21,
+      "submitted_orders": 21,
+      "markets": 21,
+      "full_fills": 17,
+      "partial_fills": 1,
+      "filled_shares": 89.53,
+      "fees_usd": 1.26036,
+      "extra_cost_usd": 0.8953000000000001,
+      "net_pnl_usd": 27.796440000000004,
+      "net_pnl_per_filled_share_usd": 0.31047068021892105,
+      "max_realized_drawdown_usd": 3.74579000000017,
+      "status_counts": {
+        "filled_full": 17,
+        "rejected_unhealthy_book_at_match": 1,
+        "no_fill": 2,
+        "filled_partial": 1
+      }
+    },
+    {
+      "candidate_id": "M500-440",
+      "scenario": "plus_1cent",
+      "latency_ms": 1000,
+      "status": "simulated_complete",
+      "attempts": 21,
+      "submitted_orders": 21,
+      "markets": 21,
+      "full_fills": 14,
+      "partial_fills": 0,
+      "filled_shares": 70.0,
+      "fees_usd": 0.98583,
+      "extra_cost_usd": 0.7000000000000001,
+      "net_pnl_usd": 25.464170000000003,
+      "net_pnl_per_filled_share_usd": 0.3637738571428572,
+      "max_realized_drawdown_usd": 1.6748700000000554,
+      "status_counts": {
+        "filled_full": 14,
+        "no_fill": 5,
+        "rejected_unhealthy_book_at_match": 2
+      }
+    },
+    {
+      "candidate_id": "M500-677",
+      "scenario": "full_depth",
+      "latency_ms": 500,
+      "status": "simulated_complete",
+      "attempts": 51,
+      "submitted_orders": 51,
+      "markets": 51,
+      "full_fills": 41,
+      "partial_fills": 0,
+      "filled_shares": 205,
+      "fees_usd": 2.2401,
+      "extra_cost_usd": 0.0,
+      "net_pnl_usd": 21.859900000000007,
+      "net_pnl_per_filled_share_usd": 0.1066336585365854,
+      "max_realized_drawdown_usd": 4.633649999999875,
+      "status_counts": {
+        "filled_full": 41,
+        "no_fill": 9,
+        "rejected_unhealthy_book_at_match": 1
+      }
+    },
+    {
+      "candidate_id": "M500-677",
+      "scenario": "full_depth",
+      "latency_ms": 600,
+      "status": "simulated_complete",
+      "attempts": 51,
+      "submitted_orders": 51,
+      "markets": 51,
+      "full_fills": 39,
+      "partial_fills": 0,
+      "filled_shares": 195,
+      "fees_usd": 2.066,
+      "extra_cost_usd": 0.0,
+      "net_pnl_usd": 21.734000000000005,
+      "net_pnl_per_filled_share_usd": 0.11145641025641029,
+      "max_realized_drawdown_usd": 4.633649999999875,
+      "status_counts": {
+        "filled_full": 39,
+        "no_fill": 11,
+        "rejected_unhealthy_book_at_match": 1
+      }
+    },
+    {
+      "candidate_id": "M500-677",
+      "scenario": "full_depth",
+      "latency_ms": 1000,
+      "status": "simulated_complete",
+      "attempts": 51,
+      "submitted_orders": 51,
+      "markets": 51,
+      "full_fills": 35,
+      "partial_fills": 0,
+      "filled_shares": 175,
+      "fees_usd": 1.78441,
+      "extra_cost_usd": 0.0,
+      "net_pnl_usd": 24.665590000000012,
+      "net_pnl_per_filled_share_usd": 0.14094622857142863,
+      "max_realized_drawdown_usd": 4.294629999999984,
+      "status_counts": {
+        "filled_full": 35,
+        "no_fill": 14,
+        "rejected_unhealthy_book_at_match": 2
+      }
+    },
+    {
+      "candidate_id": "M500-677",
+      "scenario": "half_depth",
+      "latency_ms": 500,
+      "status": "simulated_complete",
+      "attempts": 51,
+      "submitted_orders": 51,
+      "markets": 51,
+      "full_fills": 40,
+      "partial_fills": 1,
+      "filled_shares": 202.985,
+      "fees_usd": 2.20485,
+      "extra_cost_usd": 0.0,
+      "net_pnl_usd": 20.86750000000001,
+      "net_pnl_per_filled_share_usd": 0.10280316279528048,
+      "max_realized_drawdown_usd": 4.633649999999989,
+      "status_counts": {
+        "filled_full": 40,
+        "no_fill": 9,
+        "filled_partial": 1,
+        "rejected_unhealthy_book_at_match": 1
+      }
+    },
+    {
+      "candidate_id": "M500-677",
+      "scenario": "half_depth",
+      "latency_ms": 600,
+      "status": "simulated_complete",
+      "attempts": 51,
+      "submitted_orders": 51,
+      "markets": 51,
+      "full_fills": 39,
+      "partial_fills": 0,
+      "filled_shares": 195,
+      "fees_usd": 2.066,
+      "extra_cost_usd": 0.0,
+      "net_pnl_usd": 21.734000000000005,
+      "net_pnl_per_filled_share_usd": 0.11145641025641029,
+      "max_realized_drawdown_usd": 4.633649999999875,
+      "status_counts": {
+        "filled_full": 39,
+        "no_fill": 11,
+        "rejected_unhealthy_book_at_match": 1
+      }
+    },
+    {
+      "candidate_id": "M500-677",
+      "scenario": "half_depth",
+      "latency_ms": 1000,
+      "status": "simulated_complete",
+      "attempts": 51,
+      "submitted_orders": 51,
+      "markets": 51,
+      "full_fills": 35,
+      "partial_fills": 0,
+      "filled_shares": 175,
+      "fees_usd": 1.78441,
+      "extra_cost_usd": 0.0,
+      "net_pnl_usd": 24.665590000000012,
+      "net_pnl_per_filled_share_usd": 0.14094622857142863,
+      "max_realized_drawdown_usd": 4.294629999999984,
+      "status_counts": {
+        "filled_full": 35,
+        "no_fill": 14,
+        "rejected_unhealthy_book_at_match": 2
+      }
+    },
+    {
+      "candidate_id": "M500-677",
+      "scenario": "plus_1cent",
+      "latency_ms": 500,
+      "status": "simulated_complete",
+      "attempts": 51,
+      "submitted_orders": 51,
+      "markets": 51,
+      "full_fills": 41,
+      "partial_fills": 0,
+      "filled_shares": 205,
+      "fees_usd": 2.2401,
+      "extra_cost_usd": 2.0500000000000003,
+      "net_pnl_usd": 19.809900000000013,
+      "net_pnl_per_filled_share_usd": 0.09663365853658543,
+      "max_realized_drawdown_usd": 4.78365000000008,
+      "status_counts": {
+        "filled_full": 41,
+        "no_fill": 9,
+        "rejected_unhealthy_book_at_match": 1
+      }
+    },
+    {
+      "candidate_id": "M500-677",
+      "scenario": "plus_1cent",
+      "latency_ms": 600,
+      "status": "simulated_complete",
+      "attempts": 51,
+      "submitted_orders": 51,
+      "markets": 51,
+      "full_fills": 39,
+      "partial_fills": 0,
+      "filled_shares": 195,
+      "fees_usd": 2.066,
+      "extra_cost_usd": 1.9500000000000002,
+      "net_pnl_usd": 19.784000000000013,
+      "net_pnl_per_filled_share_usd": 0.10145641025641032,
+      "max_realized_drawdown_usd": 4.783649999999966,
+      "status_counts": {
+        "filled_full": 39,
+        "no_fill": 11,
+        "rejected_unhealthy_book_at_match": 1
+      }
+    },
+    {
+      "candidate_id": "M500-677",
+      "scenario": "plus_1cent",
+      "latency_ms": 1000,
+      "status": "simulated_complete",
+      "attempts": 51,
+      "submitted_orders": 51,
+      "markets": 51,
+      "full_fills": 35,
+      "partial_fills": 0,
+      "filled_shares": 175,
+      "fees_usd": 1.78441,
+      "extra_cost_usd": 1.75,
+      "net_pnl_usd": 22.915589999999998,
+      "net_pnl_per_filled_share_usd": 0.13094622857142857,
+      "max_realized_drawdown_usd": 4.344630000000052,
+      "status_counts": {
+        "filled_full": 35,
+        "no_fill": 14,
+        "rejected_unhealthy_book_at_match": 2
+      }
+    },
+    {
+      "candidate_id": "M500-669",
+      "scenario": "full_depth",
+      "latency_ms": 500,
+      "status": "simulated_complete",
+      "attempts": 54,
+      "submitted_orders": 54,
+      "markets": 54,
+      "full_fills": 45,
+      "partial_fills": 0,
+      "filled_shares": 225,
+      "fees_usd": 3.46909,
+      "extra_cost_usd": 0,
+      "net_pnl_usd": 10.88091,
+      "net_pnl_per_filled_share_usd": 0.0483596,
+      "max_realized_drawdown_usd": 8.685690000000022,
+      "status_counts": {
+        "filled_full": 45,
+        "no_fill": 9
+      }
+    },
+    {
+      "candidate_id": "M500-669",
+      "scenario": "full_depth",
+      "latency_ms": 600,
+      "status": "simulated_complete",
+      "attempts": 54,
+      "submitted_orders": 54,
+      "markets": 54,
+      "full_fills": 44,
+      "partial_fills": 0,
+      "filled_shares": 220,
+      "fees_usd": 3.41634,
+      "extra_cost_usd": 0,
+      "net_pnl_usd": 12.083659999999998,
+      "net_pnl_per_filled_share_usd": 0.054925727272727265,
+      "max_realized_drawdown_usd": 8.582049999999981,
+      "status_counts": {
+        "filled_full": 44,
+        "no_fill": 10
+      }
+    },
+    {
+      "candidate_id": "M500-669",
+      "scenario": "full_depth",
+      "latency_ms": 1000,
+      "status": "simulated_complete",
+      "attempts": 54,
+      "submitted_orders": 54,
+      "markets": 54,
+      "full_fills": 41,
+      "partial_fills": 0,
+      "filled_shares": 205,
+      "fees_usd": 3.20637,
+      "extra_cost_usd": 0.0,
+      "net_pnl_usd": 10.343630000000001,
+      "net_pnl_per_filled_share_usd": 0.05045673170731708,
+      "max_realized_drawdown_usd": 9.446680000000015,
+      "status_counts": {
+        "filled_full": 41,
+        "no_fill": 12,
+        "rejected_unhealthy_book_at_match": 1
+      }
+    },
+    {
+      "candidate_id": "M500-669",
+      "scenario": "half_depth",
+      "latency_ms": 500,
+      "status": "simulated_complete",
+      "attempts": 54,
+      "submitted_orders": 54,
+      "markets": 54,
+      "full_fills": 45,
+      "partial_fills": 0,
+      "filled_shares": 225,
+      "fees_usd": 3.46909,
+      "extra_cost_usd": 0,
+      "net_pnl_usd": 10.88091,
+      "net_pnl_per_filled_share_usd": 0.0483596,
+      "max_realized_drawdown_usd": 8.685690000000022,
+      "status_counts": {
+        "filled_full": 45,
+        "no_fill": 9
+      }
+    },
+    {
+      "candidate_id": "M500-669",
+      "scenario": "half_depth",
+      "latency_ms": 600,
+      "status": "simulated_complete",
+      "attempts": 54,
+      "submitted_orders": 54,
+      "markets": 54,
+      "full_fills": 44,
+      "partial_fills": 0,
+      "filled_shares": 220.0,
+      "fees_usd": 3.41634,
+      "extra_cost_usd": 0.0,
+      "net_pnl_usd": 12.083659999999998,
+      "net_pnl_per_filled_share_usd": 0.054925727272727265,
+      "max_realized_drawdown_usd": 8.582049999999981,
+      "status_counts": {
+        "filled_full": 44,
+        "no_fill": 10
+      }
+    },
+    {
+      "candidate_id": "M500-669",
+      "scenario": "half_depth",
+      "latency_ms": 1000,
+      "status": "simulated_complete",
+      "attempts": 54,
+      "submitted_orders": 54,
+      "markets": 54,
+      "full_fills": 41,
+      "partial_fills": 0,
+      "filled_shares": 205,
+      "fees_usd": 3.20637,
+      "extra_cost_usd": 0.0,
+      "net_pnl_usd": 10.343630000000001,
+      "net_pnl_per_filled_share_usd": 0.05045673170731708,
+      "max_realized_drawdown_usd": 9.446680000000015,
+      "status_counts": {
+        "filled_full": 41,
+        "no_fill": 12,
+        "rejected_unhealthy_book_at_match": 1
+      }
+    },
+    {
+      "candidate_id": "M500-669",
+      "scenario": "plus_1cent",
+      "latency_ms": 500,
+      "status": "simulated_complete",
+      "attempts": 54,
+      "submitted_orders": 54,
+      "markets": 54,
+      "full_fills": 45,
+      "partial_fills": 0,
+      "filled_shares": 225,
+      "fees_usd": 3.46909,
+      "extra_cost_usd": 2.25,
+      "net_pnl_usd": 8.630909999999997,
+      "net_pnl_per_filled_share_usd": 0.03835959999999999,
+      "max_realized_drawdown_usd": 9.079029999999989,
+      "status_counts": {
+        "filled_full": 45,
+        "no_fill": 9
+      }
+    },
+    {
+      "candidate_id": "M500-669",
+      "scenario": "plus_1cent",
+      "latency_ms": 600,
+      "status": "simulated_complete",
+      "attempts": 54,
+      "submitted_orders": 54,
+      "markets": 54,
+      "full_fills": 44,
+      "partial_fills": 0,
+      "filled_shares": 220,
+      "fees_usd": 3.41634,
+      "extra_cost_usd": 2.2,
+      "net_pnl_usd": 9.883659999999999,
+      "net_pnl_per_filled_share_usd": 0.04492572727272727,
+      "max_realized_drawdown_usd": 8.975389999999948,
+      "status_counts": {
+        "filled_full": 44,
+        "no_fill": 10
+      }
+    },
+    {
+      "candidate_id": "M500-669",
+      "scenario": "plus_1cent",
+      "latency_ms": 1000,
+      "status": "simulated_complete",
+      "attempts": 54,
+      "submitted_orders": 54,
+      "markets": 54,
+      "full_fills": 41,
+      "partial_fills": 0,
+      "filled_shares": 205,
+      "fees_usd": 3.20637,
+      "extra_cost_usd": 2.0500000000000003,
+      "net_pnl_usd": 8.293629999999997,
+      "net_pnl_per_filled_share_usd": 0.040456731707317055,
+      "max_realized_drawdown_usd": 10.24667999999997,
+      "status_counts": {
+        "filled_full": 41,
+        "no_fill": 12,
+        "rejected_unhealthy_book_at_match": 1
+      }
+    }
+  ],
+  "uncertainty": {
+    "M500-439": {
+      "market_resampling_sum_pnl_95pct": [
+        16.01388,
+        50.44503
+      ],
+      "daily_pnl_by_market_start_utc": {
+        "2026-10-04": 28.75692999999999,
+        "2026-10-05": 4.33267
+      },
+      "whole_recorded_days": 0,
+      "warning": "Exploratory iid-market bootstrap only; not selection-adjusted, not robust to serial/day dependence, not an OOS qualification test"
+    },
+    "M500-440": {
+      "market_resampling_sum_pnl_95pct": [
+        11.934009999999999,
+        46.21482
+      ],
+      "daily_pnl_by_market_start_utc": {
+        "2026-10-04": 27.10364,
+        "2026-10-05": 1.37793
+      },
+      "whole_recorded_days": 0,
+      "warning": "Exploratory iid-market bootstrap only; not selection-adjusted, not robust to serial/day dependence, not an OOS qualification test"
+    },
+    "M500-677": {
+      "market_resampling_sum_pnl_95pct": [
+        -4.325520000000002,
+        48.766780000000004
+      ],
+      "daily_pnl_by_market_start_utc": {
+        "2026-10-04": 23.551320000000004,
+        "2026-10-05": -1.6914200000000004
+      },
+      "whole_recorded_days": 0,
+      "warning": "Exploratory iid-market bootstrap only; not selection-adjusted, not robust to serial/day dependence, not an OOS qualification test"
+    },
+    "M500-669": {
+      "market_resampling_sum_pnl_95pct": [
+        -17.901560000000003,
+        39.76146
+      ],
+      "daily_pnl_by_market_start_utc": {
+        "2026-10-04": 12.107140000000001,
+        "2026-10-05": -1.226230000000001
+      },
+      "whole_recorded_days": 0,
+      "warning": "Exploratory iid-market bootstrap only; not selection-adjusted, not robust to serial/day dependence, not an OOS qualification test"
+    }
+  },
+  "independent_arithmetic_audit": {
+    "attempt_rows_reconciled": 84042,
+    "scenario_rule_latency_ledgers_reconciled": 4032
+  },
+  "max_cumulative_spend_per_scenario_rule_latency": 138.31842,
+  "cash_scope": "Separate $1000 cash per candidate/latency/scenario. No pooled portfolio. Gross spend <1000 without any redemption reuse.",
+  "normalization_seconds": 469.1759425119999,
+  "first500_replay_seconds": 31.007529789001637,
+  "additional_grid_seconds": {
+    "full_depth": 12.61587980800141,
+    "half_depth": 29.83990225799971,
+    "plus_1cent": 41.70937555300043
+  },
+  "normalization_sha256": "be5f365e9930dbf604e51e0ba34158f01408d97b58e9f4d085122febebc2e5fd",
+  "stream_audit": {
+    "audit_code_sha256": "eb50f10741591682ebb4c38c11e88017bb9c1d9a760f3df2b4f7348cbab3a1d6",
+    "count_mismatches": {
+      "deribit_disconnect": {
+        "declared": 1,
+        "observed": 0
+      },
+      "deribit_quote": {
+        "declared": 210354,
+        "observed": 9
+      },
+      "futures_bbo": {
+        "declared": 6672130,
+        "observed": 588
+      },
+      "futures_disconnect": {
+        "declared": 1,
+        "observed": 0
+      },
+      "futures_trade": {
+        "declared": 680828,
+        "observed": 41
+      },
+      "futures_trade_disconnect": {
+        "declared": 1,
+        "observed": 0
+      },
+      "spot_bbo": {
+        "declared": 35842,
+        "observed": 1
+      },
+      "spot_disconnect": {
+        "declared": 1,
+        "observed": 0
+      },
+      "spot_trade": {
+        "declared": 659890,
+        "observed": 1
+      }
+    },
+    "counts": {
+      "clob_connection": 179,
+      "clob_error": 179,
+      "clob_price_change": 13559402,
+      "clob_snapshot": 150817,
+      "deribit_connection": 1,
+      "deribit_quote": 9,
+      "futures_bbo": 588,
+      "futures_connection": 1,
+      "futures_trade": 41,
+      "futures_trade_connection": 1,
+      "markets": 56,
+      "outcomes": 55,
+      "spot_bbo": 1,
+      "spot_connection": 1,
+      "spot_trade": 1
+    },
+    "elapsed_seconds": 239.16419674999997,
+    "end_utc": "2026-10-05T00:32:02.675213+00:00",
+    "event_contract_and_counts_pass": false,
+    "formal_oos_result": null,
+    "input_sha256": {
+      "clob_events.jsonl.gz": "d22219560c7720a30c442b5bd6d2facb8d05171a1b08c976c11cddea740ce6cb",
+      "manifest.json": "0f127f64e24bf1141c1328962c830c0fe042003f542af0c3ec97d1f4aacac991",
+      "market_outcomes.csv.gz": "77035781f52627c72a3be829f288692688cd5c124ae10bea790ba6729ebaa109",
+      "market_registry.csv.gz": "0d3879ef8accaa47af8a49dfd3c061ef9f09fe1386fae2f1f2fe5c035da310bb",
+      "source_events.jsonl.gz": "2fe05a7ca9e194191b149ac3041a14fac3c960de2d92f27b57ebe724817e91d3"
+    },
+    "limitations": [
+      "Evidence audit only; not execution admission or a strategy backtest",
+      "Per-token stale events require causal handling, never global resorting",
+      "Registered slots are not complete or tradable slots",
+      "Gamma observation time does not prove wallet cash spendability"
+    ],
+    "metadata_missing_receipt": 0,
+    "new_strategy_replays": 0,
+    "observed_hours": 4.50265019402398,
+    "original_manifest": {
+      "clob_integrity": {
+        "dropped_epoch_mismatch": 0,
+        "dropped_pre_epoch": 0,
+        "explicit_order": true,
+        "missing_source_ts": 0,
+        "open_epoch_at_eof": null,
+        "receive_time_regressions": 0,
+        "source_sequence_regressions": 0,
+        "source_time_regressions": 44418
+      },
+      "coin": "btc",
+      "collector_region": "unknown",
+      "complete": false,
+      "counts": {
+        "clob_connection": 179,
+        "clob_error": 179,
+        "clob_price_change": 13559402,
+        "clob_snapshot": 150817,
+        "deribit_connection": 1,
+        "deribit_disconnect": 1,
+        "deribit_quote": 210354,
+        "futures_bbo": 6672130,
+        "futures_connection": 1,
+        "futures_disconnect": 1,
+        "futures_trade": 680828,
+        "futures_trade_connection": 1,
+        "futures_trade_disconnect": 1,
+        "markets": 56,
+        "outcomes": 55,
+        "spot_bbo": 35842,
+        "spot_connection": 1,
+        "spot_disconnect": 1,
+        "spot_trade": 659890
+      },
+      "ended_ms": 1791160322675.2134,
+      "markets_with_both_token_snapshots": 56,
+      "missing_resolved_market_ids": [],
+      "receipt_race_ready": false,
+      "recorder_complete": true,
+      "run_id": "37230483105",
+      "schema": "polymarket-5m-strict-replay-v2",
+      "source_integrity": {
+        "deribit": {
+          "dropped_outside_epoch": 0,
+          "epoch_mismatches": 0,
+          "explicit_order": true,
+          "max_active_connections": 1,
+          "open_epoch_at_eof": null,
+          "receive_time_regressions": 0,
+          "sequence_regressions": 0
+        },
+        "futures": {
+          "dropped_outside_epoch": 0,
+          "epoch_mismatches": 0,
+          "explicit_order": true,
+          "max_active_connections": 2,
+          "open_epoch_at_eof": null,
+          "receive_time_regressions": 0,
+          "sequence_regressions": 0
+        },
+        "futures_trade": {
+          "dropped_outside_epoch": 0,
+          "epoch_mismatches": 0,
+          "explicit_order": true,
+          "max_active_connections": 2,
+          "open_epoch_at_eof": null,
+          "receive_time_regressions": 0,
+          "sequence_regressions": 0
+        },
+        "spot": {
+          "dropped_outside_epoch": 0,
+          "epoch_mismatches": 0,
+          "explicit_order": true,
+          "max_active_connections": 3,
+          "open_epoch_at_eof": null,
+          "receive_time_regressions": 0,
+          "sequence_regressions": 0
+        }
+      },
+      "started_ms": 1791144113134.515,
+      "unresolved_market_ids": [
+        "0x03884d3ccffa8bf88ce7868310ca05d3009622859651b9d9ed08b8a69b9d3319"
+      ]
+    },
+    "original_manifest_complete_unchanged": false,
+    "outcome_missing_receipt": 0,
+    "registered_market_slots_by_utc_day": {
+      "2026-10-04": 48,
+      "2026-10-05": 8
+    },
+    "run_id": "37230483105",
+    "schema": "historical-stream-audit-v1",
+    "source_field_counts": {
+      "clob": {},
+      "source": {
+        "aggressor_side": 0,
+        "buyer_is_maker": 0,
+        "price": 1,
+        "recv_ms": 1,
+        "size": 1,
+        "source_ts_ms": 1,
+        "trade_id": 0
+      }
+    },
+    "start_utc": "2026-10-04T20:01:53.134515+00:00",
+    "strategy_pnl": null,
+    "stream_validation_errors": {
+      "source": "source_events.jsonl.gz:645: invalid numeric futures_trade"
+    },
+    "validator_sha256": "ff82c3ee51c902377744079880ad7434af442bd7a797c10f35fb6dcdb04c05a0",
+    "venue_clock": {
+      "adjacent_global_regressions": 12854,
+      "book_events": 13710219,
+      "global_regressions_cross_token": 12844,
+      "global_regressions_same_token": 10,
+      "per_token_stale_events": 707,
+      "stale_clob_price_change": 691,
+      "stale_clob_snapshot": 16
+    },
+    "file_at_scan_finish_sha256": "cf2a60ff970bb3b42636ac08c78fb02b83d73a998ce8b9353f92f1d560538938",
+    "raw_metadata_audit": {
+      "raw_rows": 127,
+      "unique_markets": 56,
+      "missing_receipt_rows": 0,
+      "counts": {
+        "registry_after_close": 55,
+        "first_raw_before_close": 56,
+        "direct_mapping_matches": 56
+      },
+      "first_observed_fee_schedules": {
+        "{\"exponent\": 1, \"rate\": 0.07, \"rebateRate\": 0.2, \"takerOnly\": true}": 56
+      },
+      "first_observed_ticks": {
+        "0.01": 56
+      },
+      "first_observed_min_order_sizes": {
+        "5": 56
+      },
+      "raw_sha256": {
+        "/tmp/btc5m_oct4_strict/raw/2026-10-04/markets.jsonl.gz": "15524cfe27589f90c6f90f4fd45cbcc28201254c8fd1e497d110938b4b248b12",
+        "/tmp/btc5m_oct4_strict/raw/2026-10-05/markets.jsonl.gz": "97cbd90abd5e801fcaadb71f99fe7a0490d79e3f4f29726138f56e4e9ab9fa90"
+      },
+      "availability_policy": "Use first received values only; never backdate later values"
+    },
+    "report_assembly_code_sha256": "5521847b2640473ad00be3b21d7f42fda386aae1a246e1e3fda8927aa0d105bc"
+  },
+  "spot_projection": {
+    "schema": "spot-stream-projection-v1",
+    "parent_sha256": "2fe05a7ca9e194191b149ac3041a14fac3c960de2d92f27b57ebe724817e91d3",
+    "output_sha256": "01d0fabcf6eba3c26a5951d9bbe9ae682978e09b412f0f6db7888f9a28354a6f",
+    "code_sha256": "e375acb43b323569c2576141ed3a97583251e7affe34262d1f0ffc406c7468bb",
+    "validator_sha256": "ff82c3ee51c902377744079880ad7434af442bd7a797c10f35fb6dcdb04c05a0",
+    "counts": {
+      "parent_rows": 8259052,
+      "parent_deribit": 210356,
+      "excluded_deribit_connection": 1,
+      "parent_futures": 6672132,
+      "excluded_futures_connection": 1,
+      "parent_spot": 695734,
+      "selected_spot_connection": 1,
+      "parent_futures_trade": 680830,
+      "excluded_futures_trade_connection": 1,
+      "excluded_deribit_quote": 210354,
+      "excluded_futures_bbo": 6672130,
+      "excluded_futures_trade": 680828,
+      "selected_spot_bbo": 35842,
+      "selected_spot_trade": 659890,
+      "spot_field_price": 659890,
+      "spot_field_size": 659890,
+      "spot_field_aggressor_side": 0,
+      "spot_field_buyer_is_maker": 0,
+      "spot_field_trade_id": 0,
+      "excluded_nonpositive_or_missing_futures_price": 2817,
+      "selected_spot_disconnect": 1,
+      "excluded_futures_disconnect": 1,
+      "excluded_futures_trade_disconnect": 1,
+      "excluded_deribit_disconnect": 1
+    },
+    "validated_counts": {
+      "spot_connection": 1,
+      "spot_bbo": 35842,
+      "spot_trade": 659890,
+      "spot_disconnect": 1
+    },
+    "elapsed_seconds": 110.1438063429996,
+    "purpose": "development-only spot-dependent research, not admission of futures-dependent strategies",
+    "missing_fields_imputed": false,
+    "market_pnl": null,
+    "new_strategy_replays": 0,
+    "limitations": [
+      "Does not certify CLOB, metadata, outcomes, actual fills, fees or cash spendability",
+      "Connection and file continuity are recorded continuity, not proof of zero upstream loss"
+    ]
+  },
+  "failed_attempt_preserved": {
+    "original_normalized_sha256": "17e30ad5d6c9254b33a46a2e6119d9217bbead5ae33ccf05070d3cc55d704f93",
+    "event_body_sha256": "513e4c5359db64aebb74ba48c608c8245fa5276379193946bdde707b645ba30a",
+    "event_body_byte_identical": true,
+    "failed_run_preserved": "/tmp/btc5m_oct4_development",
+    "failed_reason": "required provenance.source missing; all PnL blocked, not zero",
+    "repair_script_sha256": "1a04a115720e1032d5d54ab3822823bc4302094d85820b7174ed4d3a22051431"
+  },
+  "initial_failed_scenario_rows": 1500,
+  "aborted_grid_before_any_completed_scenario": true,
+  "formal_oos_result": null,
+  "full_seven_day_result": null,
+  "qualified_independent_strategies": 0,
+  "tests": {
+    "new_stdlib_tests": 18,
+    "legacy_depth_regression_tests": 7,
+    "pytest_suite": "not rerun: pytest not installed"
+  },
+  "upstream_source_head": "7aa7767d1484dce44bb9d250e8c835702074ca8f",
+  "new_published_artifact": {
+    "run_id": 38801525953,
+    "artifact_id": 12023373535,
+    "size_bytes": 593632026,
+    "downloaded": false,
+    "reason": "above known 512MiB reader limit"
+  },
+  "limitations": [
+    "Retrospective consumed development; preserve all 720 plus prior trials in selection denominator",
+    "No intact seven-day coverage and no untouched OOS; partial Oct4/5 dates are not two full days",
+    "Displayed depth upper bound; real queue/failure/slippage and region equivalence unverified",
+    "Aggressor direction and official TWAP-tail features remain missing",
+    "New normalization/schema cannot inherit Oct10/11 freezes",
+    "This run evaluates existing mine500 rules, not the separately selected JPR/MAR model plugins"
+  ]
+}
