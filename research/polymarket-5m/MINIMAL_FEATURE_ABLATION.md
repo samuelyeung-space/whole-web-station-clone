@@ -41,10 +41,16 @@ python replay_lab.py pipeline --input /path/to/new-mfa/features/endpoint_0.jsonl
   /path/to/new-mfa/features/endpoint_3.jsonl.gz /path/to/new-mfa/features/endpoint_4.jsonl.gz \
   /path/to/new-mfa/features/endpoint_5.jsonl.gz --input-type normalized \
   --cache-root /path/to/new-mfa/cache --out /path/to/new-mfa/results \
-  --strategy 'minimal_feature_strategy:*' --shares100 --cash1000 \
-  --latencies-ms500,600,1000 --stresses base,half_depth,plus_1cent
+  --strategy 'minimal_feature_strategy:*' --shares 100 --cash 1000 \
+  --latencies-ms 500,600,1000 --stresses base,half_depth,plus_1cent
 python -m unittest test_minimal_feature_research -v
 ```
+
+`run_minimal_feature_batch.py --root /path/to/new-mfa` registers and runs the
+complete grid plus a single shared-$1000 control using all eight rules in
+canonical catalog priority, with no performance-based component selection.
+This is72isolated rows plus9shared rows, not81strategies. Its new batch protocol
+is written before any replay result; first failed orders still consume markets.
 
 Private tapes, predictions and ledgers must not be published in the public repo.
 Never sum alternative training/threshold/latency results or reset the screening
