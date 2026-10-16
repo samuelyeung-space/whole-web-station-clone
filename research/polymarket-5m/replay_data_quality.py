@@ -74,13 +74,21 @@ def summarize(events, intervals, required_features=(), max_quote_age_ms=250):
         if kind == "book":
             state["book_events"] += 1
             now = event.get("recv_ms")
+            mode = event.get("execution_mode")
+            side_health = event.get("side_healthy")
             for side in ("up", "down"):
-                receipt = event.get(side + "_recv_ms")
+                # Native two-sided tapes use the aggregate healthy flag and
+                # may omit per-token receipts. Limited tapes require explicit
+                # per-token receipts and health, exactly like replay_engine.
+                limited = mode == "up_only_limited" or event.get("healthy") is False
+                receipt = event.get(side + "_recv_ms", None if limited else now)
+                health = (side_health.get(side.capitalize(), side_health.get(side))
+                          if isinstance(side_health, dict) else event.get(side + "_healthy"))
+                if not limited:
+                    health = event.get("healthy") is True
                 fresh = (valid_number(now) and valid_number(receipt)
                          and 0 <= now - receipt <= max_quote_age_ms
-                         and event.get(side + "_healthy") is True)
-                # Some native tapes have a single aggregate health flag; never
-                # infer side-specific health from it or from a missing clock.
+                         and health is True)
                 if fresh and isinstance(event.get(side + "_asks"), list) and event[side + "_asks"]:
                     state[side + "_fresh"] = True
         elif kind == "decision":
