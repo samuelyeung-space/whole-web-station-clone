@@ -1,0 +1,14 @@
+[
+  {
+    "path": "replay_work/provenance/replay_saved_scores_v1.py",
+    "source_path": "replay_work/replay_saved_scores.py",
+    "sha256": "5ef61203921d670f3434635d7b520c37ea88e58f40e7490dc868e31875634021",
+    "role": "Exact executed adapter version retained; not active candidate code. Immutable source formula and saved models unchanged."
+  },
+  {
+    "path": "replay_work/provenance/replay_mar_saved_features_v1.py",
+    "source_path": "replay_work/replay_mar_saved_features.py",
+    "sha256": "626ec8d8f00b0c237386e25aff80525868805b7fd7b222d14e6bed104f9e3f20",
+    "role": "Exact executed adapter version retained; not active candidate code. Immutable source formula and saved models unchanged."
+  }
+]
