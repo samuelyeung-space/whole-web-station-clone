@@ -10,6 +10,9 @@ class Tests(unittest.TestCase):
     def test_catalog(self):
         cs=candidates();self.assertEqual(len(cs),18);self.assertEqual(len({c['id'] for c in cs}),18)
         self.assertEqual(sum(not c.get('control',False) for c in cs),8)
+    def test_repeatable_strategy_cli(self):
+        from run_minimal_error_motion import strategy_args
+        self.assertEqual(strategy_args(['m:a','m:b']),['--strategy','m:a','--strategy','m:b'])
     def test_prefix(self):
         def run(n):
             en=Enricher();return [en.process(row(i*1000,.6+i*.001)) for i in range(n)]

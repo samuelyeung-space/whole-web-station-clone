@@ -13,7 +13,9 @@ def verify(root,old):
         out=defaultdict(list)
         with gzip.open(directory/'attempts.jsonl.gz','rt') as stream:
             for line in stream:
-                row=json.loads(line);cid=row.pop('candidate_id');out[(cid,row['latency_ms'])].append(row)
+                row=json.loads(line);cid=row.pop('candidate_id')
+                # Global output row ordinal changes with catalog size; not economics.
+                row.pop('attempt_id');out[(cid,row['latency_ms'])].append(row)
         return out
     comparisons=[]
     for scenario in ('shares100_base_release0','shares100_half_depth_release0','shares100_plus_1cent_release0'):
@@ -35,6 +37,7 @@ def verify(root,old):
             'all9_scenarios_positive':all(r['net_pnl_usd'] is not None and r['net_pnl_usd']>0 for r in stress)})
     result={'status':'passed','assessment_sha256':sha(root/'assessment.json'),'old_assessment_sha256':sha(old/'assessment.json'),
         'exact_original_rule_comparisons':comparisons,'new_rules_with_matched_controls':matched,
+        'excluded_identity_fields':['candidate_id','attempt_id (global catalog-dependent row ordinal)'],
         'warning':'different first signals imply different cash/fill sets; PnL differences are not treatment effects or OOS',
         'formal_oos_result':None}
     (root/'independent_controls.json').write_text(json.dumps(result,indent=2)+'\n')

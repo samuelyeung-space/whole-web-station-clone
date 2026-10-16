@@ -4,6 +4,9 @@ from datetime import datetime,timezone
 from pathlib import Path
 from minimal_error_motion_strategy import candidates
 
+def strategy_args(specs):
+    return [item for spec in specs for item in ('--strategy',spec)]
+
 def run(root):
     root=Path(root).resolve();code=Path(__file__).resolve().parent
     feature=json.loads((root/'features/completion.json').read_text())
@@ -27,7 +30,7 @@ def run(root):
     for mode in ('isolated','shared'):
         specs=['minimal_error_motion_strategy:*'] if mode=='isolated' else ['minimal_error_motion_strategy:'+i for i in protocol['shared_rules']]
         outputs[mode]=call(mode,['run','--cache',imported['cache_path'],'--out',str(root/(mode+'_results')),
-            '--strategy',*specs,'--mode',mode,'--shares','100','--cash','1000',
+            *strategy_args(specs),'--mode',mode,'--shares','100','--cash','1000',
             '--latencies-ms','500,600,1000','--stresses','base,half_depth,plus_1cent'])
     (root/'batch_completion.json').write_text(json.dumps({'status':'completed_development_simulation','outputs':outputs,'formal_oos_result':None},indent=2)+'\n')
 
