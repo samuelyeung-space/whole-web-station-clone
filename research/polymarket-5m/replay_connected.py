@@ -1,8 +1,8 @@
 """Connect verified historical caches to the existing offline replay entrypoints.
 
 No download, live order, model fitting or new execution assumptions. Native
-and legacy inputs stay separate. A fixed-100 full-or-zero capacity simulation
-is the default here; it is not a promise that live FAK orders fill atomically.
+and legacy inputs stay separate. The default is target-100 partial-FAK simulation. Full-or-zero remains an
+explicit capacity stress scenario, never an atomic live FAK guarantee.
 """
 from __future__ import annotations
 import argparse
@@ -72,7 +72,7 @@ def main(argv=None):
     p.add_argument('--plugin-dir', action='append', default=[])
     p.add_argument('--shared', action='store_true')
     p.add_argument('--accept-legacy-assumptions', action='store_true')
-    p.add_argument('--fill-policy', choices=['full-or-zero', 'partial-fak'], default='full-or-zero')
+    p.add_argument('--fill-policy', choices=['full-or-zero', 'partial-fak'], default='partial-fak')
     p.add_argument('--require-full-days', type=int, default=0)
     p.add_argument('--dry-run', action='store_true', help='verify input and show command without an economic run')
     args = p.parse_args(argv)
@@ -96,3 +96,4 @@ def main(argv=None):
 
 if __name__ == '__main__':
     raise SystemExit(main())
+

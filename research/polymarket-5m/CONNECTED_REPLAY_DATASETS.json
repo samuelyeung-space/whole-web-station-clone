@@ -3,8 +3,12 @@
   "data_role": "consumed_development",
   "initial_cash_usd": 1000,
   "requested_shares": 100,
-  "latencies_ms": [500, 600, 1000],
-  "default_capacity_scenario": "full-or-zero; not a live FAK guarantee",
+  "latencies_ms": [
+    500,
+    600,
+    1000
+  ],
+  "default_capacity_scenario": "partial-fak; target100 with observed partial/failed fills; displayed depth upper bound",
   "coverage_start_date_utc": "2026-09-29",
   "coverage_end_date_utc": "2026-10-09",
   "unique_observed_hours": 174.33148659729005,
@@ -14,13 +18,70 @@
   "formal_oos_result": null,
   "raw_data_in_this_repository": false,
   "datasets": [
-    {"lane":"strict","dataset_key":"4d398f8daa5d72bcfec988c2df7f6b49091f3f367240cf6b274530605edc419b","tape_sha256":"d6e828e8df2968e3b7571bb228b286b571404b59fb41b26f2081004ca87b6fa9","observed_hours":67.53975770840115,"registered_markets":840,"source_tapes":15,"requires_legacy_assumptions":false},
-    {"lane":"direct","dataset_key":"3434f05576f8c65926df4a63004b1bff535604dce84efc7f88e052dbe6b2e616","tape_sha256":"9fc3c16044dc865097f2998705ed41cfcf27597c1a2d2396e90fcf0b2ff0456c","observed_hours":76.49564305555556,"registered_markets":935,"source_tapes":17,"requires_legacy_assumptions":true},
-    {"lane":"relay","dataset_key":"2a8b2071fff8f0c18e102ba21f7a2a3e2f9797dde603efccdc6807ac73e0b244","tape_sha256":"2ac100dd581ff6416b4ee2ea447436ab4cfd93437c3c632d246abcf7b7cf7ace","observed_hours":13.799178333333334,"registered_markets":168,"source_tapes":3,"requires_legacy_assumptions":true},
-    {"lane":"chain_raw","dataset_key":"17d777f81dde1d31da1b80cafe8f56392d56638b5226134ceed9f58c8e758388","tape_sha256":"97586c65f4d44e5edbb81e51e22fb8394462473147bf39da44bf159387410e47","observed_hours":1.3992122222222223,"registered_markets":20,"source_tapes":4,"requires_legacy_assumptions":true},
-    {"lane":"chain_sample","dataset_key":"41667cb4a474e64db175fc26dc358df01a2e138784d32f40941bdf1d36bb505b","tape_sha256":"f6f07b41f11cef7e689b220c5bc1f4aacb8d506f87b0e2b53f651611b1e4963c","observed_hours":15.097695277777778,"registered_markets":185,"source_tapes":5,"requires_legacy_assumptions":true},
-    {"lane":"jpr","dataset_key":"59280a6cb77b8da3b39abc854a67cab0083f5b00d3dc41ced317da5e97da7076","tape_sha256":"6d98b42c22467e142ab0907c8be8b3adbf82cf83440e6183d822fd2963e29588","observed_hours":27.015909729410808,"registered_markets":336,"overlaps_strict":true,"requires_legacy_assumptions":false},
-    {"lane":"mar","dataset_key":"de8ea6765b812e4234822863d41fe7855fda3ac937a79e4da8ced4fcd2daa476","tape_sha256":"a1da0bcfd5f3f0d20600881f2fc02d19f6a9a69fd43b4709bd6d844c8f853193","observed_hours":27.015909729410808,"registered_markets":336,"overlaps_strict":true,"requires_legacy_assumptions":false}
+    {
+      "lane": "strict",
+      "dataset_key": "4d398f8daa5d72bcfec988c2df7f6b49091f3f367240cf6b274530605edc419b",
+      "tape_sha256": "d6e828e8df2968e3b7571bb228b286b571404b59fb41b26f2081004ca87b6fa9",
+      "observed_hours": 67.53975770840115,
+      "registered_markets": 840,
+      "source_tapes": 15,
+      "requires_legacy_assumptions": false
+    },
+    {
+      "lane": "direct",
+      "dataset_key": "3434f05576f8c65926df4a63004b1bff535604dce84efc7f88e052dbe6b2e616",
+      "tape_sha256": "9fc3c16044dc865097f2998705ed41cfcf27597c1a2d2396e90fcf0b2ff0456c",
+      "observed_hours": 76.49564305555556,
+      "registered_markets": 935,
+      "source_tapes": 17,
+      "requires_legacy_assumptions": true
+    },
+    {
+      "lane": "relay",
+      "dataset_key": "2a8b2071fff8f0c18e102ba21f7a2a3e2f9797dde603efccdc6807ac73e0b244",
+      "tape_sha256": "2ac100dd581ff6416b4ee2ea447436ab4cfd93437c3c632d246abcf7b7cf7ace",
+      "observed_hours": 13.799178333333334,
+      "registered_markets": 168,
+      "source_tapes": 3,
+      "requires_legacy_assumptions": true
+    },
+    {
+      "lane": "chain_raw",
+      "dataset_key": "17d777f81dde1d31da1b80cafe8f56392d56638b5226134ceed9f58c8e758388",
+      "tape_sha256": "97586c65f4d44e5edbb81e51e22fb8394462473147bf39da44bf159387410e47",
+      "observed_hours": 1.3992122222222223,
+      "registered_markets": 20,
+      "source_tapes": 4,
+      "requires_legacy_assumptions": true
+    },
+    {
+      "lane": "chain_sample",
+      "dataset_key": "41667cb4a474e64db175fc26dc358df01a2e138784d32f40941bdf1d36bb505b",
+      "tape_sha256": "f6f07b41f11cef7e689b220c5bc1f4aacb8d506f87b0e2b53f651611b1e4963c",
+      "observed_hours": 15.097695277777778,
+      "registered_markets": 185,
+      "source_tapes": 5,
+      "requires_legacy_assumptions": true
+    },
+    {
+      "lane": "jpr",
+      "dataset_key": "59280a6cb77b8da3b39abc854a67cab0083f5b00d3dc41ced317da5e97da7076",
+      "tape_sha256": "6d98b42c22467e142ab0907c8be8b3adbf82cf83440e6183d822fd2963e29588",
+      "observed_hours": 27.015909729410808,
+      "registered_markets": 336,
+      "overlaps_strict": true,
+      "requires_legacy_assumptions": false
+    },
+    {
+      "lane": "mar",
+      "dataset_key": "de8ea6765b812e4234822863d41fe7855fda3ac937a79e4da8ced4fcd2daa476",
+      "tape_sha256": "a1da0bcfd5f3f0d20600881f2fc02d19f6a9a69fd43b4709bd6d844c8f853193",
+      "observed_hours": 27.015909729410808,
+      "registered_markets": 336,
+      "overlaps_strict": true,
+      "requires_legacy_assumptions": false
+    }
   ],
-  "scope_note": "Models are overlapping feature views, not additional market coverage. Dates and aggregate hours do not certify healthy complete days. This does not claim that every September/October recording, or October 10-16, has been ingested."
+  "scope_note": "Models are overlapping feature views, not additional market coverage. Dates and aggregate hours do not certify healthy complete days. This does not claim that every September/October recording, or October 10-16, has been ingested.",
+  "historical_acceptance_capacity_scenario": "full-or-zero; separate stress scenario"
 }

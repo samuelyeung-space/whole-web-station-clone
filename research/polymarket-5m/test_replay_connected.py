@@ -11,7 +11,7 @@ KEY = 'a' * 64
 class ConnectedTests(unittest.TestCase):
     def args(self, **changes):
         values = dict(strategy=['mine500_catalog:M500-439'], shared=False, out='test-output',
-                      fill_policy='full-or-zero', require_full_days=0, plugin_dir=[],
+                      fill_policy='partial-fak', require_full_days=0, plugin_dir=[],
                       accept_legacy_assumptions=False)
         return SimpleNamespace(**{**values, **changes})
 
@@ -19,7 +19,7 @@ class ConnectedTests(unittest.TestCase):
         cmd = connected.command_for(self.args(), Path(KEY), {'dataset_header': {}})
         self.assertEqual(cmd[cmd.index('--shares') + 1], '100')
         self.assertEqual(cmd[cmd.index('--cash') + 1], '1000')
-        self.assertIn('--full-or-zero', cmd)
+        self.assertNotIn('--full-or-zero', cmd)
         self.assertEqual(cmd[cmd.index('--latencies-ms') + 1], '500,600,1000')
 
     def test_legacy_is_explicit(self):
@@ -37,6 +37,10 @@ class ConnectedTests(unittest.TestCase):
         cmd = connected.command_for(self.args(strategy=['mine500_catalog:*']), Path(KEY), {'dataset_header': {}})
         self.assertTrue(cmd[1].endswith('replay_catalog_batch.py'))
         self.assertIn('--batch-size', cmd)
+
+    def test_full_or_zero_is_explicit_stress(self):
+        cmd = connected.command_for(self.args(fill_policy='full-or-zero'), Path(KEY), {'dataset_header': {}})
+        self.assertIn('--full-or-zero', cmd)
 
     def test_partial_fak_separate_identity(self):
         cmd = connected.command_for(self.args(fill_policy='partial-fak'), Path(KEY), {'dataset_header': {}})
@@ -62,3 +66,4 @@ class ConnectedTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
