@@ -12,6 +12,8 @@ python replay_lab.py pipeline --input recording.zip --cache-root cache --strateg
 
 This accepts a downloaded GitHub recording ZIP (including nested `raw.tgz`), a TGZ, an extracted directory with `bundle-btc/strict`, or normalized `.jsonl[.gz]`. It never fetches credentials, accesses S3, downloads or places orders. The raw adapter verifies CLOB and receipt sequence, retains Gamma field availability, explicitly projects valid BTC spot data, preserves missing aggressor fields, and uses the existing adapter. Raw conversion can take minutes; it is done once per content/code identity. The fast strategy path reads the normalized cache.
 
+Before publishing a raw conversion, and on every reuse, the adapter reads the full compressed stream through its trailer, checks every JSON record, the unique first dataset header, and exact event counts. A truncated stream is rejected even if its file hash matches a stored manifest. Failed conversion inputs and diagnostics remain available; corrupt cached bytes are never silently overwritten.
+
 For multiple nonoverlapping recordings, list every local input after `--input`. Distinct overlapping observation spans are rejected rather than double counted. Byte-identical/logically identical normalized tapes are deduplicated. Corruption is rejected and never silently overwritten. An incompatible old recorder schema produces a retained `failed.json` with null PnL, not invented usable data.
 
 ## Prepare once, add strategies repeatedly

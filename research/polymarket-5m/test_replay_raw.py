@@ -1,4 +1,5 @@
 """Offline archive boundary tests: no downloads or private data needed."""
+from contextlib import contextmanager
 import gzip
 import io
 import json
@@ -34,6 +35,131 @@ class RawRecordingTests(unittest.TestCase):
             for key, value in members.items():
                 out.writestr(key, value)
         return path
+
+    @contextmanager
+    def normalization_pipeline(self, defect=None):
+        """Small producer fixture; verify admission without replaying markets."""
+        header = {'type': 'dataset', 'dataset_id': 'synthetic-intake', 'split': 'development'}
+        rows = [header, {'type': 'book', 'recv_ms': 1000}]
+
+        def project(source, destination):
+            destination.mkdir()
+            (destination/'manifest.json').write_text('{}')
+
+        def normalize(parent, spot, auditpath, output):
+            content = gzip.compress(('\n'.join(json.dumps(r) for r in rows)+'\n').encode())
+            if defect == 'truncated':
+                content = content[:-8]
+            output.write_bytes(content)
+            evidence = {'counts': {'book': 1}, 'header': dict(header), 'sha256': raw.sha(output)}
+            if defect == 'counts':
+                evidence['counts']['book'] = 2
+            elif defect == 'header':
+                evidence['header']['dataset_id'] = 'wrong-dataset'
+            return evidence
+
+        with patch('historical_stream_audit.audit', return_value={}), \
+                patch('spot_stream_projection.project', side_effect=project), \
+                patch('historical_spot_development.normalize', side_effect=normalize) as producer:
+            yield producer
+
+    @staticmethod
+    def refresh_cached_hash(destination):
+        manifest_path = destination/'manifest.json'
+        manifest = json.loads(manifest_path.read_text())
+        manifest['normalized_sha256'] = raw.sha(destination/'normalized.jsonl.gz')
+        manifest_path.write_text(json.dumps(manifest))
+
+    def test_valid_new_tape_is_checked_and_cache_reused(self):
+        source = self.zip(self.strict_members())
+        with self.normalization_pipeline() as producer:
+            first = raw.prepare_raw(source, self.root/'cache')
+            again = raw.prepare_raw(source, self.root/'cache')
+            self.assertFalse(first['cache_hit'])
+            self.assertTrue(again['cache_hit'])
+            self.assertEqual(producer.call_count, 1)
+            self.assertEqual(first['normalized_sha256'], again['normalized_sha256'])
+            verified = raw.validate_normalized(first['normalized_path'], first['normalization'])
+            self.assertEqual(verified['records'], 2)
+            self.assertEqual(verified['body_counts'], {'book': 1})
+            self.assertTrue(verified['gzip_eof_crc_verified'])
+
+    def test_cached_truncated_gzip_with_matching_hash_fails_without_overwrite(self):
+        source = self.zip(self.strict_members())
+        with self.normalization_pipeline() as producer:
+            first = raw.prepare_raw(source, self.root/'cache')
+            tape = Path(first['normalized_path'])
+            truncated = tape.read_bytes()[:-8]
+            tape.write_bytes(truncated)
+            self.refresh_cached_hash(tape.parent)
+            manifest_before = (tape.parent/'manifest.json').read_bytes()
+            with self.assertRaisesRegex(ValueError, 'raw cache integrity blocked'):
+                raw.prepare_raw(source, self.root/'cache')
+            self.assertEqual(producer.call_count, 1)
+            self.assertEqual(tape.read_bytes(), truncated)
+            self.assertEqual((tape.parent/'manifest.json').read_bytes(), manifest_before)
+            failures = list((self.root/'cache').glob('*.invalid.*/failed.json'))
+            self.assertEqual(len(failures), 1)
+            diagnostic = json.loads(failures[0].read_text())
+            self.assertEqual(diagnostic['status'], 'blocked_raw_cache_integrity')
+            self.assertIsNone(diagnostic['pnl'])
+            self.assertEqual(diagnostic['completed_backtests'], 0)
+
+    def test_cached_count_and_header_mismatches_fail_closed(self):
+        source = self.zip(self.strict_members())
+        for defect in ('counts', 'header'):
+            with self.subTest(defect=defect), self.normalization_pipeline() as producer:
+                cache = self.root/defect
+                first = raw.prepare_raw(source, cache)
+                destination = Path(first['normalized_path']).parent
+                manifest_path = destination/'manifest.json'
+                manifest = json.loads(manifest_path.read_text())
+                if defect == 'counts':
+                    manifest['normalization']['counts']['book'] = 3
+                else:
+                    manifest['normalization']['header']['dataset_id'] = 'wrong-dataset'
+                manifest_path.write_text(json.dumps(manifest))
+                before = manifest_path.read_bytes()
+                with self.assertRaisesRegex(ValueError, f'{"body counts" if defect == "counts" else "dataset header"} mismatch'):
+                    raw.prepare_raw(source, cache)
+                self.assertEqual(producer.call_count, 1)
+                self.assertEqual(manifest_path.read_bytes(), before)
+                self.assertEqual(len(list(cache.glob('*.invalid.*/failed.json'))), 1)
+
+    def test_bad_new_outputs_retain_inputs_and_never_publish(self):
+        source = self.zip(self.strict_members())
+        for defect in ('truncated', 'counts', 'header'):
+            with self.subTest(defect=defect), self.normalization_pipeline(defect):
+                cache = self.root/defect
+                with self.assertRaisesRegex(ValueError, 'raw intake blocked'):
+                    raw.prepare_raw(source, cache)
+                failures = list(cache.glob('*.pending.*/failed.json'))
+                self.assertEqual(len(failures), 1)
+                stage = failures[0].parent
+                self.assertTrue((stage/'spot/manifest.json').exists())
+                self.assertTrue((stage/'extracted').exists())
+                self.assertTrue((stage/'normalization.json').exists())
+                self.assertFalse((stage/'manifest.json').exists())
+                self.assertIsNone(json.loads(failures[0].read_text())['pnl'])
+
+    def test_all_json_lines_header_uniqueness_and_gzip_crc_are_checked(self):
+        header = {'type': 'dataset', 'dataset_id': 'synthetic-intake'}
+        expected = {'header': header, 'counts': {'book': 1}}
+        head, body = json.dumps(header), '{"type":"book"}'
+        bad_streams = [head+'\nnot JSON\n', head+'\n\n', head+'\n'+head+'\n',
+                       body+'\n'+head+'\n', '', head+'\n{"type":"book","x":NaN}\n',
+                       head+'\n[]\n']
+        path = self.root/'normalized.jsonl.gz'
+        for content in bad_streams:
+            with self.subTest(content=content):
+                path.write_bytes(gzip.compress(content.encode()))
+                with self.assertRaises(ValueError):
+                    raw.validate_normalized(path, expected)
+        valid = bytearray(gzip.compress((head+'\n'+body+'\n').encode()))
+        valid[-8] ^= 1  # Corrupt only the CRC; JSON and record counts still fit.
+        path.write_bytes(valid)
+        with self.assertRaisesRegex(ValueError, 'CRC check failed'):
+            raw.validate_normalized(path, expected)
 
     @staticmethod
     def tar_bytes(members, symlink=None):

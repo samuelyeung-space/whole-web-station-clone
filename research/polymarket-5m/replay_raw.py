@@ -3,6 +3,8 @@
 The existing spot/CLOB causal adapters own normalization. Legacy data without
 the required clocks/depth is retained as a failed intake, never interpolated.
 """
+from collections import Counter
+import gzip
 import hashlib
 import json
 from pathlib import Path, PurePosixPath
@@ -22,6 +24,54 @@ STRICT_NAMES = {'manifest.json', 'source_events.jsonl.gz', 'clob_events.jsonl.gz
 def sha(path):
     with Path(path).open('rb') as handle:
         return hashlib.file_digest(handle, 'sha256').hexdigest()
+
+
+def validate_normalized(path, normalization):
+    """Read to gzip EOF/CRC and reconcile the emitted tape with its evidence.
+
+    The existing normalizer counts body events, excluding its dataset header.
+    A matching file hash alone does not establish that a producer finished.
+    """
+    if not isinstance(normalization, dict):
+        raise ValueError('normalization evidence must be an object')
+    expected_header = normalization.get('header')
+    expected_counts = normalization.get('counts')
+    if not isinstance(expected_header, dict) or expected_header.get('type') != 'dataset':
+        raise ValueError('normalization dataset header missing')
+    if (not isinstance(expected_counts, dict) or 'dataset' in expected_counts
+            or any(not isinstance(k, str) or not k or type(v) is not int or v < 0
+                   for k, v in expected_counts.items())):
+        raise ValueError('normalization body counts invalid')
+
+    def invalid_constant(value):
+        raise ValueError('nonfinite JSON constant: ' + value)
+
+    counts, lines = Counter(), 0
+    try:
+        with gzip.open(path, 'rt', encoding='utf-8') as handle:
+            # Exhausting the iterator, including an attempted read after the
+            # last record, is required to check the gzip trailer and CRC.
+            for lines, line in enumerate(handle, 1):
+                row = json.loads(line, parse_constant=invalid_constant)
+                if not isinstance(row, dict) or not isinstance(row.get('type'), str) or not row['type']:
+                    raise ValueError(f'normalized line {lines} requires an object and type')
+                if lines == 1:
+                    if row.get('type') != 'dataset':
+                        raise ValueError('normalized first line must be dataset header')
+                    if row != expected_header:
+                        raise ValueError('normalized dataset header mismatch')
+                elif row['type'] == 'dataset':
+                    raise ValueError('normalized tape contains multiple dataset headers')
+                else:
+                    counts[row['type']] += 1
+    except (OSError, EOFError, UnicodeError, ValueError) as exc:
+        raise ValueError(f'normalized stream integrity failure: {exc}') from exc
+    if not lines:
+        raise ValueError('normalized dataset header missing from empty tape')
+    if dict(counts) != expected_counts:
+        raise ValueError(f'normalized body counts mismatch: observed={dict(counts)}, expected={expected_counts}')
+    return {'records': lines, 'dataset_headers': 1, 'body_counts': dict(counts),
+            'gzip_eof_crc_verified': True}
 
 
 def _safe_name(name):
@@ -125,9 +175,19 @@ def prepare_raw(source, cache_root):
     key = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
     destination = cache_root/key
     if destination.exists():
-        manifest = json.loads((destination/'manifest.json').read_text())
-        if manifest['identity'] != identity or sha(destination/'normalized.jsonl.gz') != manifest['normalized_sha256']:
-            raise ValueError('raw normalization cache integrity mismatch')
+        try:
+            manifest = json.loads((destination/'manifest.json').read_text())
+            if manifest['identity'] != identity or sha(destination/'normalized.jsonl.gz') != manifest['normalized_sha256']:
+                raise ValueError('raw normalization cache integrity mismatch')
+            validate_normalized(destination/'normalized.jsonl.gz', manifest['normalization'])
+        except Exception as exc:
+            # Do not replace a corrupt cache or mutate its evidence. Preserve a
+            # separate diagnostic for this refused intake attempt.
+            failed = Path(tempfile.mkdtemp(prefix=key+'.invalid.', dir=cache_root))/'failed.json'
+            failed.write_text(json.dumps({'error': str(exc), 'identity': identity,
+                'cache_path': str(destination), 'pnl': None, 'completed_backtests': 0,
+                'status': 'blocked_raw_cache_integrity'}, indent=2))
+            raise ValueError(f'raw cache integrity blocked; diagnostics: {failed}: {exc}') from exc
         return {**manifest, 'cache_hit': True, 'normalized_path': str(destination/'normalized.jsonl.gz'),
                 'elapsed_seconds': time.perf_counter()-started}
     stage = Path(tempfile.mkdtemp(prefix=key+'.pending.', dir=cache_root))
@@ -140,6 +200,7 @@ def prepare_raw(source, cache_root):
         projection.project(parent/'bundle-btc/strict/source_events.jsonl.gz', stage/'spot')
         evidence = normalizer.normalize(parent, stage/'spot', auditpath, stage/'normalized.jsonl.gz')
         (stage/'normalization.json').write_text(json.dumps(evidence, indent=2, allow_nan=False))
+        validate_normalized(stage/'normalized.jsonl.gz', evidence)
         # Derived source streams are regenerable; keep small audit files and the
         # reusable normalized tape instead of copying raw private bytes again.
         shutil.copy2(stage/'spot/manifest.json', stage/'spot_projection.json')
