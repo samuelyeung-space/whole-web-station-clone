@@ -53,8 +53,11 @@ class ReplayConfig:
     min_notional_usd: float = 0.0
     depth_fraction: float = 1.0
     extra_cost_per_filled_share_usd: float = 0.0
+    cash_release_delay_ms: int = 0
 
     def __post_init__(self):
+        if type(self.cash_release_delay_ms) is not int or self.cash_release_delay_ms < 0:
+            raise ValueError("cash_release_delay_ms must be a nonnegative integer")
         if not self.latencies_ms or any(type(x) is not int or x <= 0 for x in self.latencies_ms):
             raise ValueError("latencies must be positive integer total milliseconds")
         if len(set(self.latencies_ms)) != len(self.latencies_ms):
@@ -218,6 +221,7 @@ def replay_events(events: Iterable[dict], candidates: list[dict],
                 "cash": config.initial_cash_usd, "reserved": 0.0,
                 "min_available": config.initial_cash_usd, "realized_pnl": 0.0,
                 "peak_realized_equity": config.initial_cash_usd, "max_drawdown": 0.0,
+                "locked_payout": 0.0,
             }
 
     def schedule(at, kind, payload):
@@ -231,7 +235,12 @@ def replay_events(events: Iterable[dict], candidates: list[dict],
         ledger = ledgers[(attempt["candidate_id"], attempt["latency_ms"])]
         payout = attempt["filled_shares"] if attempt["side"] == winner else 0.0
         pnl = payout - attempt["cost_usd"]
-        ledger["cash"] += payout
+        release_ms = when + config.cash_release_delay_ms
+        if payout and config.cash_release_delay_ms:
+            ledger["locked_payout"] += payout
+            schedule(release_ms, "cash_release", attempt)
+        else:
+            ledger["cash"] += payout
         ledger["realized_pnl"] += pnl
         equity = config.initial_cash_usd + ledger["realized_pnl"]
         ledger["peak_realized_equity"] = max(ledger["peak_realized_equity"], equity)
@@ -239,6 +248,8 @@ def replay_events(events: Iterable[dict], candidates: list[dict],
         attempt.update(settled=True, settlement_ms=when, winner=winner,
                        payout_usd=payout, net_pnl_usd=pnl,
                        cash_after_settlement=ledger["cash"], realized_equity_after_settlement=equity)
+        attempt.update(cash_release_due_ms=release_ms,
+                       cash_released=not bool(payout and config.cash_release_delay_ms))
 
     def execute(attempt, when, horizon=None):
         ledger = ledgers[(attempt["candidate_id"], attempt["latency_ms"])]
@@ -317,6 +328,12 @@ def replay_events(events: Iterable[dict], candidates: list[dict],
             when, _, kind, payload = heapq.heappop(queue)
             if kind == "match":
                 execute(payload, when, horizon)
+            elif kind == "cash_release":
+                if horizon is None or when <= horizon:
+                    ledger = ledgers[(payload["candidate_id"], payload["latency_ms"])]
+                    ledger["cash"] += payload["payout_usd"]
+                    ledger["locked_payout"] -= payload["payout_usd"]
+                    payload.update(cash_released=True, cash_after_release=ledger["cash"])
             elif horizon is None or when <= horizon:
                 for attempt in open_by_market.get(payload, []):
                     settle(attempt, outcomes[payload]["winner"], when)
@@ -589,6 +606,8 @@ def replay_events(events: Iterable[dict], candidates: list[dict],
                 "initial_cash_usd": config.initial_cash_usd,
                 "ending_cash_usd": ledger["cash"], "min_available_cash_usd": ledger["min_available"],
                 "ending_reserved_usd": ledger["reserved"],
+                "ending_locked_payout_usd": ledger["locked_payout"],
+                "cash_release_delay_ms": config.cash_release_delay_ms,
                 "max_realized_drawdown_usd": ledger["max_drawdown"],
                 "drawdown_basis": "realized_only_no_mark_to_market", "confirmed_edge": False})
     return {"schema_version": "mine500_replay_v2_development", "dataset": dataset,
@@ -600,6 +619,8 @@ def replay_events(events: Iterable[dict], candidates: list[dict],
         "research_status": "development_only_new_execution_version",
         "constraints_mode": "required" if config.require_constraints else "upper_bound_missing_constraints_not_validated",
         "stress_assumptions": {"depth_fraction": config.depth_fraction,
+            "cash_release_delay_ms": config.cash_release_delay_ms,
+            "cash_release_basis": "delay after local official outcome knowledge; assumed redemption, not observed",
             "min_notional_usd": config.min_notional_usd,
             "extra_cost_per_filled_share_usd": config.extra_cost_per_filled_share_usd,
             "interpretation": "Explicit assumptions, not observed competition, venue minimum-notional, or actual execution costs."},
@@ -626,13 +647,18 @@ def main(argv=None):
     parser.add_argument("--min-notional-usd", type=float, default=0.0)
     parser.add_argument("--depth-fraction", type=float, default=1.0)
     parser.add_argument("--extra-cost-per-filled-share-usd", type=float, default=0.0)
+    parser.add_argument("--cash-release-delay-ms", type=int, default=0)
+    parser.add_argument("--full-or-zero", action="store_true")
     args = parser.parse_args(argv)
     catalog = importlib.import_module(args.catalog_module)
     candidates = catalog.make_candidates()
-    config = ReplayConfig(tuple(int(s) for s in args.latencies.split(",")), args.shares,
-                          args.initial_cash, args.max_quote_age_ms,
-                          args.require_constraints, args.min_notional_usd, args.depth_fraction,
-                          args.extra_cost_per_filled_share_usd)
+    config = ReplayConfig(latencies_ms=tuple(int(s) for s in args.latencies.split(",")),
+                          shares=args.shares, initial_cash_usd=args.initial_cash,
+                          max_quote_age_ms=args.max_quote_age_ms,
+                          require_constraints=args.require_constraints,
+                          min_notional_usd=args.min_notional_usd, depth_fraction=args.depth_fraction,
+                          extra_cost_per_filled_share_usd=args.extra_cost_per_filled_share_usd,
+                          cash_release_delay_ms=args.cash_release_delay_ms, full_or_zero=args.full_or_zero)
     args.out.mkdir(parents=True, exist_ok=True)
     blocked = None
     if args.input is None or not args.input.is_file():
