@@ -50,6 +50,7 @@ class Tests(unittest.TestCase):
             rows=list(h.replay.read_jsonl(out));m=next(x for x in rows if x['type']=='market')
             self.assertEqual(m['recv_ms'],1000);self.assertEqual(rows[0]['split'],'development')
             self.assertFalse(rows[0]['original_manifest_complete'])
+            self.assertTrue(rows[0]['provenance']['source'])
             self.assertEqual(r['counts']['market'],1)
     def test_mapping_conflict_rejected(self):
         with tempfile.TemporaryDirectory() as d:
