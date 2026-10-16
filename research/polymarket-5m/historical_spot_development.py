@@ -71,7 +71,8 @@ def normalize(parent,projection,stream_audit,out):
     start,end=manifest['started_ms'],manifest['ended_ms']
     header={'type':'dataset','recv_ms':min(start,*(r['recv_ms'] for r in markets)),
         'dataset_id':'historical-spot-development:'+manifest['run_id'],'split':'development',
-        'provenance':{'parent_manifest_sha256':sha(root/'manifest.json'),'spot_projection':projected,
+        'provenance':{'source':'https://github.com/yangyangnovelist-hub/whole-web-station-clone/actions/runs/'+str(manifest['run_id']),
+            'parent_manifest_sha256':sha(root/'manifest.json'),'spot_projection':projected,
             'raw_metadata_sha256':raw_hashes,'adapter_code_sha256':sha(__file__),
             'base_adapter_sha256':sha(adapter.__file__)},
         'coverage_start_ms':start,'coverage_end_ms':end,'observed_hours':(end-start)/3600000,
