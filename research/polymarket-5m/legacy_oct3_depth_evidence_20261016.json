@@ -1,0 +1,2171 @@
+{
+  "schema": "oct3-intake-depth-audit-v1",
+  "date": "2026-10-16",
+  "new_artifacts": 4,
+  "new_raw_envelope_rows": 5746296,
+  "daily_coverage_this_batch_only": {
+    "2026-10-03": {
+      "theoretical_5m_slots": 288,
+      "slots_with_any_book_receipt": 220,
+      "slots_without_book_receipts": 68,
+      "registered_market_ids": 224,
+      "book_rows": 213646,
+      "btc_price_rows": 228633,
+      "complete_healthy_markets": null,
+      "signals": null,
+      "attempts": null,
+      "fills": null,
+      "pnl": null
+    }
+  },
+  "audits": [
+    {
+      "schema": "legacy-depth-admission-v1",
+      "code_sha256": "85e4b8731870817ec94af0d422fa00ef2ffec2ece376300cc8304ec400c54749",
+      "input_manifest_sha256": "244c57ca0ac84dece89552e403318300b8dd8f46ba567fdb8d72773d4a0590d1",
+      "input_archive_sha256": "303db863a25578e41cc802f6dfa617b928346142cc606ca0726b15e2231ff97e",
+      "counts": {
+        "all_token_snapshot_rows": 49985,
+        "event_up_l1_rows": 1101132,
+        "markets_without_common_span": 1
+      },
+      "retrospective_market_mappings": 56,
+      "metadata_missing": {
+        "mapping_receipt": 56,
+        "settlement_known_ms": 56
+      },
+      "matched_market_count": 55,
+      "latency_diagnostics": {
+        "500": {
+          "queries": 16199,
+          "snapshot_invalid": 2938,
+          "event_invalid": 2965,
+          "snapshot_available": 13261,
+          "event_available": 11257,
+          "both_available": 11251,
+          "snapshot_older_than_250ms": 11230,
+          "event_older_than_250ms": 696,
+          "top_price_mismatch": 2149,
+          "top_price_or_size_mismatch": 10771,
+          "snapshot_ask_cheaper": 1009,
+          "snapshot_ask_more_expensive": 1066,
+          "same_ask_price_excess_size": 4062,
+          "event_ambiguous": 1977
+        },
+        "600": {
+          "queries": 16199,
+          "snapshot_invalid": 2938,
+          "event_invalid": 2973,
+          "snapshot_available": 13261,
+          "event_available": 11327,
+          "both_available": 11319,
+          "snapshot_older_than_250ms": 11293,
+          "event_older_than_250ms": 675,
+          "top_price_mismatch": 2518,
+          "top_price_or_size_mismatch": 10901,
+          "snapshot_ask_cheaper": 1196,
+          "snapshot_ask_more_expensive": 1252,
+          "same_ask_price_excess_size": 4077,
+          "event_ambiguous": 1899
+        },
+        "1000": {
+          "queries": 16144,
+          "snapshot_invalid": 2936,
+          "event_invalid": 2935,
+          "snapshot_available": 13208,
+          "event_available": 11453,
+          "both_available": 11453,
+          "snapshot_older_than_250ms": 140,
+          "event_older_than_250ms": 708,
+          "top_price_mismatch": 0,
+          "top_price_or_size_mismatch": 0,
+          "snapshot_ask_cheaper": 0,
+          "snapshot_ask_more_expensive": 0,
+          "same_ask_price_excess_size": 0,
+          "event_ambiguous": 1756
+        }
+      },
+      "per_market": [
+        {
+          "market_id": "btc-updown-5m-1791000000",
+          "query_counts": {
+            "500": 18,
+            "600": 18,
+            "1000": 17
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791000300",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791000600",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791000900",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791001200",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791001500",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791001800",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791002100",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791002400",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791002700",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791003000",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791003300",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791003600",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791003900",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791004200",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791004500",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791004800",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791005100",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791005400",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791005700",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791006000",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791006300",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791006600",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791006900",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791007200",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791007500",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791007800",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791008100",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791008400",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791008700",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791009000",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791009300",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791009600",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791009900",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791010200",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791010500",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791010800",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791011100",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791011400",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791011700",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791012000",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791012300",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791012600",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791012900",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791013200",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791013500",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791013800",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791014100",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791014400",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791014700",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791015000",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791015300",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791015600",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791015900",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791016200",
+          "query_counts": {
+            "500": 281,
+            "600": 281,
+            "1000": 280
+          }
+        }
+      ],
+      "strict_execution_admitted": false,
+      "simulation_pnl": null,
+      "formal_oos_result": null,
+      "semantics": "All numeric counts are diagnostic queries, not signals, attempts or fills. Mapping is retrospective and not admitted to a decision tape. Both as-of queries use recv < query time. Equal-receipt conflicting states are ambiguous. Event stream has Up L1 only; no Down/deep reconstruction. Sparse snapshots cannot prove exact subsecond full-depth matching. No future-health strategy filtering performed.",
+      "run_id": 37095301195,
+      "artifact_id": 11269079092
+    },
+    {
+      "schema": "legacy-depth-admission-v1",
+      "code_sha256": "85e4b8731870817ec94af0d422fa00ef2ffec2ece376300cc8304ec400c54749",
+      "input_manifest_sha256": "0f7197680ab84fbd985de3fdfdad86e80540596c96e29ee73ac4292ae7d62401",
+      "input_archive_sha256": "0a335fafc5696c93e29d70b6f4be21aec2c431317230f161fb93e6d2053aa3da",
+      "counts": {
+        "all_token_snapshot_rows": 51763,
+        "event_up_l1_rows": 1231681,
+        "markets_without_common_span": 1
+      },
+      "retrospective_market_mappings": 56,
+      "metadata_missing": {
+        "mapping_receipt": 56,
+        "settlement_known_ms": 56
+      },
+      "matched_market_count": 55,
+      "latency_diagnostics": {
+        "500": {
+          "queries": 16198,
+          "snapshot_available": 13256,
+          "event_available": 11386,
+          "both_available": 11386,
+          "snapshot_older_than_250ms": 11342,
+          "event_older_than_250ms": 571,
+          "top_price_mismatch": 2525,
+          "top_price_or_size_mismatch": 11009,
+          "snapshot_ask_cheaper": 1256,
+          "snapshot_ask_more_expensive": 1176,
+          "same_ask_price_excess_size": 4306,
+          "event_ambiguous": 1846,
+          "snapshot_invalid": 2942,
+          "event_invalid": 2966
+        },
+        "600": {
+          "queries": 16198,
+          "snapshot_available": 13255,
+          "event_available": 11344,
+          "both_available": 11342,
+          "snapshot_older_than_250ms": 11286,
+          "event_older_than_250ms": 606,
+          "top_price_mismatch": 2884,
+          "top_price_or_size_mismatch": 11003,
+          "snapshot_ask_cheaper": 1457,
+          "snapshot_ask_more_expensive": 1356,
+          "same_ask_price_excess_size": 4195,
+          "event_ambiguous": 1884,
+          "snapshot_invalid": 2943,
+          "event_invalid": 2970
+        },
+        "1000": {
+          "queries": 16144,
+          "snapshot_available": 13202,
+          "event_available": 11414,
+          "both_available": 11414,
+          "snapshot_older_than_250ms": 234,
+          "event_older_than_250ms": 620,
+          "top_price_mismatch": 0,
+          "top_price_or_size_mismatch": 0,
+          "snapshot_ask_cheaper": 0,
+          "snapshot_ask_more_expensive": 0,
+          "same_ask_price_excess_size": 0,
+          "event_ambiguous": 1788,
+          "snapshot_invalid": 2942,
+          "event_invalid": 2942
+        }
+      },
+      "per_market": [
+        {
+          "market_id": "btc-updown-5m-1791017700",
+          "query_counts": {
+            "500": 138,
+            "600": 138,
+            "1000": 137
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791018000",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791018300",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791018600",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791018900",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791019200",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791019500",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791019800",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791020100",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791020400",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791020700",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791021000",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791021300",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791021600",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791021900",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791022200",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791022500",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791022800",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791023100",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791023400",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791023700",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791024000",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791024300",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791024600",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791024900",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791025200",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791025500",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791025800",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791026100",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791026400",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791026700",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791027000",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791027300",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791027600",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791027900",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791028200",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791028500",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791028800",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791029100",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791029400",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791029700",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791030000",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791030300",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791030600",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791030900",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791031200",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791031500",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791031800",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791032100",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791032400",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791032700",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791033000",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791033300",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791033600",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791033900",
+          "query_counts": {
+            "500": 160,
+            "600": 160,
+            "1000": 160
+          }
+        }
+      ],
+      "strict_execution_admitted": false,
+      "simulation_pnl": null,
+      "formal_oos_result": null,
+      "semantics": "All numeric counts are diagnostic queries, not signals, attempts or fills. Mapping is retrospective and not admitted to a decision tape. Both as-of queries use recv < query time. Equal-receipt conflicting states are ambiguous. Event stream has Up L1 only; no Down/deep reconstruction. Sparse snapshots cannot prove exact subsecond full-depth matching. No future-health strategy filtering performed.",
+      "run_id": 37111395430,
+      "artifact_id": 11276455188
+    },
+    {
+      "schema": "legacy-depth-admission-v1",
+      "code_sha256": "85e4b8731870817ec94af0d422fa00ef2ffec2ece376300cc8304ec400c54749",
+      "input_manifest_sha256": "f4835d450d6a2919c09999c3c7efa113c8c10310e3e35239b418bcc906ff2356",
+      "input_archive_sha256": "7f8618ed595be8fd87279aae79f0d12445eb53c9996e6ad0eebfd9c08b51428a",
+      "counts": {
+        "all_token_snapshot_rows": 56534,
+        "event_up_l1_rows": 1052947,
+        "markets_without_common_span": 1
+      },
+      "retrospective_market_mappings": 56,
+      "metadata_missing": {
+        "mapping_receipt": 56,
+        "settlement_known_ms": 56
+      },
+      "matched_market_count": 55,
+      "latency_diagnostics": {
+        "500": {
+          "queries": 16199,
+          "snapshot_available": 13407,
+          "event_available": 11074,
+          "both_available": 11068,
+          "snapshot_older_than_250ms": 10987,
+          "event_older_than_250ms": 847,
+          "top_price_mismatch": 2284,
+          "top_price_or_size_mismatch": 10423,
+          "snapshot_ask_cheaper": 1165,
+          "snapshot_ask_more_expensive": 979,
+          "same_ask_price_excess_size": 4127,
+          "event_ambiguous": 2309,
+          "snapshot_invalid": 2792,
+          "event_invalid": 2816
+        },
+        "600": {
+          "queries": 16199,
+          "snapshot_available": 13407,
+          "event_available": 11085,
+          "both_available": 11078,
+          "snapshot_older_than_250ms": 10987,
+          "event_older_than_250ms": 886,
+          "top_price_mismatch": 2677,
+          "top_price_or_size_mismatch": 10472,
+          "snapshot_ask_cheaper": 1330,
+          "snapshot_ask_more_expensive": 1205,
+          "same_ask_price_excess_size": 4015,
+          "event_ambiguous": 2294,
+          "snapshot_invalid": 2792,
+          "event_invalid": 2820
+        },
+        "1000": {
+          "queries": 16145,
+          "snapshot_available": 13353,
+          "event_available": 11105,
+          "both_available": 11105,
+          "snapshot_older_than_250ms": 329,
+          "event_older_than_250ms": 964,
+          "top_price_mismatch": 0,
+          "top_price_or_size_mismatch": 0,
+          "snapshot_ask_cheaper": 0,
+          "snapshot_ask_more_expensive": 0,
+          "same_ask_price_excess_size": 0,
+          "event_ambiguous": 2249,
+          "snapshot_invalid": 2792,
+          "event_invalid": 2791
+        }
+      },
+      "per_market": [
+        {
+          "market_id": "btc-updown-5m-1791036300",
+          "query_counts": {
+            "500": 100,
+            "600": 100,
+            "1000": 99
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791036600",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791036900",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791037200",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791037500",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791037800",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791038100",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791038400",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791038700",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791039000",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791039300",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791039600",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791039900",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791040200",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791040500",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791040800",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791041100",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791041400",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791041700",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791042000",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791042300",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791042600",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791042900",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791043200",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791043500",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791043800",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791044100",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791044400",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791044700",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791045000",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791045300",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791045600",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791045900",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791046200",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791046500",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791046800",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791047100",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791047400",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791047700",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791048000",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791048300",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791048600",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791048900",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791049200",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791049500",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791049800",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791050100",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791050400",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791050700",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791051000",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791051300",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791051600",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791051900",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791052200",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791052500",
+          "query_counts": {
+            "500": 199,
+            "600": 199,
+            "1000": 199
+          }
+        }
+      ],
+      "strict_execution_admitted": false,
+      "simulation_pnl": null,
+      "formal_oos_result": null,
+      "semantics": "All numeric counts are diagnostic queries, not signals, attempts or fills. Mapping is retrospective and not admitted to a decision tape. Both as-of queries use recv < query time. Equal-receipt conflicting states are ambiguous. Event stream has Up L1 only; no Down/deep reconstruction. Sparse snapshots cannot prove exact subsecond full-depth matching. No future-health strategy filtering performed.",
+      "run_id": 37128550183,
+      "artifact_id": 11282361266
+    },
+    {
+      "schema": "legacy-depth-admission-v1",
+      "code_sha256": "85e4b8731870817ec94af0d422fa00ef2ffec2ece376300cc8304ec400c54749",
+      "input_manifest_sha256": "06cff28993a530696ee77e92fb288b8585c68f44e4faee9ebc1766a2db2567c0",
+      "input_archive_sha256": "f50bb64636cf6202c7da211fa962c0f0919f6f327005277a6ce38bf4efeba510",
+      "counts": {
+        "all_token_snapshot_rows": 55364,
+        "event_up_l1_rows": 1067943,
+        "markets_without_common_span": 1
+      },
+      "retrospective_market_mappings": 56,
+      "metadata_missing": {
+        "mapping_receipt": 56,
+        "settlement_known_ms": 56
+      },
+      "matched_market_count": 55,
+      "latency_diagnostics": {
+        "500": {
+          "queries": 16196,
+          "snapshot_available": 13696,
+          "event_available": 11412,
+          "both_available": 11404,
+          "snapshot_older_than_250ms": 11314,
+          "event_older_than_250ms": 860,
+          "top_price_mismatch": 2483,
+          "top_price_or_size_mismatch": 10696,
+          "snapshot_ask_cheaper": 1168,
+          "snapshot_ask_more_expensive": 1215,
+          "same_ask_price_excess_size": 4039,
+          "event_ambiguous": 2264,
+          "event_invalid": 2520,
+          "snapshot_invalid": 2500
+        },
+        "600": {
+          "queries": 16196,
+          "snapshot_available": 13697,
+          "event_available": 11399,
+          "both_available": 11392,
+          "snapshot_older_than_250ms": 11285,
+          "event_older_than_250ms": 889,
+          "top_price_mismatch": 2818,
+          "top_price_or_size_mismatch": 10745,
+          "snapshot_ask_cheaper": 1301,
+          "snapshot_ask_more_expensive": 1425,
+          "same_ask_price_excess_size": 3969,
+          "event_ambiguous": 2271,
+          "event_invalid": 2526,
+          "snapshot_invalid": 2499
+        },
+        "1000": {
+          "queries": 16142,
+          "snapshot_available": 13642,
+          "event_available": 11485,
+          "both_available": 11485,
+          "snapshot_older_than_250ms": 432,
+          "event_older_than_250ms": 972,
+          "top_price_mismatch": 0,
+          "top_price_or_size_mismatch": 0,
+          "snapshot_ask_cheaper": 0,
+          "snapshot_ask_more_expensive": 0,
+          "same_ask_price_excess_size": 0,
+          "event_ambiguous": 2157,
+          "snapshot_invalid": 2500,
+          "event_invalid": 2500
+        }
+      },
+      "per_market": [
+        {
+          "market_id": "btc-updown-5m-1791054000",
+          "query_counts": {
+            "500": 144,
+            "600": 144,
+            "1000": 143
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791054300",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791054600",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791054900",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791055200",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791055500",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791055800",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791056100",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791056400",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791056700",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791057000",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791057300",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791057600",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791057900",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791058200",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791058500",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791058800",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791059100",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791059400",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791059700",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791060000",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791060300",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791060600",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791060900",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791061200",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791061500",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791061800",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791062100",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791062400",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791062700",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791063000",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791063300",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791063600",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791063900",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791064200",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791064500",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791064800",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791065100",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791065400",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791065700",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791066000",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791066300",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791066600",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791066900",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791067200",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791067500",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791067800",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791068100",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791068400",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791068700",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791069000",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791069300",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791069600",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791069900",
+          "query_counts": {
+            "500": 300,
+            "600": 300,
+            "1000": 299
+          }
+        },
+        {
+          "market_id": "btc-updown-5m-1791070200",
+          "query_counts": {
+            "500": 152,
+            "600": 152,
+            "1000": 152
+          }
+        }
+      ],
+      "strict_execution_admitted": false,
+      "simulation_pnl": null,
+      "formal_oos_result": null,
+      "semantics": "All numeric counts are diagnostic queries, not signals, attempts or fills. Mapping is retrospective and not admitted to a decision tape. Both as-of queries use recv < query time. Equal-receipt conflicting states are ambiguous. Event stream has Up L1 only; no Down/deep reconstruction. Sparse snapshots cannot prove exact subsecond full-depth matching. No future-health strategy filtering performed.",
+      "run_id": 37146417247,
+      "artifact_id": 11288666935
+    }
+  ],
+  "code_commit": "be3097365eec54552b2ae238b4b860ec56a21aa0",
+  "source_checked_commit": "7aa7767d1484dce44bb9d250e8c835702074ca8f",
+  "recording_source_commit": "eeb25299c9a856f15f42e15f763f5ffb4882310d",
+  "new_strategy_evaluations": 0,
+  "pnl": null,
+  "formal_oos_result": null,
+  "qualified_mechanisms": 0,
+  "intake_archives": [
+    {
+      "run_id": 37095301195,
+      "artifact_id": 11269079092,
+      "archive_sha256": "303db863a25578e41cc802f6dfa617b928346142cc606ca0726b15e2231ff97e",
+      "rows": 1399352
+    },
+    {
+      "run_id": 37111395430,
+      "artifact_id": 11276455188,
+      "archive_sha256": "0a335fafc5696c93e29d70b6f4be21aec2c431317230f161fb93e6d2053aa3da",
+      "rows": 1567568
+    },
+    {
+      "run_id": 37128550183,
+      "artifact_id": 11282361266,
+      "archive_sha256": "7f8618ed595be8fd87279aae79f0d12445eb53c9996e6ad0eebfd9c08b51428a",
+      "rows": 1382757
+    },
+    {
+      "run_id": 37146417247,
+      "artifact_id": 11288666935,
+      "archive_sha256": "f50bb64636cf6202c7da211fa962c0f0919f6f327005277a6ce38bf4efeba510",
+      "rows": 1396619
+    }
+  ],
+  "pooled_diagnostic_counts": {
+    "500": {
+      "queries": 64792,
+      "snapshot_invalid": 11172,
+      "event_invalid": 11267,
+      "snapshot_available": 53620,
+      "event_available": 45129,
+      "both_available": 45109,
+      "snapshot_older_than_250ms": 44873,
+      "event_older_than_250ms": 2974,
+      "top_price_mismatch": 9441,
+      "top_price_or_size_mismatch": 42899,
+      "snapshot_ask_cheaper": 4598,
+      "snapshot_ask_more_expensive": 4436,
+      "same_ask_price_excess_size": 16534,
+      "event_ambiguous": 8396
+    },
+    "600": {
+      "queries": 64792,
+      "snapshot_invalid": 11172,
+      "event_invalid": 11289,
+      "snapshot_available": 53620,
+      "event_available": 45155,
+      "both_available": 45131,
+      "snapshot_older_than_250ms": 44851,
+      "event_older_than_250ms": 3056,
+      "top_price_mismatch": 10897,
+      "top_price_or_size_mismatch": 43121,
+      "snapshot_ask_cheaper": 5284,
+      "snapshot_ask_more_expensive": 5238,
+      "same_ask_price_excess_size": 16256,
+      "event_ambiguous": 8348
+    },
+    "1000": {
+      "queries": 64575,
+      "snapshot_invalid": 11170,
+      "event_invalid": 11168,
+      "snapshot_available": 53405,
+      "event_available": 45457,
+      "both_available": 45457,
+      "snapshot_older_than_250ms": 1135,
+      "event_older_than_250ms": 3264,
+      "top_price_mismatch": 0,
+      "top_price_or_size_mismatch": 0,
+      "snapshot_ask_cheaper": 0,
+      "snapshot_ask_more_expensive": 0,
+      "same_ask_price_excess_size": 0,
+      "event_ambiguous": 7950
+    }
+  },
+  "pooled_note": "Queries are dependent repeated market states; no inference test or strategy selection. Latency scenarios overlap and must not be summed.",
+  "snapshot_source_semantics": "recording.book_events keeps last token state per receipt second, with actual recv_ms, not an event-level full-depth tape; latency observations retain changing Up L1 only.",
+  "mirror_hypothesis": "Not established: pinned apply_clob_message updates each asset independently. Price complementarity alone is not evidence of synthetic Down books.",
+  "recording_source_blob_sha_all_four_runs": "487a6c01bfb7eef3a396810fbe0c7cb53fae288a",
+  "recording_source_identical_at_all_four_run_commits": true
+}
