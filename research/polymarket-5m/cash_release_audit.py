@@ -57,6 +57,13 @@ def reconcile(attempts, events, metrics, delay_ms):
             if not seen[aid]['reservation_release'] or (kind == 'fill') != (r['filled_shares'] > 0):
                 raise ValueError('fill/reservation identity mismatch')
             s['cash'] -= r['cost_usd']; s['open_cost'] += r['cost_usd']
+        elif kind == 'post_send_reject':
+            close(now, r['match_ms'], 'rejection receipt-proxy clock')
+            if (not seen[aid]['reservation_release']
+                    or r['status'] != 'rejected_post_send_stress' or not r['submitted']
+                    or any(r[name] != 0 for name in ('filled_shares', 'fees_usd', 'cost_usd'))
+                    or r['settled'] or r['net_pnl_usd'] != 0):
+                raise ValueError('invalid post-send rejection lifecycle')
         elif kind == 'settlement':
             close(now, r['settlement_ms'], 'settlement clock')
             if not seen[aid]['fill'] or not r['settled']:
@@ -90,6 +97,8 @@ def reconcile(attempts, events, metrics, delay_ms):
             raise ValueError('missing reservation lifecycle')
         if counts['fill'] != int(r['filled_shares'] > 0) or counts['settlement'] != int(r['settled']):
             raise ValueError('missing fill/settlement lifecycle')
+        if counts['post_send_reject'] != int(r['status'] == 'rejected_post_send_stress'):
+            raise ValueError('missing/spurious post-send rejection event')
         expected_release = bool(r['settled'] and r['payout_usd'] and delay_ms and r['cash_released'])
         if counts['payout_release'] != int(expected_release):
             raise ValueError('missing/double payout')

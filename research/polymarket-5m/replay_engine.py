@@ -55,8 +55,14 @@ class ReplayConfig:
     extra_cost_per_filled_share_usd: float = 0.0
     cash_release_delay_ms: int = 0
     side_specific_books: bool = False
+    post_send_reject_bps: int = 0
+    post_send_reject_seed: str = "research-only-v1"
 
     def __post_init__(self):
+        if type(self.post_send_reject_bps) is not int or not 0 <= self.post_send_reject_bps <= 10000:
+            raise ValueError("post_send_reject_bps must be an integer in [0, 10000]")
+        if not isinstance(self.post_send_reject_seed, str) or not self.post_send_reject_seed:
+            raise ValueError("post_send_reject_seed must be a nonempty string")
         if type(self.cash_release_delay_ms) is not int or self.cash_release_delay_ms < 0:
             raise ValueError("cash_release_delay_ms must be a nonnegative integer")
         if not self.latencies_ms or any(type(x) is not int or x <= 0 for x in self.latencies_ms):
@@ -88,6 +94,19 @@ def _number(value):
 def fingerprint(value):
     return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":"),
                                      allow_nan=False).encode()).hexdigest()
+
+
+def post_send_reject(attempt, config):
+    """Hypothetical rejection, not a calibrated probability of real fills.
+
+    Same causal order intent shares the shock across candidates and latencies.
+    No outcome, future quote, candidate ID, fill or cash state enters the key.
+    Exact 256-bit threshold avoids modulo bias. Never search for a better seed.
+    """
+    key = ["post-send-reject-v1", config.post_send_reject_seed,
+           attempt["market_id"], attempt["decision_ms"], attempt["side"]]
+    draw = int(fingerprint(key), 16)
+    return draw * 10000 < config.post_send_reject_bps * (1 << 256)
 
 
 def _validate_observed_intervals(value):
@@ -345,6 +364,14 @@ def replay_events(events: Iterable[dict], candidates: list[dict],
             return
         if abs(book["fee_rate"] - attempt["fee_rate_decision"]) > EPS:
             attempt["status"] = "rejected_fee_changed_after_decision"
+            return
+        # Keep collateral until arrival/receipt-proxy time. Coverage, book and
+        # constraint gates above must remain visible, never hidden by a reject.
+        # Consequently this rate is conditional on otherwise valid inputs.
+        if config.post_send_reject_bps and post_send_reject(attempt, config):
+            attempt.update(status="rejected_post_send_stress", net_pnl_usd=0.0,
+                           cash_after_match=ledger["cash"])
+            cash_event("post_send_reject", when, attempt)
             return
         remaining, notional, raw_fee = config.shares, 0.0, Decimal(0)
         for price, size in book[attempt["side"]]:
@@ -694,6 +721,9 @@ def replay_events(events: Iterable[dict], candidates: list[dict],
         "research_status": "development_only_new_execution_version",
         "constraints_mode": "required" if config.require_constraints else "upper_bound_missing_constraints_not_validated",
         "stress_assumptions": {"depth_fraction": config.depth_fraction,
+            "post_send_reject_bps": config.post_send_reject_bps,
+            "post_send_reject_seed": config.post_send_reject_seed,
+            "post_send_reject_policy": "uncalibrated intent-keyed SHA256 exogenous stress, not real rejection evidence; reservation released at matching/receipt-proxy time",
             "cash_release_delay_ms": config.cash_release_delay_ms,
             "cash_release_basis": "delay after local official outcome knowledge; assumed redemption, not observed",
             "min_notional_usd": config.min_notional_usd,
@@ -726,6 +756,8 @@ def main(argv=None):
     parser.add_argument("--extra-cost-per-filled-share-usd", type=float, default=0.0)
     parser.add_argument("--cash-release-delay-ms", type=int, default=0)
     parser.add_argument("--full-or-zero", action="store_true")
+    parser.add_argument("--post-send-reject-bps", type=int, default=0)
+    parser.add_argument("--post-send-reject-seed", default="research-only-v1")
     args = parser.parse_args(argv)
     catalog = importlib.import_module(args.catalog_module)
     candidates = catalog.make_candidates()
@@ -735,7 +767,9 @@ def main(argv=None):
                           require_constraints=args.require_constraints,
                           min_notional_usd=args.min_notional_usd, depth_fraction=args.depth_fraction,
                           extra_cost_per_filled_share_usd=args.extra_cost_per_filled_share_usd,
-                          cash_release_delay_ms=args.cash_release_delay_ms, full_or_zero=args.full_or_zero)
+                          cash_release_delay_ms=args.cash_release_delay_ms, full_or_zero=args.full_or_zero,
+                          post_send_reject_bps=args.post_send_reject_bps,
+                          post_send_reject_seed=args.post_send_reject_seed)
     args.out.mkdir(parents=True, exist_ok=True)
     blocked = None
     if args.input is None or not args.input.is_file():
