@@ -1,4 +1,4 @@
-name: Replay archive transport resplit
+name: Replay archive verified normalization
 on:
   workflow_dispatch:
 permissions:
@@ -8,149 +8,111 @@ concurrency:
   group: replay-artifact-resplit-${{ github.ref }}
   cancel-in-progress: false
 jobs:
-  transport:
+  normalize:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
       fail-fast: false
-      max-parallel: 2
+      max-parallel: 4
       matrix:
-        include:
-          - source_run: '38478901038'
-            artifact_id: '11872175910'
-            source_bytes: '562901414'
-            source_sha256: '30ad49b4b0698c9202dfcebbdf25ac04c1ae5ecd1aa26e4b084fadefc4fc7f12'
-          - source_run: '38508898150'
-            artifact_id: '11889015752'
-            source_bytes: '628893445'
-            source_sha256: 'e3b019da4eabc11a43d923e6c12745bff30bc60d71137e346ee7326881757505'
-          - source_run: '38540600818'
-            artifact_id: '11914646941'
-            source_bytes: '927952708'
-            source_sha256: 'c5f8cf82c7cd17c11e024fa34ba465f076bb5eb17cd4b54e1667887ef387c16b'
-          - source_run: '38586775442'
-            artifact_id: '11934468832'
-            source_bytes: '638399798'
-            source_sha256: '82105d59557044111e87a1299ae29e56253791aa6003b399af984fa6e00712ed'
-          - source_run: '38637645559'
-            artifact_id: '11947997471'
-            source_bytes: '752069752'
-            source_sha256: '05fe9f993b03b35992e4bc17cc414446916e400f20add794250d9be7bb2f40f8'
-          - source_run: '38674242681'
-            artifact_id: '11963789135'
-            source_bytes: '770065701'
-            source_sha256: '0ea7ca9ea2dd6601378de0cf1652ae19dc77de35fd1020023a4f777aff9a662c'
-          - source_run: '38706009620'
-            artifact_id: '11990525640'
-            source_bytes: '883246977'
-            source_sha256: 'fce9bae71707c7f45ad8ae2140af8f7ac724a6125a6ff01e73bae91e137ee349'
-          - source_run: '38751308326'
-            artifact_id: '12010126674'
-            source_bytes: '620830623'
-            source_sha256: '5e04200b5d3ee5afa4e2d60292e43617300f045dd3e79613782c4c48efc102ad'
-          - source_run: '38801525953'
-            artifact_id: '12023373535'
-            source_bytes: '593632026'
-            source_sha256: 'f62fa083e85442c7da60a774e603d1b2e0da2f4e69c24ddc8b413effd8f526d9'
-          - source_run: '38838476036'
-            artifact_id: '12037537803'
-            source_bytes: '671803035'
-            source_sha256: 'eb03d5a3a9e475fc612de4441219a41a38c0ae98f2f11f438fd822a087ad9e8c'
-          - source_run: '38869686142'
-            artifact_id: '12056113021'
-            source_bytes: '688670615'
-            source_sha256: '4941d8d64808791eb3c8d264d41c911bb699bd6d3fd028364e1f2b1b149c009b'
-          - source_run: '38909708508'
-            artifact_id: '12076277363'
-            source_bytes: '810259703'
-            source_sha256: 'fdc3b2de43f4b5893cb0d576130b55a4fe5cd00e6fb737b138712da22f5c81ed'
+        source_run: ["38478901038", "38508898150", "38540600818", "38586775442", "38637645559", "38674242681", "38706009620", "38751308326", "38801525953", "38838476036", "38869686142", "38909708508", "38956287813", "38991449708", "39006828209", "39021801232", "39037366846", "39054705548", "39071954833"]
     env:
       SOURCE_RUN: ${{ matrix.source_run }}
-      SOURCE_ARTIFACT: ${{ matrix.artifact_id }}
-      SOURCE_BYTES: ${{ matrix.source_bytes }}
-      SOURCE_SHA256: ${{ matrix.source_sha256 }}
+      OPENBLAS_NUM_THREADS: '1'
     steps:
       - uses: actions/checkout@v4
         with:
           sparse-checkout: research/polymarket-5m
           persist-credentials: false
-      - name: Download existing archive without changing source
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install numpy==2.3.5
+      - name: Verify source and normalize with existing replay pipeline
+        id: normalize
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$SOURCE_ARTIFACT" > original-metadata.json
-          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$SOURCE_ARTIFACT/zip" > source.zip
           python - <<'PYCODE'
-          import hashlib, json, os
+          import hashlib,json,os,shutil,subprocess,sys,zipfile
           from pathlib import Path
-          metadata=json.loads(Path('original-metadata.json').read_text())
-          assert str(metadata['workflow_run']['id']) == os.environ['SOURCE_RUN']
-          assert metadata['name'] == 'recording-' + os.environ['SOURCE_RUN']
-          assert not metadata['expired']
-          assert Path('source.zip').stat().st_size == int(os.environ['SOURCE_BYTES']) == metadata['size_in_bytes']
-          with Path('source.zip').open('rb') as f: digest=hashlib.file_digest(f,'sha256').hexdigest()
-          assert digest == os.environ['SOURCE_SHA256']
-          assert metadata['digest'] == 'sha256:' + digest
+          sys.path.insert(0,str(Path('research/polymarket-5m').resolve()))
+          import artifact_parts,replay_lab,replay_dataset
+          repo=os.environ['GITHUB_REPOSITORY']; source_run=int(os.environ['SOURCE_RUN'])
+          work=Path('recording');work.mkdir();used=[]
+          def gh(endpoint,path=None):
+              if path:
+                  with path.open('wb') as out: subprocess.run(['gh','api',endpoint],stdout=out,check=True,timeout=300)
+                  return
+              return json.loads(subprocess.check_output(['gh','api',endpoint],timeout=60))
+          def obtain(item,extract=False):
+              assert not item['expired'] and item['workflow_run']['id']==source_run
+              path=work/(str(item['id'])+'.zip');gh(f'repos/{repo}/actions/artifacts/{item["id"]}/zip',path)
+              assert path.stat().st_size==item['size_in_bytes']
+              digest=artifact_parts.digest_file(path)
+              assert item.get('digest')=='sha256:'+digest,'missing or incorrect original artifact SHA256'
+              used.append({k:item[k] for k in ('id','name','size_in_bytes','digest')})
+              if extract:
+                  with zipfile.ZipFile(path) as z:
+                      assert z.testzip() is None
+                      for info in z.infolist():
+                          assert Path(info.filename).name==info.filename and info.filename not in ('','.','..')
+                          target=work/info.filename
+                          with z.open(info) as src,target.open('xb') as dst:shutil.copyfileobj(src,dst,1024**2)
+                  path.unlink()
+              return path
+          items=gh(f'repos/{repo}/actions/runs/{source_run}/artifacts?per_page=100')['artifacts']
+          items=[r for r in items if not r['expired']]
+          legacy=[r for r in items if r['name']==f'recording-{source_run}']
+          publication=None;source_manifest=None
+          if legacy:
+              assert len(legacy)==1
+              source=obtain(legacy[0]);source_digest=artifact_parts.digest_file(source)
+          else:
+              index=next(r for r in items if r['name']==f'recording-{source_run}-index')
+              obtain(index,True)
+              publication=json.loads((work/'publish-index.json').read_text())
+              assert publication['schema']=='research-archive-publication-v1'
+              assert publication['prefix']==f'recording-{source_run}' and int(publication['run_id'])==source_run
+              assert publication['status']=='all_parts_uploaded'
+              source_manifest=artifact_parts.read_manifest(work/'manifest.json',publication['manifest_sha256'])
+              assert publication['source_sha256']==source_manifest['source_sha256']
+              assert publication['source_bytes']==source_manifest['source_bytes']
+              assert len(publication['parts'])==len(source_manifest['parts'])
+              for part,stated in zip(source_manifest['parts'],publication['parts']):
+                  item=next(r for r in items if str(r['id'])==str(stated['artifact_id']))
+                  assert item['name']==stated['artifact_name']==f'recording-{source_run}-part-{part["index"]:05d}'
+                  assert all(stated[k]==part[k] for k in ('index','name','zip_bytes','zip_sha256'))
+                  obtain(item,True)
+              source=work/source_manifest['source_name']
+              assert source.parent==work
+              artifact_parts.assemble(work/'manifest.json',work,source,publication['manifest_sha256'])
+              source_digest=source_manifest['source_sha256']
+          result=replay_lab.import_inputs([source],Path('normalize-cache'),'raw',allow_unresolved_history=True)
+          cache=Path(result['cache_path']);manifest=replay_dataset.verify_cache(cache)
+          raw=Path('normalize-cache/raw')/result['raw_imports'][0]['cache_key']
+          raw_manifest=json.loads((raw/'manifest.json').read_text())
+          assert raw_manifest['identity']['inputs']['archive_sha256']==source_digest
+          module_root=Path('research/polymarket-5m').resolve()
+          codes={Path(m.__file__).name:artifact_parts.digest_file(m.__file__) for m in list(sys.modules.values())
+                 if getattr(m,'__file__',None) and Path(m.__file__).resolve().parent==module_root and str(m.__file__).endswith('.py')}
+          provenance={'schema':'replay-normalized-publication-v1','source_run_id':source_run,
+                      'transport_run_id':int(os.environ['GITHUB_RUN_ID']),'transport_commit':os.environ['GITHUB_SHA'],
+                      'repository':repo,'source_artifacts':used,'source_archive_sha256':source_digest,
+                      'source_archive_bytes':source.stat().st_size,'source_publication':publication,
+                      'source_manifest':source_manifest,'normalizer_code_sha256':codes,'raw_manifest':raw_manifest,
+                      'dataset_key':manifest['dataset_key'],'dataset_manifest_sha256':artifact_parts.digest_file(cache/'manifest.json'),
+                      'events_sha256':manifest['tape_sha256'],'recording_coverage_verified':False}
+          (cache/'normalized-provenance.json').write_text(json.dumps(provenance,indent=2,allow_nan=False)+'\n')
+          assert sum(p.stat().st_size for p in cache.iterdir())<490*1024**2,'normalized cache exceeds single artifact limit'
+          with open(os.environ['GITHUB_OUTPUT'],'a') as f:f.write('cache_path='+str(cache)+'\n')
+          print(json.dumps({'source_run_id':source_run,'dataset_key':manifest['dataset_key'],'tape_bytes':manifest['tape_bytes'],
+                            'coverage':manifest['coverage']},allow_nan=False))
           PYCODE
-      - name: Split verified bytes with existing transport module
-        run: python research/polymarket-5m/artifact_parts.py split --source source.zip --out parts --part-mib 400
-      - uses: actions/upload-artifact@v4
-        id: part0
-        with:
-          name: replay-resplit-${{ matrix.source_run }}-part-00000
-          path: parts/part-00000.zip
-          compression-level: 0
-          retention-days: 30
-          if-no-files-found: error
-      - uses: actions/upload-artifact@v4
-        id: part1
-        with:
-          name: replay-resplit-${{ matrix.source_run }}-part-00001
-          path: parts/part-00001.zip
-          compression-level: 0
-          retention-days: 30
-          if-no-files-found: error
-      - uses: actions/upload-artifact@v4
-        id: part2
-        if: ${{ hashFiles('parts/part-00002.zip') != '' }}
-        with:
-          name: replay-resplit-${{ matrix.source_run }}-part-00002
-          path: parts/part-00002.zip
-          compression-level: 0
-          retention-days: 30
-          if-no-files-found: error
-      - name: Publish transport provenance and hashes
-        env:
-          PART0: ${{ steps.part0.outputs.artifact-id }}
-          PART1: ${{ steps.part1.outputs.artifact-id }}
-          PART2: ${{ steps.part2.outputs.artifact-id }}
-        run: |
-          python - <<'PYCODE'
-          import hashlib, json, os
-          from pathlib import Path
-          root=Path('parts'); manifest=json.loads((root/'manifest.json').read_text())
-          prefix='replay-resplit-'+os.environ['SOURCE_RUN']
-          assert 2 <= len(manifest['parts']) <= 3
-          parts=[]
-          for part in manifest['parts']:
-              artifact_id=os.environ['PART'+str(part['index'])]
-              assert artifact_id.isdigit()
-              parts.append(part | {'artifact_id':artifact_id, 'artifact_name':prefix+'-part-'+str(part['index']).zfill(5)})
-          publication={'schema':'research-archive-publication-v1','run_id':os.environ['SOURCE_RUN'],
-                       'transport_run_id':os.environ['GITHUB_RUN_ID'],'prefix':prefix,'status':'all_parts_uploaded',
-                       'original_artifact_id':os.environ['SOURCE_ARTIFACT'],
-                       'manifest_sha256':hashlib.sha256((root/'manifest.json').read_bytes()).hexdigest(),
-                       'source_bytes':manifest['source_bytes'],'source_sha256':manifest['source_sha256'],'parts':parts}
-          assert publication['source_sha256']==os.environ['SOURCE_SHA256']
-          (root/'publish-index.json').write_text(json.dumps(publication,indent=2)+'\n')
-          PYCODE
       - uses: actions/upload-artifact@v4
         with:
-          name: replay-resplit-${{ matrix.source_run }}-index
-          path: |
-            parts/manifest.json
-            parts/manifest.sha256
-            parts/publish-index.json
+          name: replay-normalized-${{ matrix.source_run }}
+          path: ${{ steps.normalize.outputs.cache_path }}
           compression-level: 0
           retention-days: 30
           if-no-files-found: error
