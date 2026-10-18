@@ -116,6 +116,13 @@ class ConcentrationTests(unittest.TestCase):
         self.assertEqual(result['positive_blocks_needed_to_erase_observed_net'],2)
         self.assertGreater(result['arithmetic_net_excluding_top_positive']['1'],0)
 
+    def test_removing_all_positive_blocks_cannot_leave_summary_roundoff_as_profit(self):
+        values=[154.81415,16.94509000000006,228.99085000000008]
+        result=p.contribution_stats(values,400.75009000000045)
+        self.assertEqual(result['positive_blocks_needed_to_erase_observed_net'],3)
+        self.assertEqual(result['arithmetic_net_excluding_top_positive']['3'],0)
+        self.assertNotEqual(result['attributed_minus_reported_net_usd'],0)
+
     def test_netting_inside_market_precedes_positive_contribution_measurement(self):
         data=fixture()
         for summary in data['metrics']:

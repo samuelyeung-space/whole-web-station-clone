@@ -17,7 +17,10 @@ The module sums existing net contributions by market **before** concentration
 measurement, then by the explicit market-start UTCdate. It reports the largest
 positive block, positive-contribution HHI, fraction of gross positive PnL and
 fraction of net PnL(the latter can exceed100%), fixed top1/3/5 contribution
-removal arithmetic, and how many largest positive blocks erase observed net.
+removal arithmetic, and how many largest positive blocks erase attributed net.
+Removal arithmetic sums the remaining ledger contributions with `math.fsum`;
+it never leaves summary-versus-ledger roundoff as apparent residual profit.
+Original summary PnL is retained alongside the explicit attribution difference.
 All500ms rule pairs receive separate realised-vector equality and nonzero-PnL
 market overlap diagnostics for each scenario;latencies/scenarios are never added.
 

@@ -52,22 +52,24 @@ def market_calendar(coverage):
 def contribution_stats(values, total):
     """Aggregate net contributions first; do not rank individual winning fills."""
     positives = sorted((value for value in values if value > 0), reverse=True)
+    negatives = [value for value in values if value < 0]
+    attributed_total = math.fsum(values)
     gross_positive = math.fsum(positives)
     count_to_erase = None
-    removed = []
-    if total > 0:
-        for index, value in enumerate(positives, 1):
-            removed.append(value)
-            if total-math.fsum(removed) <= 0:
+    if attributed_total > 0:
+        for index in range(1, len(positives)+1):
+            if math.fsum(positives[index:]+negatives) <= 0:
                 count_to_erase = index
                 break
-    return dict(gross_positive_contributions_usd=gross_positive,
+    return dict(attributed_net_pnl_usd=attributed_total,
+        attributed_minus_reported_net_usd=attributed_total-total,
+        gross_positive_contributions_usd=gross_positive,
         gross_negative_contributions_usd=math.fsum(v for v in values if v < 0),
         positive_contribution_hhi=math.fsum((v/gross_positive)**2 for v in positives) if gross_positive else None,
         best_positive_contribution_usd=positives[0] if positives else 0.0,
         best_positive_fraction_of_gross_positive=positives[0]/gross_positive if positives else None,
         best_positive_fraction_of_net_pnl=positives[0]/total if positives and total > 0 else None,
-        arithmetic_net_excluding_top_positive={str(n):total-math.fsum(positives[:n]) for n in (1,3,5)},
+        arithmetic_net_excluding_top_positive={str(n):math.fsum(positives[n:]+negatives) for n in (1,3,5)},
         positive_blocks_needed_to_erase_observed_net=count_to_erase)
 
 
