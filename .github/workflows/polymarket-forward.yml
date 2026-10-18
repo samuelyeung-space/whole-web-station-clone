@@ -148,6 +148,22 @@ jobs:
         run: |
           git switch -C "${{ github.ref_name }}" "${{ needs.record.outputs.source_commit }}"
           git branch --set-upstream-to="origin/${{ github.ref_name }}"
+      - name: Start from the pooled results already on the branch
+        # source_commit is pinned when the recording starts, while the previous run's analysis is
+        # still running, so its forward/ lacks that run's results and the result commit cannot
+        # rebase (every other run's results were lost from 38991449708 on). Analysis jobs are
+        # serialized, so the branch tip holds every earlier run's results: take the pooled files
+        # from it, keep the freezes at the collector revision, and commit them locally so the
+        # result commit rebases cleanly (the rebase drops this commit as already upstream)
+        run: |
+          git fetch -q origin "${{ github.ref_name }}"
+          pooled=$(git diff --name-only --relative --diff-filter=AM HEAD "origin/${{ github.ref_name }}" -- forward \
+                   | grep -v -E 'freeze|calibration' || true)
+          [ -n "$pooled" ] || exit 0
+          echo "$pooled"
+          git checkout "origin/${{ github.ref_name }}" -- $pooled
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -q -m "pooled results from origin/${{ github.ref_name }}"
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
