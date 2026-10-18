@@ -10,7 +10,7 @@ permissions:
   contents: read
   actions: read
 concurrency:
-  group: replay-artifact-resplit-${{ github.ref }}
+  group: replay-artifact-resplit-${{ github.run_id }}
   cancel-in-progress: false
 jobs:
   normalize:
@@ -18,7 +18,7 @@ jobs:
     timeout-minutes: 30
     strategy:
       fail-fast: false
-      max-parallel: 4
+      max-parallel: 8
       matrix:
         source_run: ${{ fromJSON(inputs.source_runs) }}
     env:
@@ -94,6 +94,8 @@ jobs:
                   assert source.parent==work
                   artifact_parts.assemble(work/'manifest.json',work,source,publication['manifest_sha256'])
                   source_digest=source_manifest['source_sha256']
+              Path('source-verification.json').write_text(json.dumps({'source_run_id':source_run,'source_artifacts':used,
+                  'source_archive_sha256':source_digest,'source_archive_bytes':source.stat().st_size},indent=2)+'\n')
               result=replay_lab.import_inputs([source],Path('normalize-cache'),'raw',allow_unresolved_history=True)
               cache=Path(result['cache_path']);manifest=replay_dataset.verify_cache(cache)
               raw=Path('normalize-cache/raw')/result['raw_imports'][0]['cache_key']
@@ -124,6 +126,7 @@ jobs:
                   'schema':'replay-normalization-failure-v1','source_run_id':int(os.environ['SOURCE_RUN']),
                   'transport_run_id':int(os.environ['GITHUB_RUN_ID']),'transport_commit':os.environ['GITHUB_SHA'],
                   'repository':os.environ['GITHUB_REPOSITORY'],'error':str(exc),'error_type':type(exc).__name__,
+                  'source_verification':json.loads(Path('source-verification.json').read_text()) if Path('source-verification.json').exists() else None,
                   'traceback':traceback.format_exc()},indent=2)+'\n')
               raise
           PYCODE
