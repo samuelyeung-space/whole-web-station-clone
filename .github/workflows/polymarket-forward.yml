@@ -153,17 +153,29 @@ jobs:
         # still running, so its forward/ lacks that run's results and the result commit cannot
         # rebase (every other run's results were lost from 38991449708 on). Analysis jobs are
         # serialized, so the branch tip holds every earlier run's results: take the pooled files
-        # from it, keep the freezes at the collector revision, and commit them locally so the
-        # result commit rebases cleanly (the rebase drops this commit as already upstream)
+        # from it, keep freezes and anchors at the collector revision, and commit them locally as
+        # POOLED_BASE; the persist step replays only the result commit on top of the tip. Only
+        # bot result commits may have moved those files, otherwise nothing is taken (the old
+        # behaviour), so a person's edit is never overwritten. A failure here also falls back.
+        continue-on-error: true
+        env:
+          B: ${{ github.ref_name }}
         run: |
-          git fetch -q origin "${{ github.ref_name }}"
-          pooled=$(git diff --name-only --relative --diff-filter=AM HEAD "origin/${{ github.ref_name }}" -- forward \
-                   | grep -v -E 'freeze|calibration' || true)
-          [ -n "$pooled" ] || exit 0
-          echo "$pooled"
-          git checkout "origin/${{ github.ref_name }}" -- $pooled
+          echo "POOLED_BASE=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+          for i in 1 2 3 4; do git fetch -q origin "$B" && break; sleep $((2 ** i)); done
+          list="$RUNNER_TEMP/pooled-files"
+          git diff -z --name-only --relative --diff-filter=AM HEAD "origin/$B" -- forward \
+            | { grep -zv -E 'freeze|calibration|anchor|\.sha256$' || true; } > "$list"
+          [ -s "$list" ] || exit 0
+          tr '\0' '\n' < "$list"
+          if xargs -0 git log --format=%an "HEAD..origin/$B" -- < "$list" | grep -vqx 'github-actions\[bot\]'; then
+            echo "::warning::pooled files changed outside the result commits since the collector revision; not taking them"
+            exit 0
+          fi
+          xargs -0 git checkout "origin/$B" -- < "$list"
           git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
-            commit -q -m "pooled results from origin/${{ github.ref_name }}"
+            commit -q -m "pooled results from origin/$B"
+          echo "POOLED_BASE=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -315,7 +327,19 @@ jobs:
           git add -A forward 2>/dev/null || true
           git diff --cached --quiet && exit 0
           git commit -q -m "research: forward-test results from recording run ${{ github.run_id }}" || exit 0
-          for i in 1 2 3 4 5; do git pull -q --rebase && git push -q && exit 0; sleep $((2 ** i)); done
+          # replay only the result commit, never the local pooled base, and undo a failed rebase so
+          # the next attempt can still run
+          base="${POOLED_BASE:-${{ needs.record.outputs.source_commit }}}"
+          for i in 1 2 3 4 5; do
+            if git fetch -q origin "${{ github.ref_name }}" && tip=$(git rev-parse "origin/${{ github.ref_name }}") \
+               && git rebase -q --onto "$tip" "$base"; then
+              base="$tip"
+              git push -q origin "HEAD:${{ github.ref_name }}" && exit 0
+            else
+              git rebase --abort 2>/dev/null || true
+            fi
+            sleep $((2 ** i))
+          done
           exit 1
 
       - name: Family 34 complementary queue-lag development audit
