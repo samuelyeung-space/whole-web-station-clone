@@ -23,8 +23,8 @@ jobs:
   report:
     runs-on: ubuntu-latest
     # every recording so far is downloaded and re-tested, so the run grows with the pool:
-    # 57 min on 10-07, past 60 min from 10-08
-    timeout-minutes: 240
+    # 57 min on 10-07, past 60 min from 10-08, 171 min on 10-18; GitHub's hard limit is 360
+    timeout-minutes: 350
     defaults:
       run:
         working-directory: research/polymarket-5m
