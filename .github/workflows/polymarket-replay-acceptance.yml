@@ -1,54 +1,156 @@
-name: Polymarket offline replay acceptance
+name: Replay archive transport resplit
 on:
-  push:
-    branches: [codex/btc5m-mine500-20261010]
-    paths:
-      - .github/workflows/polymarket-replay-acceptance.yml
-      - research/polymarket-5m/replay_cli.py
-      - research/polymarket-5m/test_replay_cli.py
-      - research/polymarket-5m/requirements-replay.txt
   workflow_dispatch:
 permissions:
   contents: read
+  actions: read
 concurrency:
-  group: offline-replay-acceptance-${{ github.ref }}
-  cancel-in-progress: true
+  group: replay-artifact-resplit-${{ github.ref }}
+  cancel-in-progress: false
 jobs:
-  offline:
+  transport:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        include:
+          - source_run: '38478901038'
+            artifact_id: '11872175910'
+            source_bytes: '562901414'
+            source_sha256: '30ad49b4b0698c9202dfcebbdf25ac04c1ae5ecd1aa26e4b084fadefc4fc7f12'
+          - source_run: '38508898150'
+            artifact_id: '11889015752'
+            source_bytes: '628893445'
+            source_sha256: 'e3b019da4eabc11a43d923e6c12745bff30bc60d71137e346ee7326881757505'
+          - source_run: '38540600818'
+            artifact_id: '11914646941'
+            source_bytes: '927952708'
+            source_sha256: 'c5f8cf82c7cd17c11e024fa34ba465f076bb5eb17cd4b54e1667887ef387c16b'
+          - source_run: '38586775442'
+            artifact_id: '11934468832'
+            source_bytes: '638399798'
+            source_sha256: '82105d59557044111e87a1299ae29e56253791aa6003b399af984fa6e00712ed'
+          - source_run: '38637645559'
+            artifact_id: '11947997471'
+            source_bytes: '752069752'
+            source_sha256: '05fe9f993b03b35992e4bc17cc414446916e400f20add794250d9be7bb2f40f8'
+          - source_run: '38674242681'
+            artifact_id: '11963789135'
+            source_bytes: '770065701'
+            source_sha256: '0ea7ca9ea2dd6601378de0cf1652ae19dc77de35fd1020023a4f777aff9a662c'
+          - source_run: '38706009620'
+            artifact_id: '11990525640'
+            source_bytes: '883246977'
+            source_sha256: 'fce9bae71707c7f45ad8ae2140af8f7ac724a6125a6ff01e73bae91e137ee349'
+          - source_run: '38751308326'
+            artifact_id: '12010126674'
+            source_bytes: '620830623'
+            source_sha256: '5e04200b5d3ee5afa4e2d60292e43617300f045dd3e79613782c4c48efc102ad'
+          - source_run: '38801525953'
+            artifact_id: '12023373535'
+            source_bytes: '593632026'
+            source_sha256: 'f62fa083e85442c7da60a774e603d1b2e0da2f4e69c24ddc8b413effd8f526d9'
+          - source_run: '38838476036'
+            artifact_id: '12037537803'
+            source_bytes: '671803035'
+            source_sha256: 'eb03d5a3a9e475fc612de4441219a41a38c0ae98f2f11f438fd822a087ad9e8c'
+          - source_run: '38869686142'
+            artifact_id: '12056113021'
+            source_bytes: '688670615'
+            source_sha256: '4941d8d64808791eb3c8d264d41c911bb699bd6d3fd028364e1f2b1b149c009b'
+          - source_run: '38909708508'
+            artifact_id: '12076277363'
+            source_bytes: '810259703'
+            source_sha256: 'fdc3b2de43f4b5893cb0d576130b55a4fe5cd00e6fb737b138712da22f5c81ed'
+    env:
+      SOURCE_RUN: ${{ matrix.source_run }}
+      SOURCE_ARTIFACT: ${{ matrix.artifact_id }}
+      SOURCE_BYTES: ${{ matrix.source_bytes }}
+      SOURCE_SHA256: ${{ matrix.source_sha256 }}
     steps:
       - uses: actions/checkout@v4
         with:
           sparse-checkout: research/polymarket-5m
           persist-credentials: false
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - name: Install pinned verification dependencies
-        run: python -m pip install -r research/polymarket-5m/requirements-replay.txt
-      - name: Export replay source only
+      - name: Download existing archive without changing source
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          mkdir -p replay-delivery/source
-          find research/polymarket-5m -maxdepth 1 -type f \( -name '*.py' -o -name '*.md' -o -name 'requirements-replay.txt' \) -exec cp '{}' replay-delivery/source/ \;
-          git rev-parse HEAD > replay-delivery/SOURCE_COMMIT.txt
-          python -m pip freeze > replay-delivery/installed-dependencies.txt
-      - name: Offline regression tests
-        working-directory: research/polymarket-5m
-        run: |
-          set -o pipefail
-          python -m unittest discover -s . -p 'test_replay_*.py' -v 2>&1 | tee "$GITHUB_WORKSPACE/replay-delivery/replay-tests.txt"
-          python -m unittest test_legacy_recording_cache -v 2>&1 | tee "$GITHUB_WORKSPACE/replay-delivery/legacy-tests.txt"
-      - name: End-to-end demo and verified repeat cache
-        working-directory: research/polymarket-5m
-        run: |
-          set -o pipefail
-          python replay_cli.py doctor > "$GITHUB_WORKSPACE/replay-delivery/doctor.json"
-          python replay_cli.py demo --work "$GITHUB_WORKSPACE/replay-delivery/demo" | tee "$GITHUB_WORKSPACE/replay-delivery/demo-first.json"
-          python replay_cli.py demo --work "$GITHUB_WORKSPACE/replay-delivery/demo" | tee "$GITHUB_WORKSPACE/replay-delivery/demo-repeat.json"
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$SOURCE_ARTIFACT" > original-metadata.json
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$SOURCE_ARTIFACT/zip" > source.zip
+          python - <<'PYCODE'
+          import hashlib, json, os
+          from pathlib import Path
+          metadata=json.loads(Path('original-metadata.json').read_text())
+          assert str(metadata['workflow_run']['id']) == os.environ['SOURCE_RUN']
+          assert metadata['name'] == 'recording-' + os.environ['SOURCE_RUN']
+          assert not metadata['expired']
+          assert Path('source.zip').stat().st_size == int(os.environ['SOURCE_BYTES']) == metadata['size_in_bytes']
+          with Path('source.zip').open('rb') as f: digest=hashlib.file_digest(f,'sha256').hexdigest()
+          assert digest == os.environ['SOURCE_SHA256']
+          assert metadata['digest'] == 'sha256:' + digest
+          PYCODE
+      - name: Split verified bytes with existing transport module
+        run: python research/polymarket-5m/artifact_parts.py split --source source.zip --out parts --part-mib 400
       - uses: actions/upload-artifact@v4
-        if: always()
+        id: part0
         with:
-          name: offline-replay-source-and-tests
-          path: replay-delivery
-          retention-days: 7
+          name: replay-resplit-${{ matrix.source_run }}-part-00000
+          path: parts/part-00000.zip
+          compression-level: 0
+          retention-days: 30
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        id: part1
+        with:
+          name: replay-resplit-${{ matrix.source_run }}-part-00001
+          path: parts/part-00001.zip
+          compression-level: 0
+          retention-days: 30
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        id: part2
+        if: ${{ hashFiles('parts/part-00002.zip') != '' }}
+        with:
+          name: replay-resplit-${{ matrix.source_run }}-part-00002
+          path: parts/part-00002.zip
+          compression-level: 0
+          retention-days: 30
+          if-no-files-found: error
+      - name: Publish transport provenance and hashes
+        env:
+          PART0: ${{ steps.part0.outputs.artifact-id }}
+          PART1: ${{ steps.part1.outputs.artifact-id }}
+          PART2: ${{ steps.part2.outputs.artifact-id }}
+        run: |
+          python - <<'PYCODE'
+          import hashlib, json, os
+          from pathlib import Path
+          root=Path('parts'); manifest=json.loads((root/'manifest.json').read_text())
+          prefix='replay-resplit-'+os.environ['SOURCE_RUN']
+          assert 2 <= len(manifest['parts']) <= 3
+          parts=[]
+          for part in manifest['parts']:
+              artifact_id=os.environ['PART'+str(part['index'])]
+              assert artifact_id.isdigit()
+              parts.append(part | {'artifact_id':artifact_id, 'artifact_name':prefix+'-part-'+str(part['index']).zfill(5)})
+          publication={'schema':'research-archive-publication-v1','run_id':os.environ['SOURCE_RUN'],
+                       'transport_run_id':os.environ['GITHUB_RUN_ID'],'prefix':prefix,'status':'all_parts_uploaded',
+                       'original_artifact_id':os.environ['SOURCE_ARTIFACT'],
+                       'manifest_sha256':hashlib.sha256((root/'manifest.json').read_bytes()).hexdigest(),
+                       'source_bytes':manifest['source_bytes'],'source_sha256':manifest['source_sha256'],'parts':parts}
+          assert publication['source_sha256']==os.environ['SOURCE_SHA256']
+          (root/'publish-index.json').write_text(json.dumps(publication,indent=2)+'\n')
+          PYCODE
+      - uses: actions/upload-artifact@v4
+        with:
+          name: replay-resplit-${{ matrix.source_run }}-index
+          path: |
+            parts/manifest.json
+            parts/manifest.sha256
+            parts/publish-index.json
+          compression-level: 0
+          retention-days: 30
+          if-no-files-found: error
