@@ -49,8 +49,22 @@ jobs:
           # last step, but its artifact is already uploaded
           ids=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/polymarket-forward.yml/runs?per_page=100" \
                 --jq '.workflow_runs[].id')
+          # from run 38956287813 (1030ea3) on, raw.tgz is published as recording-RUN-index plus
+          # recording-RUN-part-* artifacts; rebuild it and check every hash. The expected manifest
+          # digest is the one in the index uploaded by that same run of this repo, fetched by run id
+          fetch_parts() {
+            local id=$1 d="$rec/$1"
+            gh run download "$id" -n "recording-$id-index" -D "$d/index" 2>/dev/null || return 1
+            for name in $(jq -r '.parts[].artifact_name' "$d/index/publish-index.json"); do
+              gh run download "$id" -n "$name" -D "$d/parts" || return 1
+            done
+            python restore_published_archive.py --index-dir "$d/index" --parts-dir "$d/parts" \
+              --out "$d/raw.tgz" --expected-manifest-sha256 "$(jq -r .manifest_sha256 "$d/index/publish-index.json")" \
+              --expected-prefix "recording-$id" --expected-run-id "$id" || return 1
+            rm -rf "$d/parts" "$d/index"
+          }
           for id in $ids; do
-            gh run download "$id" -n "recording-$id" -D "$rec/$id" 2>/dev/null || continue
+            gh run download "$id" -n "recording-$id" -D "$rec/$id" 2>/dev/null || fetch_parts "$id" || continue
             mkdir -p "$rec/$id/x"
             tar xzf "$rec/$id/raw.tgz" -C "$rec/$id/x" --wildcards 'bundle-*/latency' 2>/dev/null || continue
             # the CLOB disconnect log (latency.load_closes); recordings without one are just not checked
