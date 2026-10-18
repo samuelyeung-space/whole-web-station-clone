@@ -1,0 +1,203 @@
+--- a/research/polymarket-5m/record_live_buffered.py
++++ b/research/polymarket-5m/record_live_buffered.py
+@@ -12,6 +12,7 @@
+ from pathlib import Path
+ import paper_trader as paper
+ from buffered_recorder import BufferedRecorder
++from rtds_liveness import reconnecting_rtds, required_coins
+ 
+ 
+ def atomic_json(path, value):
+@@ -23,6 +24,11 @@
+ 
+ 
+ class SupervisedTrader(paper.LiveTrader):
++    async def rtds_loop(self, stream='rtds'):
++        import websockets
++        await reconnecting_rtds(self,stream,websockets.connect,paper.RTDS_WS,
++                               paper.RTDS_SUBS[stream],paper.now_ms)
++
+     async def writer_watch(self):
+         due = time.monotonic() + 1
+         ticks = 0
+@@ -36,6 +42,8 @@
+                 row = dict(at=time.time_ns() / 1_000_000, where='capture-heartbeat',
+                            clob_active=self.clob_active, clob_epoch=self.clob_epoch,
+                            event_loop_lag_ms=lag_ms, writer=self.rec.stats())
++                row['rtds_liveness']={name:state.snapshot(time.monotonic())
++                    for name,state in getattr(self,'rtds_liveness',{}).items()}
+                 self.rec.write('capture-health', row)
+                 # Heartbeats distinguish process life, writes and connection state.
+                 # They do NOT certify message completeness or per-token freshness.
+@@ -49,6 +57,10 @@
+                     source_sha256=hashlib.sha256(Path(paper.__file__).read_bytes()).hexdigest(),
+                     wrapper_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+                     writer_sha256=hashlib.sha256(Path(__file__).with_name('buffered_recorder.py').read_bytes()).hexdigest(),
++                    rtds_supervisor_sha256=hashlib.sha256(Path(__file__).with_name('rtds_liveness.py').read_bytes()).hexdigest(),
++                    rtds_contract=dict(idle_seconds=30,clock='monotonic',required_coins=list(required_coins(self)),
++                        freshness_scope='locally received increasing source timestamp; absolute source age unverified',
++                        other_coins='availability reported independently; only required_coins trigger reconnection'),
+                     collector_region='unverified', complete=False, feed_health_verified=False)
+         atomic_json(self.out / 'capture-runtime.json', meta)
+         capture = asyncio.create_task(super().run(hours))
+@@ -75,7 +87,9 @@
+                 meta.update(complete=False, error=repr(exc))
+                 raise
+             finally:
+-                meta.update(ended_ms=time.time_ns()/1_000_000, writer=self.rec.stats())
++                meta.update(ended_ms=time.time_ns()/1_000_000, writer=self.rec.stats(),
++                    rtds_liveness={name:state.snapshot(time.monotonic())
++                        for name,state in getattr(self,'rtds_liveness',{}).items()})
+                 atomic_json(self.out / 'capture-runtime.json', meta)
+ 
+ 
+--- /dev/null
++++ b/research/polymarket-5m/test_rtds_wrapper_contract.py
+@@ -0,0 +1,147 @@
++"""Offline acceptance for the source wrapper against the unchanged parent run.
++
++This file belongs to the source-wrapper patch bundle: the research branch does
++not install or invoke the wrapper. Every non-RTDS task is parked and every RTDS
++socket is fake; no market connection or strategy evaluation takes place.
++"""
++from __future__ import annotations
++
++import asyncio
++import contextlib
++import gzip
++import json
++from pathlib import Path
++import tempfile
++import unittest
++from unittest import mock
++
++import record_live_buffered as live
++from buffered_recorder import BufferedRecorder
++
++
++class FakeSocket:
++    def __init__(self, coin):
++        self.coin = coin
++        self.frames = asyncio.Queue()
++        self.sent = []
++        self.message = None
++        self.closed = False
++        self.receive_cancelled = False
++
++    async def send(self, frame):
++        self.sent.append(frame)
++        if frame == "ping":
++            return
++        topic = json.loads(frame)["subscriptions"][0]["topic"]
++        symbol = self.coin + ("/usd" if topic.endswith("chainlink") else "usdt")
++        self.message = {
++            "topic": topic, "type": "update",
++            "payload": {"symbol": symbol, "timestamp": 123, "value": 10},
++        }
++        self.frames.put_nowait(json.dumps(self.message))
++
++    def __aiter__(self):
++        return self
++
++    async def __anext__(self):
++        try:
++            return await self.frames.get()
++        except asyncio.CancelledError:
++            self.receive_cancelled = True
++            raise
++
++
++class FakeConnection:
++    def __init__(self, socket):
++        self.socket = socket
++
++    async def __aenter__(self):
++        return self.socket
++
++    async def __aexit__(self, *args):
++        self.socket.closed = True
++        return False
++
++
++async def parked_task(self, *args, **kwargs):
++    await asyncio.Future()
++
++
++class WrapperContractTests(unittest.IsolatedAsyncioTestCase):
++    async def test_parent_shutdown_closes_both_feeds_before_writer_and_preserves_metadata(self):
++        # Exercise normal BTC plus an optional recorded coin, and an ETH-only
++        # capture whose effective required coin must match runtime metadata.
++        configurations = ((('btc', 'eth'), 'btc'), (('eth',), 'eth'))
++        parent = live.SupervisedTrader.__mro__[1]
++        loop = asyncio.get_running_loop()
++        original_handler = loop.get_exception_handler()
++        non_rtds = (
++            'discover', 'clob_loop', 'coinbase_loop', 'scheduler', 'resolver',
++            'reporter', 'binance_loop', 'binance_futures_loop',
++            'binance_futures_trade_loop', 'deribit_quote_loop',
++        )
++        try:
++            for coins, required_coin in configurations:
++                with self.subTest(coins=coins), tempfile.TemporaryDirectory() as directory:
++                    root = Path(directory)
++                    sockets = []
++
++                    def connect(*args, **kwargs):
++                        self.assertEqual(args, (live.paper.RTDS_WS,))
++                        self.assertIsNone(kwargs['ping_interval'])
++                        socket = FakeSocket(required_coin)
++                        sockets.append(socket)
++                        return FakeConnection(socket)
++
++                    with contextlib.ExitStack() as patches:
++                        patches.enter_context(mock.patch.object(live.paper, 'Recorder', BufferedRecorder))
++                        patches.enter_context(mock.patch('websockets.connect', side_effect=connect))
++                        for name in non_rtds:
++                            patches.enter_context(mock.patch.object(parent, name, parked_task))
++                        trader = live.SupervisedTrader(root, live.paper.Params(), coins=coins)
++                        # Keep the real parent run and its cancel -> gather ->
++                        # close order. Mocking parent.run would miss this contract.
++                        await trader.run(.05 / 3600)
++
++                    rows = {}
++                    for path in root.glob('raw/*/*.jsonl.gz'):
++                        with gzip.open(path, 'rt') as stream:
++                            rows[path.name] = [json.loads(line) for line in stream]
++                    meta = json.loads((root / 'capture-runtime.json').read_text())
++                    self.assertEqual(len(sockets), 2)
++                    self.assertTrue(all(s.closed and s.receive_cancelled for s in sockets))
++                    self.assertEqual(set(trader.rtds_liveness), {'rtds', 'rtds-binance'})
++                    self.assertTrue(all(not state.active for state in trader.rtds_liveness.values()))
++                    self.assertEqual(meta['rtds_contract']['required_coins'], [required_coin])
++                    self.assertIn('absolute source age unverified', meta['rtds_contract']['freshness_scope'])
++                    self.assertTrue(meta['complete'])
++                    self.assertFalse(meta['feed_health_verified'])
++                    for stream in ('rtds', 'rtds-binance'):
++                        self.assertEqual(trader.rtds_liveness[stream].required, (required_coin,))
++                        self.assertEqual(len(rows[stream + '.jsonl.gz']), 1)
++                        row = rows[stream + '.jsonl.gz'][0]
++                        self.assertGreater(row['recv_ms'], 123)
++                        socket = next(s for s in sockets if s.message['topic'] == row['msg']['topic'])
++                        self.assertEqual(row['msg'], socket.message)
++                        close = [r for r in rows['errors.jsonl.gz'] if r.get('where') == stream]
++                        self.assertEqual(len(close), 1)
++                        self.assertEqual(close[0]['err'], 'recorder_stop')
++                        self.assertFalse(close[0]['active'])
++                        self.assertFalse(close[0]['connection_active'])
++                        self.assertEqual(close[0]['required_coins'], [required_coin])
++                        self.assertTrue(all(not c['available'] for c in close[0]['coins'].values()))
++                    self.assertEqual(rows['errors.jsonl.gz'][-1]['where'], 'recorder-complete')
++                    self.assertEqual(trader.rec.stats()['pending_bytes'], 0)
++                    self.assertFalse(trader.rec._thread.is_alive())
++                    self.assertFalse([
++                        task for task in asyncio.all_tasks()
++                        if task is not asyncio.current_task()
++                        and task.get_name() in {'rtds-receive', 'rtds-ping', 'rtds-freshness'}
++                        and not task.done()
++                    ])
++        finally:
++            loop.set_exception_handler(original_handler)
++
++
++if __name__ == '__main__':
++    unittest.main()
