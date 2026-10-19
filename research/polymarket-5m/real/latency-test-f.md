@@ -2,7 +2,7 @@
 
 事先写死（9 月 30 日 21:42 UTC，数据还没录）：2026-09-30 23:00 UTC 起开始的 BTC 5m 市场；规则与检验 D 完全相同，只是触发改用回测用的币安 BTCUSDT 逐笔成交（data-stream.binance.vision，交易所时间）：剩 240–15 秒时，与至少一秒前（不早于 5 秒）相比涨跌超过 2σ 的每一笔币安成交是候选；以那一刻交易所显示的 Up 中间价为原来的概率算公平价；0.3 秒后按卖一买顺势一方，只在 公平价 − 卖一 − taker 费 ≥ 12¢ 时成交，每个市场取第一笔，持有到结算；按触发时间取前 1,200 笔判定一次，EV > 0 且精确 p < 0.025 才算通过。数据处理同检验 C、D（含断线检查）。
 
-录制段 81 个，成交 2,059 笔。
+录制段 82 个，成交 2,082 笔。
 
 录制段备注（跳过的和断线检查）：
 
@@ -82,9 +82,10 @@
 - btc 39187186730: 594 candidates dropped because the CLOB socket closed between the quote and the order (77 disconnects in the recording; test C counts its judged lag only)
 - btc 39206741604: 974 candidates dropped because the CLOB socket closed between the quote and the order (94 disconnects in the recording; test C counts its judged lag only)
 - btc 39233436781: 1712 candidates dropped because the CLOB socket closed between the quote and the order (138 disconnects in the recording; test C counts its judged lag only)
+- btc 39264275362: 1196 candidates dropped because the CLOB socket closed between the quote and the order (112 disconnects in the recording; test C counts its judged lag only)
 
 | 笔数 | 胜率 | 平均价 | EV | p | 卖一数量中位 |
 |---|---|---|---|---|---|
-| 2,059 | 45.0% | 0.391 | +4.62¢ | 0.0000 | 70 |
+| 2,082 | 45.0% | 0.391 | +4.51¢ | 0.0000 | 70 |
 
 检验 F（前 1,200 笔）：币安触发、公平价筛选的过期报价（θ=12¢，z=2，0.3 秒后按卖一买）：1200 笔，EV +4.05¢，p = 0.0009 → 通过（录制段 47 个：36781277830, 36807987110, 36835222993, 36869869857, 36912544596, 36946930986, 36972067946, 37002779006, 37041041140, 37075141917, 37095301195, 37111395430, 37128550183, 37146417247, 37164037946, 37179397738, 37194238626, 37230483105, 37250413580, 37274274070, 37307261464, 37347643542, 37384144976, 37412793391, 37444926603, 37484528542, 37527655881, 37558084377, 37586562398, 37621711008, 37663361030, 37702189414, 37729957174, 37764001551, 37806403126, 37847134073, 37875151310, 37903011520, 37938384834, 38110498321, 38128792010, 38149300477, 38204238337, 38224319208, 38256540882, 38295792174, 38328336070；最后一笔触发于 2026-10-13 04:12 UTC）（已判定，不再重算）
