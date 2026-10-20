@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import re
 from dataclasses import asdict, dataclass
 from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
@@ -49,6 +50,24 @@ class ReplayConfig:
     reserve_cash_at_send: bool = False
     consume_snapshot_depth: bool = False
     reserve_until_ack: bool = False
+
+
+@dataclass(frozen=True)
+class MarketFee:
+    """Caller-supplied historical fee metadata; references are not authenticated.
+
+    One record covers one market for the entire replay. Half-open effective
+    intervals must cover decision through match, and the local observation must
+    strictly precede decision (equal-clock ordering is not inferred).
+    """
+
+    market_id: str
+    fee_rate: float
+    effective_from_ms: int
+    effective_until_ms: int
+    observed_ms: int
+    source_ref: str
+    evidence_sha256: str
 
 
 @dataclass
@@ -174,7 +193,47 @@ def validate_config(config: ReplayConfig) -> None:
         raise ValueError("cost parameters must be non-negative")
 
 
-def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) -> dict:
+def _market_fee_records(
+    records: Iterable[MarketFee], orders: list[LegIntent]
+) -> dict[str, MarketFee]:
+    by_market: dict[str, MarketFee] = {}
+    for record in records:
+        if type(record) is not MarketFee:
+            raise ValueError("market_fees must contain MarketFee records")
+        _identifier(record.market_id, "fee market_id")
+        _identifier(record.source_ref, "fee source_ref")
+        if not record.source_ref.strip():
+            raise ValueError("fee source_ref must not be whitespace")
+        if type(record.evidence_sha256) is not str or not re.fullmatch(
+            r"[0-9a-f]{64}", record.evidence_sha256
+        ):
+            raise ValueError("fee evidence_sha256 must be a lowercase SHA256")
+        _number(record.fee_rate, "market fee_rate")
+        if not 0 <= record.fee_rate <= 1:
+            raise ValueError("market fee_rate must be in [0, 1]")
+        for name in ("effective_from_ms", "effective_until_ms", "observed_ms"):
+            _timestamp(getattr(record, name), "fee " + name)
+        if record.effective_until_ms <= record.effective_from_ms:
+            raise ValueError("fee effective interval must be non-empty")
+        if record.market_id in by_market:
+            raise ValueError("one fee record per market is required")
+        by_market[record.market_id] = record
+    if set(by_market) != {order.market_id for order in orders}:
+        raise ValueError("fee metadata must exactly cover replay markets")
+    for order in orders:
+        record = by_market[order.market_id]
+        if record.observed_ms >= order.decision_ms:
+            raise ValueError("fee observation must strictly precede decision")
+        if not (record.effective_from_ms <= order.decision_ms
+                and order.arrival_ms < record.effective_until_ms):
+            raise ValueError("fee interval must cover decision through arrival")
+    return by_market
+
+
+def replay(
+    intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig(), *,
+    market_fees: Iterable[MarketFee] | None = None,
+) -> dict:
     """Replay frozen FAK legs in receipt order against one cash account.
 
     Settlement events are processed before order arrivals at the same timestamp.
@@ -197,6 +256,10 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
     ids = [order.order_id for order in orders]
     if len(ids) != len(set(ids)):
         raise ValueError("order_id values must be unique")
+    fees = _market_fee_records(market_fees, orders) if market_fees is not None else None
+
+    def order_fee_rate(order: LegIntent) -> float:
+        return fees[order.market_id].fee_rate if fees is not None else config.fee_rate
 
     # A pair is one YES/NO attempt in one market.  Failing closed here matters:
     # the execution ledger is market-scoped, while the summary below is
@@ -481,7 +544,7 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
             # five-decimal rounding as execution so a half-up quantum can
             # never make the actual debit exceed its reservation.
             maximum_fee = taker_fee(
-                order.requested_shares, 0.5, config.fee_rate
+                order.requested_shares, 0.5, order_fee_rate(order)
             )
             reserve = (
                 order.requested_shares
@@ -560,7 +623,7 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
                     counts["snapshot_depth_rejects"] += 1
                     reason = "shared_snapshot_depth_exhausted"
             else:
-                fee = taker_fee(shares, order.arrival_ask, config.fee_rate)
+                fee = taker_fee(shares, order.arrival_ask, order_fee_rate(order))
                 extra_cost = shares * config.extra_cost_per_share
                 debit = shares * order.arrival_ask + fee + extra_cost
                 if debit > cash + 1e-12:
@@ -791,6 +854,21 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
     else:
         # Preserve the exact legacy JSON surface for old default callers.
         result["config"].pop("reserve_until_ack")
+    if fees is not None:
+        result["schema_version"] = 9
+        result["market_fees"] = {
+            "mode": "explicit_market_metadata",
+            "config_fee_rate_applied": False,
+            "records": [asdict(fees[key]) for key in sorted(fees)],
+        }
+        for row in ledger:
+            if row["event"] in ("order_send", "order_arrival"):
+                record = fees[row["market_id"]]
+                row["fee_rate"] = record.fee_rate
+                row["fee_evidence_sha256"] = record.evidence_sha256
+        result["limitations"].append(
+            "fee references and hashes are caller-supplied, not authenticated evidence; one unchanged historical fee epoch must cover each market; no current-rate fallback is used"
+        )
     return result
 
 
@@ -798,6 +876,8 @@ def _load(path: Path) -> tuple[list[LegIntent], ReplayConfig]:
     payload = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict) or not isinstance(payload.get("intents"), list):
         raise ValueError("input must be an object with an intents array")
+    if "market_fees" in payload:
+        raise ValueError("inline market_fees is unsupported; use --market-fees FILE")
     config = ReplayConfig(**payload.get("config", {}))
     return [LegIntent(**row) for row in payload["intents"]], config
 
@@ -806,9 +886,18 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("input", type=Path)
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--market-fees", type=Path,
+                        help="explicit JSON array of historical MarketFee records")
     args = parser.parse_args()
     intents, config = _load(args.input)
-    rendered = json.dumps(replay(intents, config), indent=2, sort_keys=True)
+    market_fees = None
+    if args.market_fees is not None:
+        raw_fees = json.loads(args.market_fees.read_text(encoding="utf-8"))
+        if type(raw_fees) is not list or any(type(row) is not dict for row in raw_fees):
+            raise ValueError("market fees file must be an array of objects")
+        market_fees = [MarketFee(**row) for row in raw_fees]
+    rendered = json.dumps(replay(intents, config, market_fees=market_fees),
+                          indent=2, sort_keys=True)
     if args.output:
         args.output.write_text(rendered + "\n", encoding="utf-8")
     else:
