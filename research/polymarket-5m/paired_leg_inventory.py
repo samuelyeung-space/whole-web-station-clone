@@ -36,6 +36,7 @@ class LegIntent:
     displayed_shares: float
     send_ms: int | None = None
     snapshot_id: str | None = None
+    ack_ms: int | None = None
 
 
 @dataclass(frozen=True)
@@ -47,6 +48,7 @@ class ReplayConfig:
     extra_cost_per_share: float = 0.0
     reserve_cash_at_send: bool = False
     consume_snapshot_depth: bool = False
+    reserve_until_ack: bool = False
 
 
 @dataclass
@@ -130,6 +132,10 @@ def validate_intent(intent: LegIntent) -> None:
             raise ValueError("arrival_ms precedes send_ms")
     if intent.snapshot_id is not None:
         _identifier(intent.snapshot_id, "snapshot_id")
+    if intent.ack_ms is not None:
+        _timestamp(intent.ack_ms, "ack_ms")
+        if intent.ack_ms < intent.arrival_ms:
+            raise ValueError("ack_ms precedes arrival_ms")
     if intent.settlement_ms <= intent.arrival_ms:
         raise ValueError("settlement_ms must follow arrival_ms")
     if intent.cash_release_ms < intent.settlement_ms:
@@ -156,6 +162,10 @@ def validate_config(config: ReplayConfig) -> None:
         raise ValueError("reserve_cash_at_send must be boolean")
     if type(config.consume_snapshot_depth) is not bool:
         raise ValueError("consume_snapshot_depth must be boolean")
+    if type(config.reserve_until_ack) is not bool:
+        raise ValueError("reserve_until_ack must be boolean")
+    if config.reserve_until_ack and not config.reserve_cash_at_send:
+        raise ValueError("reserve_until_ack requires reserve_cash_at_send")
     if config.initial_cash <= 0:
         raise ValueError("initial_cash must be positive")
     if not 0 <= config.depth_haircut <= 1:
@@ -178,6 +188,8 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
         validate_intent(order)
         if config.reserve_cash_at_send and order.send_ms is None:
             raise ValueError("send_ms is required when reserve_cash_at_send is enabled")
+        if config.reserve_until_ack and order.ack_ms is None:
+            raise ValueError("ack_ms is required when reserve_until_ack is enabled")
         if config.consume_snapshot_depth and order.snapshot_id is None:
             raise ValueError(
                 "snapshot_id is required when consume_snapshot_depth is enabled"
@@ -244,6 +256,11 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
             assert order.send_ms is not None
             events.append((order.send_ms, 2, order.order_id, order))
         events.append((order.arrival_ms, 3, order.order_id, order))
+        if config.reserve_until_ack:
+            assert order.ack_ms is not None
+            # Acknowledgements follow all sends/arrivals at an equal clock.
+            # This is conservative when sub-millisecond ordering is unknown.
+            events.append((order.ack_ms, 4, order.order_id, order))
     events.sort(key=lambda row: (row[0], row[1], row[2]))
 
     cash = config.initial_cash
@@ -252,6 +269,10 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
     pending_payouts: dict[str, float] = {}
     reservations: dict[str, float] = {}
     send_rejected: set[str] = set()
+    awaiting_ack: set[str] = set()
+    max_pending_ack_cash = 0.0
+    max_pending_ack_orders = 0
+    ack_count = 0
     fills: list[Fill] = []
     ledger: list[dict] = []
     counts = {
@@ -428,6 +449,30 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
 
         order = payload
         assert isinstance(order, LegIntent)
+        if event_kind == 4:
+            if order.order_id in send_rejected:
+                continue  # No venue order was sent, so there is no venue ack.
+            if order.order_id not in awaiting_ack:
+                raise RuntimeError("internal error: ack without matched attempt")
+            before_reserved = sum(reservations.values())
+            released = reservations.pop(order.order_id, 0.0)
+            awaiting_ack.remove(order.order_id)
+            ack_count += 1
+            mark_risk()
+            ledger.append({
+                "timestamp_ms": timestamp_ms,
+                "event": "order_ack",
+                "order_id": order.order_id,
+                "pair_id": order.pair_id,
+                "market_id": order.market_id,
+                "cash": cash,
+                "reserved_before": before_reserved,
+                "reserved_after": sum(reservations.values()),
+                "reservation_released": released,
+                "available_after": cash - sum(reservations.values()),
+                "arrival_to_ack_ms": timestamp_ms - order.arrival_ms,
+            })
+            continue
         if event_kind == 2:
             before_reserved = sum(reservations.values())
             available_before = cash - before_reserved
@@ -585,6 +630,16 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
                     reason = "executed"
         if depth_key is not None:
             snapshot_depth_after = snapshot_depth[depth_key]["remaining"]
+        retained = 0.0
+        if config.reserve_until_ack and order.order_id not in send_rejected:
+            retained = max(0.0, own_reservation - debit)
+            reservations[order.order_id] = retained
+            awaiting_ack.add(order.order_id)
+            max_pending_ack_cash = max(
+                max_pending_ack_cash,
+                sum(reservations[oid] for oid in awaiting_ack),
+            )
+            max_pending_ack_orders = max(max_pending_ack_orders, len(awaiting_ack))
         refresh_exposure_state(order.market_id, timestamp_ms)
         refresh_pair_exposure_state(order.pair_id, timestamp_ms)
         mark_risk()
@@ -604,7 +659,7 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
                 "cash_after": cash,
                 "reserved_before": before_reserved,
                 "reserved_after": sum(reservations.values()),
-                "reservation_released": own_reservation,
+                "reservation_released": 0.0 if config.reserve_until_ack else own_reservation,
                 "available_after": cash - sum(reservations.values()),
                 "cash_debit": debit,
                 "fee": fee,
@@ -616,6 +671,9 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
                 "position_after": position_snapshot(order.market_id),
             }
         )
+        if config.reserve_until_ack:
+            ledger[-1]["reservation_consumed"] = debit
+            ledger[-1]["reservation_retained_until_ack"] = retained
 
     if positions:
         raise RuntimeError("internal error: unsettled positions remain")
@@ -625,6 +683,8 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
         raise RuntimeError("internal error: unreleased payouts remain")
     if reservations:
         raise RuntimeError("internal error: unreleased cash reservations remain")
+    if awaiting_ack:
+        raise RuntimeError("internal error: unacknowledged orders remain")
     pair_stats: dict[str, dict] = {}
     for fill in fills:
         stats = pair_stats.setdefault(
@@ -652,7 +712,7 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
         default=0,
     )
     result = {
-        "schema_version": 7,
+        "schema_version": 8 if config.reserve_until_ack else 7,
         "config": asdict(config),
         "counts": {
             **counts,
@@ -717,6 +777,20 @@ def replay(intents: Iterable[LegIntent], config: ReplayConfig = ReplayConfig()) 
             "consume_snapshot_depth requires a stable snapshot_id and prevents repeated use of one recorded depth pool",
         ],
     }
+    if config.reserve_until_ack:
+        result["acknowledgement"] = {
+            "count": ack_count,
+            "max_pending_orders": max_pending_ack_orders,
+            "max_pending_cash": max_pending_ack_cash,
+            "final_pending_orders": len(awaiting_ack),
+            "tie_policy": "settlement, cash_release, sends, arrivals, acknowledgements",
+        }
+        result["limitations"].append(
+            "reserve_until_ack is an explicit conservative account-policy stress, not measured venue collateral availability; ack_ms must be observed or pre-fixed as a stress"
+        )
+    else:
+        # Preserve the exact legacy JSON surface for old default callers.
+        result["config"].pop("reserve_until_ack")
     return result
 
 
