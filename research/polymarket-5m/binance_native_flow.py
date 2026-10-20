@@ -8,11 +8,39 @@ from copy import deepcopy
 from decimal import Decimal, InvalidOperation
 import math
 from collections.abc import Mapping
+from bisect import bisect_left
 
 from historical_flow_receipts import CoverageInterval, ReceiptFlowTape
 
-VERSION = 'binance-native-flow-v1'
+VERSION = 'binance-native-flow-v2'
 REFERENCE = 'https://developers.binance.com/docs/binance-spot-api-docs/web-socket-streams'
+
+
+class _AggregateRangeIndex:
+    """Sorted disjoint inclusive raw-ID ranges, not a time or health index.
+
+    Ordered arrivals append in O(1). Out-of-order lookup uses O(log n)
+    probes; insertion into the lists is still O(n) in the worst case. Exact
+    Python integers are retained. No IDs are interpreted as coverage proof.
+    """
+    def __init__(self):
+        self.starts = []
+        self.ends = []
+
+    def position(self, lo, hi):
+        if type(lo) is not int or type(hi) is not int or not 0 <= lo <= hi:
+            raise ValueError('invalid exact aggregate raw-ID range')
+        if not self.starts or lo > self.ends[-1]:
+            return len(self.starts)
+        i = bisect_left(self.starts, lo)
+        if (i and self.ends[i-1] >= lo) or (i < len(self.starts) and self.starts[i] <= hi):
+            raise ValueError('distinct aggregate IDs overlap raw trade ranges')
+        return i
+
+    def insert_at(self, position, lo, hi):
+        # Only commit after the existing receipt engine accepted the row.
+        self.starts.insert(position, lo)
+        self.ends.insert(position, hi)
 
 
 def exact_uint(value, name):
@@ -114,6 +142,7 @@ class NativeFlowTape:
         self.engine=ReceiptFlowTape(exchange='binance',instrument=symbol)
         self.native_receipts=[]; self.failed_at=None; self.failure=None
         self._signatures={}; self._aggregate_ranges={}
+        self._aggregate_index=_AggregateRangeIndex()
 
     def add_trade(self, payload, *, local_recv_ms, capture_run_id):
         if self.failure is not None:
@@ -127,10 +156,10 @@ class NativeFlowTape:
                        native['first_raw_trade_id'],native['last_raw_trade_id'])
             if tid in self._signatures and self._signatures[tid]!=signature:
                 raise ValueError('conflicting native economic identity')
+            insert_position=None
             if self.stream_kind=='aggTrade' and tid not in self._signatures:
                 lo,hi=native['first_raw_trade_id'],native['last_raw_trade_id']
-                if any(lo<=b and a<=hi for a,b in self._aggregate_ranges.values()):
-                    raise ValueError('distinct aggregate IDs overlap raw trade ranges')
+                insert_position=self._aggregate_index.position(lo,hi)
             self.engine.add_trade(row)
         except (ValueError,TypeError,OverflowError) as exc:
             # Invalid or backward receipt timestamps cannot safely locate the
@@ -140,6 +169,8 @@ class NativeFlowTape:
             self.failure=str(exc)
             raise
         self.native_receipts.append(native);self._signatures[tid]=signature
+        if insert_position is not None:
+            self._aggregate_index.insert_at(insert_position,lo,hi)
         if self.stream_kind=='aggTrade':self._aggregate_ranges[tid]=(native['first_raw_trade_id'],native['last_raw_trade_id'])
         return native
 
@@ -158,3 +189,4 @@ class NativeFlowTape:
                 audit.update(value=None,available_ms=None,status='blocked_native_ingestion_error')
             result['ingestion_error']=self.failure
         return result
+
