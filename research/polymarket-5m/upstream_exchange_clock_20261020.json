@@ -1,0 +1,80 @@
+{
+  "schema": "btc5m-upstream-admission-audit-v1",
+  "as_of_utc": "2026-10-20T21:54:03Z",
+  "source_result_commit": "56b2a704f975d5a6ecea5dd5d827ad62334c1cb5",
+  "aggregation_workflow_run": 39489182928,
+  "aggregation_artifact_count": 0,
+  "reused_capture_run": 39435891649,
+  "evidence_class": "legacy_cumulative_development_causal_admission_rejection",
+  "rank7_admitted": false,
+  "rank7_pnl_usd": null,
+  "rank7_position": null,
+  "qualified_mechanism_delta": 0,
+  "causal_audit": {
+    "signal_availability_clock": "exchange_trade_timestamp",
+    "book_selection_clock": "exchange_source_timestamp",
+    "local_receive_timestamp_is_primary_availability_gate": false,
+    "post_decision_book_update_required": true,
+    "post_decision_disconnect_filter": true,
+    "dropped_candidates_recorded_as_attempts": false,
+    "latency_origin_demonstrated_as_local_decision": false
+  },
+  "rank7_gaps": [
+    "no_identical_complete_continuous_7utc_day_2016_market_window",
+    "no_independent_1000usd_100share_cash_ledger",
+    "no_pinned_rank7_stress_scenario_bundle",
+    "no_exact_100share_execution_evidence"
+  ],
+  "frozen_gate_results": {
+    "C": {
+      "status": "fail",
+      "n": 1500,
+      "net_ev_cents_per_share": -2.08,
+      "p_one_sided": 1
+    },
+    "D": {
+      "status": "fail",
+      "n": 1200,
+      "net_ev_cents_per_share": -0.04,
+      "p_one_sided": 1
+    },
+    "F": {
+      "status": "legacy_pass_not_rank7",
+      "n": 1200,
+      "net_ev_cents_per_share": 4.05,
+      "p_one_sided": 0.0009
+    },
+    "G": {
+      "status": "legacy_pass_causal_reject",
+      "n": 600,
+      "net_ev_cents_per_share": 12.23,
+      "p_one_sided": 0
+    },
+    "I": {
+      "status": "legacy_pass_causal_reject",
+      "markets": 1000,
+      "net_ev_cents_per_share": 8.53,
+      "p_one_sided": 0
+    },
+    "J": {
+      "status": "legacy_result_causal_reject",
+      "markets": 1000,
+      "net_ev_cents_per_sent_order": 1.82,
+      "p_one_sided": 0.011
+    }
+  },
+  "provenance_blobs": {
+    "latency_py": "882b660db00090be28f1dc5d8e22e5653f79c63d",
+    "latency_test_c_md": "c8db950464e647ebc5fc14fadce1a59d8c756ca1",
+    "latency_test_d_md": "c58dd7ffe2759acb3e4484d6988c68d4373d40e8",
+    "forward_latency_curve_md": "3cc4f50060dc0e900f916b0553dfcbc405380041",
+    "forward_variants_md": "b1b93a9b13bf679f0e1f02d66e4632662a78190a"
+  },
+  "required_next_evidence": [
+    "local_receipt_causal_engine_frozen_before_later_untouched_window",
+    "decision_time_only_health_gates",
+    "explicit_attempt_reject_unfilled_partial_fill_ledger",
+    "complete_rank7_coverage_and_cash_contract"
+  ],
+  "live_orders_or_production_changes": false
+}
