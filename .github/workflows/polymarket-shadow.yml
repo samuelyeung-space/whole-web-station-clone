@@ -23,7 +23,8 @@ jobs:
   report:
     runs-on: ubuntu-latest
     # every recording so far is downloaded and re-tested, so the run grows with the pool:
-    # 57 min on 10-07, past 60 min from 10-08, 171 min on 10-18; GitHub's hard limit is 360
+    # 57 min on 10-07, past 60 min from 10-08, 171 min on 10-18, 108-190 min on 10-19/20 (about two
+    # thirds of it forward_variants.py, before it read each recording once); GitHub's limit is 360
     timeout-minutes: 350
     defaults:
       run:
@@ -46,8 +47,8 @@ jobs:
           set -u
           rec="$RUNNER_TEMP/rec"; mkdir -p "$rec"
           # every forward run, finished or not: the run that dispatched this one is still in its
-          # last step, but its artifact is already uploaded
-          ids=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/polymarket-forward.yml/runs?per_page=100" \
+          # last step, but its artifact is already uploaded. All pages: there are more than 100
+          ids=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/actions/workflows/polymarket-forward.yml/runs?per_page=100" \
                 --jq '.workflow_runs[].id')
           # from run 38956287813 (1030ea3) on, raw.tgz is published as recording-RUN-index plus
           # recording-RUN-part-* artifacts; rebuild it and check every hash. The expected manifest
@@ -78,6 +79,14 @@ jobs:
           python latency.py "$rec" --test-g --out real/latency-test-g.md || true
           python latency.py "$rec" --test-i --out real/latency-test-i.md || true
           python latency.py "$rec" --test-j --out real/latency-test-j.md || true
+
+      # exploratory only: capped so that a slow pass can never take the tests' reports past the job
+      # limit with it (the commit below still runs when this step times out)
+      - name: Exploratory reports on the same recordings
+        timeout-minutes: 240
+        continue-on-error: true
+        run: |
+          rec="$RUNNER_TEMP/rec"
           python forward_variants.py "$rec" --out real/forward-variants.md --trades real/forward-trades.csv.gz \
             --curve 0.2 0.25 0.3 0.35 0.4 0.45 0.5 --curve-out real/forward-latency-curve.md || true
           python recorder_check.py "$rec" --github --since "2026-10-01 02:30" --out real/recorder-check.md || true

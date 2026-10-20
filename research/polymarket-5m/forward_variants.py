@@ -41,15 +41,34 @@ VARIANTS = {
 
 
 def run(root, lag, names=None):
+    return run_all(root, [(lag, name) for name in VARIANTS if names is None or name in names])[lag]
+
+
+def run_all(root, cells):
+    """{lag: {variant: trades}} for every (lag, variant) in `cells`, reading each recording once
+    (the reads are most of the time) instead of once per cell. Each cell's rows are pooled exactly
+    as lt._per_recording pools a single rule's: per-recording frames in reading order, stable sort
+    by trigger time, the earliest of a repeated row kept."""
     dirs = lt._latency_dirs([root], lt.G_COINS)
-    kw = dict(lag=lag, theta=lt.G_THETA, z0=lt.G_Z0, tau_lo=lt.G_TAU_LO)
+    stash = []
+
+    def make(mk, sp, sg, bk):
+        stash.append({(lag, name): lt.gated_trades(mk, sp, sg, bk, lag=lag, theta=lt.G_THETA, z0=lt.G_Z0,
+                                                   tau_lo=lt.G_TAU_LO, **VARIANTS[name][0])
+                      for lag, name in cells})
+        return pd.DataFrame({"t": [float(len(stash) - 1)], "seq": [len(stash) - 1]})
+
+    # one marker row per recording read, carrying the coin and run lt._per_recording stamps on it
+    read = lt._per_recording(dirs, lt.G_SINCE, lt.G_SPOT, make, ["seq"], [])
     out = {}
-    for name, (extra, keys) in VARIANTS.items():
-        if names is not None and name not in names:
-            continue
-        t = lt._per_recording(dirs, lt.G_SINCE, lt.G_SPOT,
-                              lambda mk, sp, sg, bk, e=extra: lt.gated_trades(mk, sp, sg, bk, **kw, **e), keys, [])
-        out[name] = t.sort_values("t") if len(t) else t
+    for lag, name in cells:
+        parts = [stash[r.seq][lag, name].assign(coin=r.coin, run=r.run) for r in read.itertuples()]
+        if parts:
+            t = pd.concat(parts, ignore_index=True).sort_values("t", kind="stable")
+            t = t.drop_duplicates(VARIANTS[name][1], keep="first").reset_index(drop=True)
+        else:
+            t = pd.DataFrame(columns=["t", "pnl", "coin", "lag", "run", "market_id"])
+        out.setdefault(lag, {})[name] = t.sort_values("t") if len(t) else t
     return out
 
 
@@ -109,9 +128,12 @@ def main(argv=None):
     ap.add_argument("--curve", type=float, nargs="+", help="lags (s) for the edge-against-latency table")
     ap.add_argument("--curve-out", default="real/forward-latency-curve.md")
     a = ap.parse_args(argv)
-    res = {lag: run(a.root, lag) for lag in a.lags}
+    cells = [(lag, name) for lag in a.lags for name in VARIANTS]
+    cells += [(lag, name) for lag in a.curve or [] if lag not in a.lags for name in CURVE]
+    every = run_all(a.root, cells)
+    res = {lag: every[lag] for lag in a.lags}
     if a.curve:
-        cur = {lag: res[lag] if lag in res else run(a.root, lag, CURVE) for lag in a.curve}
+        cur = {lag: every[lag] for lag in a.curve}
         Path(a.curve_out).parent.mkdir(parents=True, exist_ok=True)
         Path(a.curve_out).write_text("\n".join(curve_lines(cur)) + "\n", encoding="utf-8")
     L = ["# 检验 G 的录盘，换成 H 和加仓版本再算（探索性，不是预注册检验；每轮录盘后自动更新）", "",
