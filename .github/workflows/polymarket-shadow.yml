@@ -24,7 +24,8 @@ jobs:
     runs-on: ubuntu-latest
     # every recording so far is downloaded and re-tested, so the run grows with the pool:
     # 57 min on 10-07, past 60 min from 10-08, 171 min on 10-18, 108-190 min on 10-19/20 (about two
-    # thirds of it forward_variants.py, before it read each recording once); GitHub's limit is 360
+    # thirds of it forward_variants.py, before it read each recording once); GitHub's limit is 360.
+    # Change this and EXPLORE_UNTIL below together
     timeout-minutes: 350
     defaults:
       run:
@@ -45,6 +46,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -u
+          # the exploratory step stops by then: the 350-minute job, about 5 min of setup before this
+          # line, 20 min kept for the commit, the report and the runner's cleanup
+          echo "EXPLORE_UNTIL=$(( $(date +%s) + (350 - 5 - 20) * 60 ))" >> "$GITHUB_ENV"
           rec="$RUNNER_TEMP/rec"; mkdir -p "$rec"
           # every forward run, finished or not: the run that dispatched this one is still in its
           # last step, but its artifact is already uploaded. All pages: there are more than 100
@@ -80,19 +84,26 @@ jobs:
           python latency.py "$rec" --test-i --out real/latency-test-i.md || true
           python latency.py "$rec" --test-j --out real/latency-test-j.md || true
 
-      # exploratory only: capped so that a slow pass can never take the tests' reports past the job
-      # limit with it (the commit below still runs when this step times out)
+      # exploratory only: stopped by EXPLORE_UNTIL so that a slow pass can never take the tests'
+      # reports past the job limit with it. Each script runs under timeout(1), which stops it and
+      # its children; the runner's own step timeout (a backstop here) kills only this shell and
+      # would leave the script writing into real/ while the commit runs
       - name: Exploratory reports on the same recordings
-        timeout-minutes: 240
+        timeout-minutes: 330
         continue-on-error: true
         run: |
           rec="$RUNNER_TEMP/rec"
-          python forward_variants.py "$rec" --out real/forward-variants.md --trades real/forward-trades.csv.gz \
-            --curve 0.2 0.25 0.3 0.35 0.4 0.45 0.5 --curve-out real/forward-latency-curve.md || true
-          python recorder_check.py "$rec" --github --since "2026-10-01 02:30" --out real/recorder-check.md || true
-          python fill_rate.py "$rec" --out real/fill-rate.md || true
-          python latency.py "$rec" --diagnose-d --out real/latency-test-d-diagnose.md || true
-          python latency.py "$rec" --diagnose-f --out real/latency-test-f-diagnose.md || true
+          capped() {
+            local s=$(( EXPLORE_UNTIL - $(date +%s) ))
+            if [ "$s" -le 60 ]; then echo "::warning::no time left for $2"; return 0; fi
+            timeout -k 30 "$s" "$@" || echo "::warning::$2 stopped or failed (exit $?)"
+          }
+          capped python forward_variants.py "$rec" --out real/forward-variants.md --trades real/forward-trades.csv.gz \
+            --curve 0.2 0.25 0.3 0.35 0.4 0.45 0.5 --curve-out real/forward-latency-curve.md
+          capped python recorder_check.py "$rec" --github --since "2026-10-01 02:30" --out real/recorder-check.md
+          capped python fill_rate.py "$rec" --out real/fill-rate.md
+          capped python latency.py "$rec" --diagnose-d --out real/latency-test-d-diagnose.md
+          capped python latency.py "$rec" --diagnose-f --out real/latency-test-f-diagnose.md
 
       - name: Commit the reports
         run: |
