@@ -1,0 +1,101 @@
+{
+  "schema": "btc5m-upstream-ladder-forward-audit-v1",
+  "as_of_utc": "2026-10-20T23:04:00Z",
+  "source_commit": "b2f22ab2e052979db732bab3a220b93d4cf34fc9",
+  "rank7_admitted": false,
+  "rank7_pnl_usd": null,
+  "rank7_position": null,
+  "qualified_mechanism_delta": 0,
+  "completed_ladder_run": 39458726419,
+  "cumulative_results": {
+    "nearcert_taker": {
+      "buys": 4,
+      "settled_markets": 4,
+      "shares_per_buy": 1,
+      "net_ev_cents_per_share": -70.78,
+      "clustered_se_cents": 24.21,
+      "t_stat": -2.92,
+      "stopping_status": "below_300_markets",
+      "rank7_eligible": false
+    },
+    "nearcert_4h_control": {
+      "settled_markets": 10,
+      "net_ev_cents_per_share": -13.39,
+      "rank7_eligible": false
+    },
+    "calib_taker": {
+      "buys": 3,
+      "settled_markets": 3,
+      "shares_per_buy": 1,
+      "net_ev_cents_per_share": 5.73,
+      "stopping_status": "below_40_markets",
+      "rank7_eligible": false
+    },
+    "structural_nonboundary": {
+      "immediate_usd_per_day_upper_bound": 2.72,
+      "after_500ms_usd_per_day_upper_bound": 0.51,
+      "rank7_eligible": false
+    }
+  },
+  "coverage": {
+    "segments": 31,
+    "recorded_hours": 170.4,
+    "continuous_7utc_days": false,
+    "btc5m_2016_market_universe": false
+  },
+  "pending_capture": {
+    "workflow_run": 39471706733,
+    "record_job_status": "completed_success",
+    "analyze_job_status": "in_progress",
+    "analyze_step": "Resolve, convert and test",
+    "strict_btc_replay_step": "pending",
+    "total_raw_bytes": 1698657779,
+    "index_download_attempt": "http_503",
+    "artifact_expiry_utc_approx": "2026-10-21T22:06:00Z",
+    "artifacts": [
+      {
+        "name": "index",
+        "id": 12303625695,
+        "bytes": 4309,
+        "sha256": "32ce79c133ff6cc502e0a327a3cdcb81bfcff7ab32292e047aeb3411727cefa6"
+      },
+      {
+        "name": "part-00000",
+        "id": 12303490742,
+        "bytes": 419430662,
+        "sha256": "650f87bacbe6908856923be1ee26434b2c7e825f2e4694b5b129407e4402420d"
+      },
+      {
+        "name": "part-00001",
+        "id": 12303520724,
+        "bytes": 419430662,
+        "sha256": "38cf577646c85dc080358e1e6232b490ec5b43810e581b927e423fe00e6647c0"
+      },
+      {
+        "name": "part-00002",
+        "id": 12303296007,
+        "bytes": 419430662,
+        "sha256": "6d6247f5a90f0d2c3b6522f827ffb4152de9c8521366f6bcba1d25b3ecc87900"
+      },
+      {
+        "name": "part-00003",
+        "id": 12303585574,
+        "bytes": 419430662,
+        "sha256": "5fecafcf372acb444736b1eefab61571cbef32d7086977f16811977a1a464213"
+      },
+      {
+        "name": "part-00004",
+        "id": 12303236038,
+        "bytes": 20930822,
+        "sha256": "2297ce30f08750b2e5d4d43c38b55f9e5cbd9191750bb8037f25e0885da72881"
+      }
+    ]
+  },
+  "report_blobs": {
+    "nearcert_forward_md": "81e853ba1d329c9699310738fbe2682814e97184",
+    "calib_forward_md": "94eec7a544dfbde8b5ba8d6c7a2b16d62dfe0904",
+    "ladder_check_md": "577c3845e2520172b2802b2bfebf746a780a44e1",
+    "ladder_arb_md": "37244e9cbd5693041bc3bc4baae487c7810181b5"
+  },
+  "live_orders_or_production_changes": false
+}
