@@ -1,5 +1,5 @@
 {
-  "schema": "rank7-protocol-v1",
+  "schema": "rank7-protocol-v2",
   "role": "template_not_a_frozen_experiment",
   "registered_at_utc": null,
   "window_start_utc": null,
@@ -13,7 +13,11 @@
     "initial_cash_usd": 1000,
     "requested_shares": 100,
     "primary_latency_ms": 500,
-    "latencies_ms": [500, 600, 1000],
+    "latencies_ms": [
+      500,
+      600,
+      1000
+    ],
     "max_quote_age_ms": 250,
     "cash_release_delay_ms": 0,
     "require_constraints": true
@@ -24,5 +28,10 @@
     "market_ids": null
   },
   "formal_oos_result": null,
-  "note": "Fill and freeze every identity from admitted data and loaded strategies before replay. This null template must fail admission; never report it as a registered or completed experiment. Cash delay0 is an explicit unmeasured baseline, not observed redemption timing."
+  "note": "Fill and freeze every identity from admitted data and loaded strategies before replay. This null template must fail admission; never report it as a registered or completed experiment. Cash delay0 is an explicit unmeasured baseline, not observed redemption timing. V2 requires independent verification against the pinned --cache and both admission code hashes. Existing freezes cannot inherit the new schema; register a strictly later untouched window before formal use.",
+  "admission_code_sha256": {
+    "seven_day_ranking.py": null,
+    "rank7_input_window.py": null
+  }
 }
+

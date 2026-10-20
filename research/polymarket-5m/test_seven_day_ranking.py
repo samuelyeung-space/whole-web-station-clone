@@ -13,7 +13,8 @@ from seven_day_ranking import DAY, SLOT, IDENTITY_KEYS, STRESSES, assess, finger
 class SevenDayRankingTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
-        self.root = Path(self.temp.name)
+        self.root = Path(self.temp.name)/'run'
+        self.root.mkdir()
         self.markets = [{"market_id": "BTC-" + str(i), "start_ms": i * SLOT,
                          "end_ms": (i + 1) * SLOT, "label_source": "gamma"} for i in range(2016)]
         self.coverage = {"markets": self.markets, "daily": [
@@ -36,7 +37,8 @@ class SevenDayRankingTests(unittest.TestCase):
                              "require_full_days": 7, "formal_oos_result": None,
                              "registered_at_utc": "1970-01-09T00:00:00Z", "input_data_role": "consumed_development",
                              "model_fitting": False, "cash_scope": "separate per candidate and latency"}
-        self.protocol = {"schema": "rank7-protocol-v1", "registered_at_utc": "1970-01-08T00:00:00Z",
+        self.protocol = {"schema": "rank7-protocol-v2", "registered_at_utc": "1970-01-08T00:00:00Z",
+                         "admission_code_sha256":{name:sha(Path(__file__).with_name(name)) for name in ('seven_day_ranking.py','rank7_input_window.py')},
                          "window_start_utc": "1970-01-01T00:00:00Z", "window_end_utc": "1970-01-08T00:00:00Z",
                          "candidate_sha256": fingerprint(rules), "strategy_identity_sha256": fingerprint(strategies),
                          "code_sha256": self.registration["code_sha256"], "cache_key": "b" * 64,
@@ -66,12 +68,38 @@ class SevenDayRankingTests(unittest.TestCase):
             self.results[scenario["name"]] = {"mode": "isolated", "engine_config": scenario["config"],
                                               "constraints_mode": "required", "inherited_execution_assumptions": [],
                                               "summary": summaries, "attempts": attempts, "cash_events": []}
+        self.events=[dict(type='dataset',recv_ms=0,dataset_id='synthetic-rank7',
+            split='development',provenance={'source':'synthetic engineering fixture, not market data'},
+            coverage_start_ms=0,coverage_end_ms=7*DAY)]
+        for m in self.markets:
+            mid=m['market_id'];at=m['start_ms'];end=m['end_ms']
+            self.events.extend([
+                dict(type='market',recv_ms=at,**m),
+                dict(type='book',recv_ms=at+10,market_id=mid,healthy=True,fee_rate=.07,up_asks=[[.4,100]],down_asks=[[.6,100]]),
+                dict(type='decision',recv_ms=at+100,market_id=mid,features={},feature_available_ms={}),
+                dict(type='outcome',recv_ms=end,market_id=mid,resolved_ms=end,source='gamma',winner='Up')])
+        self.bind_input()
 
     def tearDown(self):
         self.temp.cleanup()
 
     def write(self, path, data):
         path.write_text(json.dumps(data, allow_nan=False) + "\n")
+
+    def bind_input(self):
+        import replay_dataset
+        from replay_dataset import ingest
+        source=Path(self.temp.name)/'synthetic_input.jsonl'
+        source.write_text(''.join(json.dumps(e)+'\n' for e in sorted(self.events,key=lambda e:e['recv_ms'])))
+        manifest=ingest([source],Path(self.temp.name)/'input-cache')
+        self.cache=Path(manifest['cache_path'])
+        for target in (self.registration,self.protocol):
+            target['cache_key']=manifest['dataset_key']
+            target['events_sha256']=manifest['tape_sha256']
+            target['code_sha256']['replay_dataset.py']=sha(replay_dataset.__file__)
+
+    def assess(self):
+        return assess(self.protocol,self.root,self.cache)
 
     def build(self):
         reg = self.registration
@@ -92,7 +120,7 @@ class SevenDayRankingTests(unittest.TestCase):
 
     def blocked(self, fragment):
         self.build()
-        result = assess(self.protocol, self.root)
+        result = self.assess()
         self.assertEqual(result["status"], "blocked", result)
         self.assertIn(fragment, result["reasons"][0])
         self.assertEqual(result["ranking"], [])
@@ -101,7 +129,7 @@ class SevenDayRankingTests(unittest.TestCase):
 
     def test_native_positive_fixture_ranks_primary_only_and_preserves_all_stresses(self):
         self.build()
-        result = assess(self.protocol, self.root)
+        result = self.assess()
         self.assertEqual(result["status"], "assessed_development_only", result)
         self.assertEqual(len(result["ranking"]), 1)
         self.assertEqual(result["ranking"][0]["primary_net_pnl_usd"], 58.32)
@@ -168,12 +196,12 @@ class SevenDayRankingTests(unittest.TestCase):
         self.build()
         path = self.root / "base/attempts.jsonl.gz"
         path.write_bytes(path.read_bytes()[:-8])
-        self.assertEqual(assess(self.protocol, self.root)["status"], "blocked")
+        self.assertEqual(self.assess()["status"], "blocked")
         self.build()
         complete = json.loads((self.root / "completion.json").read_text())
         complete["output_sha256"].pop("metrics.json")
         self.write(self.root / "completion.json", complete)
-        self.assertIn("required output hashes", assess(self.protocol, self.root)["reasons"][0])
+        self.assertIn("required output hashes", self.assess()["reasons"][0])
 
     def test_no_signal_and_missing_cells_remain_unranked_null(self):
         for result in self.results.values():
@@ -183,7 +211,7 @@ class SevenDayRankingTests(unittest.TestCase):
                            filled_shares=0, fees_usd=0, settled_positions=0, net_pnl_usd=None)
         self.results["base"]["summary"].pop()
         self.build()
-        result = assess(self.protocol, self.root)
+        result = self.assess()
         self.assertEqual(result["status"], "assessed_development_only", result)
         self.assertEqual(result["ranking"], [])
         self.assertEqual(len(result["unranked"]), 1)
@@ -198,7 +226,7 @@ class SevenDayRankingTests(unittest.TestCase):
                 row.update(status="evaluated_no_fills", full_fills=0, filled_shares=0,
                            fees_usd=0, settled_positions=0, net_pnl_usd=0)
         self.build()
-        result = assess(self.protocol, self.root)
+        result = self.assess()
         self.assertEqual(result["status"], "assessed_development_only", result)
         self.assertEqual(result["ranking"], [])
         self.assertEqual(result["unranked"][0]["cells"][0]["metrics"]["net_pnl_usd"], 0)
@@ -218,7 +246,7 @@ class SevenDayRankingTests(unittest.TestCase):
         complete["execution_scenario_rows"] += 1
         complete["output_sha256"]["metrics.json"] = sha(path)
         self.write(cp, complete)
-        self.assertIn("duplicate/unexpected", assess(self.protocol, self.root)["reasons"][0])
+        self.assertIn("duplicate/unexpected", self.assess()["reasons"][0])
 
     def test_path_escape_and_null_template_fail_closed(self):
         self.build()
@@ -226,9 +254,9 @@ class SevenDayRankingTests(unittest.TestCase):
         complete = json.loads(cp.read_text())
         complete["output_sha256"]["../outside.json"] = "0" * 64
         self.write(cp, complete)
-        self.assertIn("unsafe or missing", assess(self.protocol, self.root)["reasons"][0])
+        self.assertIn("unsafe or missing", self.assess()["reasons"][0])
         self.protocol["window_start_utc"] = None
-        self.assertIn("UTC timestamp", assess(self.protocol, self.root)["reasons"][0])
+        self.assertIn("UTC timestamp", self.assess()["reasons"][0])
 
     def test_negative_completed_filled_strategy_is_rankable(self):
         for result in self.results.values():
@@ -238,7 +266,7 @@ class SevenDayRankingTests(unittest.TestCase):
             for row in result["summary"]:
                 row["net_pnl_usd"] = -41.68
         self.build()
-        result = assess(self.protocol, self.root)
+        result = self.assess()
         self.assertEqual(result["status"], "assessed_development_only", result)
         self.assertEqual(result["ranking"][0]["primary_net_pnl_usd"], -41.68)
 
@@ -246,6 +274,78 @@ class SevenDayRankingTests(unittest.TestCase):
         self.results["base"]["attempts"][0]["constraints_at_decision"] = None
         self.blocked("filled position lacks native constraints")
 
+    def test_unused_market_missing_official_outcome_cannot_hide_in_counts(self):
+        self.events=[e for e in self.events if not(e['type']=='outcome' and e.get('market_id')=='BTC-2015')]
+        self.bind_input()
+        self.blocked('per-market input evidence missing')
+
+    def test_unused_market_missing_book_cannot_hide_in_counts(self):
+        self.events=[e for e in self.events if not(e['type']=='book' and e.get('market_id')=='BTC-2015')]
+        self.bind_input()
+        self.blocked('per-market input evidence missing')
+
+    def test_unused_market_missing_decision_cannot_hide_in_counts(self):
+        self.events=[e for e in self.events if not(e['type']=='decision' and e.get('market_id')=='BTC-2015')]
+        self.bind_input()
+        self.blocked('per-market input evidence missing')
+
+    def test_cannot_rank_without_actual_cache(self):
+        self.build()
+        result=assess(self.protocol,self.root)
+        self.assertEqual(result['status'],'blocked')
+        self.assertIn('pinned input cache required',result['reasons'][0])
+        self.assertEqual(result['ranking'],[])
+
+    def test_pinned_digest_must_match_actual_input(self):
+        for target in (self.registration,self.protocol):target['events_sha256']='0'*64
+        self.blocked('cache/event identity mismatch')
+
+    def test_input_corruption_is_not_certified_by_good_output_reports(self):
+        self.build()
+        tape=self.cache/'events.jsonl.gz';tape.write_bytes(tape.read_bytes()[:-8])
+        result=self.assess()
+        self.assertEqual(result['status'],'blocked')
+        self.assertIn('cached tape corrupted',result['reasons'][0])
+
+    def test_new_protected_input_cannot_enter_development_check(self):
+        self.events[0]['split']='formal_oos'
+        self.bind_input()
+        self.blocked('explicitly consumed development cache')
+
+    def test_actual_tiny_recording_gap_cannot_hide_in_report(self):
+        self.events[0]['observed_intervals_ms']=[[0,1],[2,7*DAY]]
+        self.bind_input()
+        self.blocked('actual input lacks complete day')
+
+    def test_input_and_report_market_definitions_must_match(self):
+        for event in self.events:
+            if event['type']=='market' and event.get('market_id')=='BTC-2015':
+                event['start_ms']+=1;event['end_ms']+=1
+            if event['type']=='outcome' and event.get('market_id')=='BTC-2015':
+                event['resolved_ms']+=1;event['recv_ms']+=1
+        self.bind_input()
+        self.blocked('actual input market definitions differ')
+
+    def test_positive_fixture_reports_input_evidence_not_oos(self):
+        self.build();result=self.assess();evidence=result['input_window_evidence']
+        self.assertEqual(evidence['verified_market_count'],2016)
+        self.assertTrue(evidence['all_pinned_markets_have_books_decisions_official_outcomes'])
+        self.assertFalse(evidence['feed_health_certified'])
+        self.assertIsNone(evidence['formal_oos_result'])
+
+    def test_current_input_validator_must_match_pinned_code(self):
+        for target in (self.registration,self.protocol):target['code_sha256']['replay_dataset.py']='0'*64
+        self.blocked('input adapter code differs')
+
+    def test_old_protocol_cannot_inherit_new_admission(self):
+        self.protocol['schema']='rank7-protocol-v1'
+        self.blocked('unsupported protocol schema')
+
+    def test_changed_admission_code_cannot_inherit_frozen_identity(self):
+        self.protocol['admission_code_sha256']['rank7_input_window.py']='0'*64
+        self.blocked('ranking admission code/dependency identity mismatch')
+
 
 if __name__ == "__main__":
     unittest.main()
+

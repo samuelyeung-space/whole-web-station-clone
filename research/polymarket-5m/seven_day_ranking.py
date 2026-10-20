@@ -1,14 +1,15 @@
 """Fail-closed admission to a common-window, independent-account development rank.
 
 No replay, fitting, order submission, OOS promotion, or implicit window selection.
-Protocol schema rank7-protocol-v1 (all fields mandatory)::
+Protocol schema rank7-protocol-v2 (all fields mandatory)::
 
- {"schema":"rank7-protocol-v1", "registered_at_utc":"...Z",
+ {"schema":"rank7-protocol-v2", "registered_at_utc":"...Z",
   "window_start_utc":"...T00:00:00Z", "window_end_utc":"...T00:00:00Z",
   "candidate_sha256":"<hash of ordered candidate_rules>",
   "strategy_identity_sha256":"<hash of registration.strategies>",
   "code_sha256":{"replay_lab.py":"...", ...}, "cache_key":"...",
-  "events_sha256":"...", "market_universe":{"asset":"BTC",
+  "events_sha256":"...", "admission_code_sha256":{"seven_day_ranking.py":"...",
+  "rank7_input_window.py":"..."}, "market_universe":{"asset":"BTC",
   "interval_seconds":300,"market_ids":["all 2016 pinned IDs"]},
   "benchmark":{"initial_cash_usd":1000,"requested_shares":100,
   "primary_latency_ms":500,"latencies_ms":[500,600,1000],
@@ -82,9 +83,12 @@ def sha(path):
         return hashlib.file_digest(stream, "sha256").hexdigest()
 
 
-def _assess(protocol, root):
+def _assess(protocol, root, cache_root):
     from replay_lab import verify_report_integrity
-    require(protocol.get("schema") == "rank7-protocol-v1", "unsupported protocol schema")
+    require(protocol.get("schema") == "rank7-protocol-v2", "unsupported protocol schema; v1 cannot inherit v2 input admission")
+    admission_code=protocol.get('admission_code_sha256')
+    expected_admission={name:sha(Path(__file__).with_name(name)) for name in ('seven_day_ranking.py','rank7_input_window.py')}
+    require(admission_code==expected_admission, 'ranking admission code/dependency identity mismatch')
     start_date, end_date = utc(protocol["window_start_utc"], True), utc(protocol["window_end_utc"], True)
     require(end_date - start_date == timedelta(days=7), "window must be exactly seven consecutive UTC days")
     start, end = int(start_date.timestamp() * 1000), int(end_date.timestamp() * 1000)
@@ -151,6 +155,24 @@ def _assess(protocol, root):
                 and market.get("label_source") in ("polymarket", "gamma", "chainlink"), "unaligned market or unofficial label source")
         slots.add(at)
     require(slots == set(range(start, end, SLOT)), "duplicate or missing UTC market slots")
+    # A hashed coverage report can still contain incorrect aggregate counts.
+    # Re-derive per-market membership from the pinned, hash-verified tape;
+    # unused markets also need official outcomes, not just filled positions.
+    require(cache_root is not None, "pinned input cache required for per-market rank7 verification")
+    from rank7_input_window import verify_window
+    input_evidence = verify_window(cache_root, start_ms=start, end_ms=end,
+        market_ids=pinned, cache_key=protocol['cache_key'], events_sha256=protocol['events_sha256'],
+        adapter_code_sha256=protocol['code_sha256']['replay_dataset.py'])
+    actual=input_evidence.pop('actual_coverage')
+    actual_markets=[m for m in actual['markets'] if start<=m['start_ms']<end]
+    require(sorted(actual_markets,key=lambda m:m['market_id'])==sorted(markets,key=lambda m:m['market_id']),
+            "rank7 actual input market definitions differ from coverage report")
+    actual_days=[d for d in actual['daily'] if d.get('date_utc') in wanted]
+    require(len(actual_days)==7, "rank7 actual input lacks seven coverage days")
+    for day in actual_days:
+        require(day.get('observed_seconds')==86400 and day.get('complete_span_slots')==288
+                and day.get('data_present_slots')==288 and day.get('gaps_ms')==[],
+                "rank7 actual input lacks complete day: "+day['date_utc'])
     scenario_stress = {}
     for scenario in scenarios:
         config = scenario["config"]
@@ -213,18 +235,20 @@ def _assess(protocol, root):
             ranking.append({"candidate_id": cid, "primary_net_pnl_usd": cells[cid, "base", 500]["net_pnl_usd"], "cells": rows})
     ranking.sort(key=lambda r: (-r["primary_net_pnl_usd"], r["candidate_id"]))
     return {"status": "assessed_development_only", "ranking": [{"rank": i + 1, **r} for i, r in enumerate(ranking)],
-            "unranked": unranked, "run_key": registration["run_key"], "coverage_days": 7, "market_slots": 2016}
+            "unranked": unranked, "run_key": registration["run_key"], "coverage_days": 7, "market_slots": 2016,
+            "input_window_evidence": input_evidence}
 
 
-def assess(protocol, run_root):
-    result = {"schema": "rank7-assessment-v1", "protocol_sha256": fingerprint(protocol), "protocol": protocol,
+def assess(protocol, run_root, cache_root=None):
+    result = {"schema": "rank7-assessment-v2", "protocol_sha256": fingerprint(protocol), "protocol": protocol,
+              "gate_code_sha256": {name:sha(Path(__file__).with_name(name)) for name in ('seven_day_ranking.py','rank7_input_window.py')},
               "formal_oos_result": None, "qualified_strategies": 0, "net_pnl_usd": None,
               "limitations": ["Development ranking only; seven days do not establish significant OOS edge.",
                               "Declared spans and market presence do not certify continuous feed health.",
                               "Pinned BTC universe and freeze timestamps need external provenance.",
                               "Displayed depth is a capacity upper bound, not observed private fills."]}
     try:
-        result.update(_assess(protocol, Path(run_root).resolve()))
+        result.update(_assess(protocol, Path(run_root).resolve(), cache_root))
     except (ValueError, KeyError, TypeError, OSError, EOFError) as exc:
         result.update(status="blocked", reasons=[str(exc)], ranking=[], unranked=[])
     return result
@@ -234,9 +258,10 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--protocol", required=True)
     parser.add_argument("--run", required=True)
+    parser.add_argument("--cache", required=True, help="pinned consumed-development input cache, independently checked per market")
     parser.add_argument("--out", required=True)
     args = parser.parse_args()
-    result = assess(read(args.protocol), args.run)
+    result = assess(read(args.protocol), args.run, args.cache)
     target = Path(args.out)
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(json.dumps(result, ensure_ascii=False, indent=2, allow_nan=False) + "\n")
@@ -246,3 +271,4 @@ def main():
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
