@@ -169,5 +169,39 @@ class FrozenDependencyRunnerTest(unittest.TestCase):
                 )
 
 
+class FrozenSourceRaceClosureTest(unittest.TestCase):
+    def test_registered_source_race_freeze_has_complete_dependency_closure(self) -> None:
+        root = Path(__file__).resolve().parent
+        freeze = root / "forward" / "source-race-freeze.json"
+        snapshot = root / "frozen-dependencies" / "source-race-v1"
+
+        with tempfile.TemporaryDirectory() as temporary:
+            report = Path(temporary) / "report.json"
+            result = runner.run(
+                root=root,
+                freeze_path=freeze,
+                snapshot_root=snapshot,
+                entrypoint=Path("h_source_race.py"),
+                freeze_target=Path("forward/source-race-freeze.json"),
+                entry_args=(),
+                report_path=report,
+                audit_only=True,
+            )
+            payload = json.loads(report.read_text(encoding="utf-8"))
+
+        self.assertEqual(result, 0)
+        self.assertEqual(
+            payload["freeze_sha256"],
+            "29ad66236aa0d2927843764970e384cb5de238c405be4e050f6b790a31a1dc63",
+        )
+        self.assertEqual(len(payload["dependencies"]), 18)
+        self.assertTrue(payload["runnable"])
+        self.assertEqual(payload["unresolved_dependencies"], [])
+        self.assertEqual(
+            [row["path"] for row in payload["substituted_dependencies"]],
+            ["eu_strict.py", "poly_clob_rec.py"],
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
