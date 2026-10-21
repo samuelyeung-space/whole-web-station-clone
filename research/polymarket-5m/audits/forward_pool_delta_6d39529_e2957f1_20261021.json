@@ -1,6 +1,6 @@
 {
   "schema": "btc5m-forward-pool-delta-audit-v1",
-  "as_of": "2026-10-21T20:03:17Z",
+  "as_of": "2026-10-21T20:08:17Z",
   "source_parent": "6d39529aa3cf42a963860b0b1bd58f3cc53d7997",
   "source_commit": "e2957f1edc46e19c07e8887a3f15c6c17dca8940",
   "recording_run": 39614816930,
@@ -61,8 +61,8 @@
     "strict_btc_replay_step": "failure",
     "failure_cause_available": false,
     "family34": "completed_success",
-    "family35": "in_progress",
-    "family36": "pending",
+    "family35": "completed_success_result_not_yet_published",
+    "family36": "in_progress",
     "converted_artifact_published": false
   },
   "rank7_pnl_usd": null,
