@@ -1,0 +1,31 @@
+{
+  "schema": "forward-checkpoint-order-audit-v1",
+  "observed_at_utc": "2026-10-21T15:40:48Z",
+  "repository": "yangyangnovelist-hub/whole-web-station-clone",
+  "source_branch": "claude/polymarket-options-strategy-1lc7i4",
+  "workflow_run_id": 39582692313,
+  "workflow_job_id": 119272931231,
+  "workflow_run_head_sha": "6ff3027178a9c2fe1f0df750437a013dcc615a72",
+  "workflow_blob_sha": "615a64e972039b908bef87f3964b8b9a8652812a",
+  "workflow_sha256": "f327807fcb7fc434cca12aea53bf4b214aa5acf00ee414d06a30965a663238a6",
+  "status": "blocked",
+  "live_job_observation": {
+    "job_status": "in_progress",
+    "momentum_step": "completed_success",
+    "strict_replay_step": "in_progress",
+    "persistence_step": "pending",
+    "converted_artifacts_published": false
+  },
+  "checkpoint_between_momentum_and_strict": false,
+  "post_strict_checkpoint_runs_after_failure": true,
+  "post_strict_checkpoint_runs_after_cancellation": false,
+  "strict_gate_can_delay_or_lose_unpersisted_momentum_state": true,
+  "reason": "The momentum step completes before a potentially long strict replay, but the first append-only persistence checkpoint is after that replay. Ordinary failure is covered by !cancelled(), while a hung gate delays persistence and cancellation skips it.",
+  "required_repair": "Persist append-only momentum/stopping state immediately after the momentum step and before strict replay; retain a separate later checkpoint for strict outputs.",
+  "repair_applied_to_source_workflow": false,
+  "production_changed": false,
+  "financial_replay_performed": false,
+  "rank7_pnl_usd": null,
+  "formal_oos_result": null,
+  "qualified_distinct_strategies": 0
+}
