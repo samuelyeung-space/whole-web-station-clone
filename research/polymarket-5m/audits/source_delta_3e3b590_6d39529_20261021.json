@@ -1,0 +1,93 @@
+{
+  "schema": "btc5m-upstream-report-delta-audit-v1",
+  "as_of": "2026-10-21T19:55:27Z",
+  "source_parent": "3e3b590da48f1ed588c4809e0c2bc7148d36dac2",
+  "source_commit": "6d39529aa3cf42a963860b0b1bd58f3cc53d7997",
+  "source_workflow_run": 39632922693,
+  "new_recording_run": 39582692313,
+  "passed": false,
+  "interpretation": "historical_run_rewritten_fail_closed_not_rank7_or_oos_input",
+  "reports_checked": 7,
+  "changed_existing_records": [
+    {
+      "path": "real/latency-test-f.md",
+      "key": "note:38909708508",
+      "old_candidates_dropped": 1694,
+      "new_candidates_dropped": 1720
+    },
+    {
+      "path": "real/latency-test-g.md",
+      "key": "note:38909708508",
+      "old_candidates_dropped": 1697,
+      "new_candidates_dropped": 1728
+    },
+    {
+      "path": "real/latency-test-i.md",
+      "key": "note:38909708508",
+      "old_candidates_dropped": 3554,
+      "new_candidates_dropped": 3582
+    },
+    {
+      "path": "real/recorder-check.md",
+      "key": "row:38909708508",
+      "old_urgent_moves": 545,
+      "new_urgent_moves": 546,
+      "old_plus_1000ms_pct": 79,
+      "new_plus_1000ms_pct": 78,
+      "old_first_move_ms": "255 / 1703",
+      "new_first_move_ms": "251 / 1676"
+    }
+  ],
+  "removed_existing_records": [],
+  "duplicate_record_keys": [],
+  "added_records": {
+    "run_id": 39582692313,
+    "reports": 6,
+    "clob_disconnects": 74,
+    "candidates_dropped": {
+      "C": 3,
+      "D": 154,
+      "F": 307,
+      "G": 598,
+      "I": 831
+    }
+  },
+  "cumulative_diagnostics": {
+    "C_300ms": {
+      "trades": 3735,
+      "net_ev_cents_per_share": -0.83,
+      "p": 1.0
+    },
+    "D_300ms": {
+      "trades": 2498,
+      "net_ev_cents_per_share": 1.41,
+      "p": 0.0573
+    },
+    "J_500ms": {
+      "order_attempts": 1889,
+      "markets": 1195,
+      "fill_rate_pct": 53,
+      "net_ev_cents_per_ordered_share": 1.65,
+      "clustered_se_cents": 0.72,
+      "p": 0.0111
+    },
+    "J_600ms": {
+      "fill_rate_pct": 49,
+      "net_ev_cents_per_ordered_share": 1.39,
+      "clustered_se_cents": 0.71,
+      "p": 0.0256
+    }
+  },
+  "frozen_verdicts_changed": false,
+  "diagnostic_only_reasons": [
+    "The cumulative report rewrites four records attributed to historical run 38909708508.",
+    "The added segment is an already consumed four-hour development recording, not a common continuous seven-day fixed-100 sample.",
+    "J cumulative figures are after its frozen first-1000-market stopping verdict and cannot create a second independent OOS result.",
+    "The new upstream analysis for recording run 39614816930 is still executing its strict BTC replay and has not published converted artifacts."
+  ],
+  "rank7_pnl_usd": null,
+  "formal_oos_result": null,
+  "confirmed_current_count": 0,
+  "orders_submitted": 0,
+  "production_modified": false
+}
