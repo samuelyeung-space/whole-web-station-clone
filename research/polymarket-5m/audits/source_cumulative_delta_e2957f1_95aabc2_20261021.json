@@ -1,0 +1,87 @@
+{
+  "as_of": "2026-10-21T22:49:53Z",
+  "classification": "source cumulative-report delta and immutability audit; development evidence only",
+  "source_parent": "e2957f1edc46e19c07e8887a3f15c6c17dca8940",
+  "source_commit": "95aabc2e5fb8be50ce2c0fb39f68073c755183b4",
+  "source_workflow_run": 39670989642,
+  "artifacts": [],
+  "new_recording_run": 39614816930,
+  "immutability_audit": {
+    "passed": false,
+    "interpretation": "historical_run_rewritten_again_fail_closed_not_rank7_or_oos_input",
+    "historical_run_rewritten": 38909708508,
+    "changed_existing_records": 6,
+    "rewrites": {
+      "F_candidates_dropped": [
+        1720,
+        1694
+      ],
+      "G_candidates_dropped": [
+        1728,
+        1697
+      ],
+      "I_candidates_dropped": [
+        3582,
+        3554
+      ],
+      "recorder_urgent_moves": [
+        546,
+        545
+      ],
+      "recorder_plus_1000ms_pct": [
+        78,
+        79
+      ],
+      "recorder_first_move_ms": [
+        "251 / 1676",
+        "255 / 1703"
+      ]
+    }
+  },
+  "cumulative_diagnostics": {
+    "C_300ms": {
+      "trades": 3774,
+      "net_ev_cents_per_share": -0.77,
+      "p": 1
+    },
+    "D_300ms": {
+      "trades": 2530,
+      "net_ev_cents_per_share": 1.52,
+      "p": 0.0447,
+      "frozen_first_1200_verdict": "fail_unchanged"
+    },
+    "F_300ms": {
+      "trades": 2409,
+      "net_ev_cents_per_share": 4.72,
+      "frozen_verdict": "unchanged"
+    },
+    "G_300ms": {
+      "trades": 1184,
+      "net_ev_cents_per_share": 11.44,
+      "frozen_verdict": "unchanged"
+    },
+    "I_400ms": {
+      "trades": 1840,
+      "markets": 1220,
+      "net_ev_cents_per_share": 8.39,
+      "frozen_verdict": "unchanged"
+    },
+    "J_500ms": {
+      "sends": 1926,
+      "markets": 1211,
+      "net_ev_cents_per_ordered_share": 1.57,
+      "p": 0.015,
+      "frozen_verdict": "unchanged"
+    },
+    "J_600ms": {
+      "net_ev_cents_per_ordered_share": 1.28,
+      "p": 0.0361
+    }
+  },
+  "complete_recorded_utc_days_added": 0,
+  "rank7_pnl_usd": null,
+  "formal_oos_result": null,
+  "confirmed_current_count": 0,
+  "orders_submitted": 0,
+  "production_modified": false
+}
