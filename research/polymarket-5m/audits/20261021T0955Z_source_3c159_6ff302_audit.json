@@ -1,0 +1,55 @@
+{
+  "as_of_utc": "2026-10-21T09:55:00Z",
+  "source_commits": [
+    "3c1593631c0baf056509a0e8e3a654e01c66d6be",
+    "6ff3027178a9c2fe1f0df750437a013dcc615a72"
+  ],
+  "shadow_workflow_run": 39563608039,
+  "added_recording_run": 39531324932,
+  "legacy_corpus_recording_segments": 91,
+  "test_j_rolling_500ms": {
+    "sends": 1809,
+    "markets": 1150,
+    "fill_rate": 0.53,
+    "cents_per_sent_order_share": 1.55,
+    "cluster_se_cents": 0.74,
+    "one_sided_p": 0.0187,
+    "evidence_class": "post_adjudication_monitoring"
+  },
+  "test_j_frozen_first_1000_markets": {
+    "sends": 1583,
+    "cents_per_sent_order_share": 1.82,
+    "cluster_se_cents": 0.79,
+    "one_sided_p": 0.011,
+    "verdict": "legacy_protocol_pass_unchanged"
+  },
+  "test_j_600ms_stress": {
+    "fill_rate": 0.50,
+    "cents_per_sent_order_share": 1.37,
+    "cluster_se_cents": 0.73,
+    "one_sided_p": 0.0305,
+    "passes_0_025": false
+  },
+  "legacy_test_c_300ms": {
+    "trades": 3653,
+    "ev_cents_per_share": -0.73
+  },
+  "legacy_test_d_rolling": {
+    "trades": 2441,
+    "ev_cents_per_share": 1.31,
+    "one_sided_p": 0.0742
+  },
+  "ladder": {
+    "recorded_hours": 181.3,
+    "markets": 703,
+    "btc5m_slots": 0,
+    "rank7_eligible": false
+  },
+  "rank7_result": null,
+  "formal_oos_result": null,
+  "qualified_independent_mechanisms": 0,
+  "reason": "Legacy fragmented cumulative protocols and non-5m ladder data do not satisfy the frozen common 7-day 2016-slot 100-share ranking gate; rolling Test J is post-adjudication monitoring, not an independent confirmation.",
+  "orders_submitted": 0,
+  "frozen_rules_modified": false,
+  "production_modified": false
+}
