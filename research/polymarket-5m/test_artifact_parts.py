@@ -23,13 +23,29 @@ class PartsTests(unittest.TestCase):
     def restore(self):
         return a.assemble(self.man,self.parts,self.out,self.sha)
 
+    def verify(self):
+        return a.verify_parts(self.man,self.parts,self.sha)
+
     def amend(self,fn):
         m=json.loads(self.man.read_text());fn(m);self.man.write_text(json.dumps(m));self.sha=a.digest_file(self.man)
 
     def test_roundtrip_tail(self):
         self.split();r=self.restore()
         self.assertEqual(self.source.read_bytes(),self.out.read_bytes())
-        self.assertEqual(r['parts'],9);self.assertFalse(r['economic_replay_performed'])
+        self.assertEqual(r['parts'],9);self.assertTrue(r['assembled_output'])
+        self.assertFalse(r['economic_replay_performed'])
+
+    def test_stream_verify_without_output(self):
+        self.split();r=self.verify()
+        self.assertEqual(r['sha256'],a.digest_file(self.source))
+        self.assertEqual(r['bytes'],self.source.stat().st_size)
+        self.assertFalse(r['assembled_output']);self.assertFalse(self.out.exists())
+        self.assertEqual(list(self.root.glob('.reassembly-*')),[])
+
+    def test_stream_verify_tamper(self):
+        self.split();p=self.parts/'part-00000.zip';b=bytearray(p.read_bytes());b[50]^=1;p.write_bytes(b)
+        with self.assertRaisesRegex(ValueError,'hash mismatch'):self.verify()
+        self.assertFalse(self.out.exists());self.assertEqual(list(self.root.glob('.reassembly-*')),[])
 
     def test_exact_boundary(self):
         self.split(256);self.assertEqual(len(self.m['parts']),33);self.restore()
