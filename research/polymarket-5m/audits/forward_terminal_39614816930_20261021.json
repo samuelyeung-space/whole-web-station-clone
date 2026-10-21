@@ -1,0 +1,138 @@
+{
+  "as_of": "2026-10-21T20:38:31Z",
+  "classification": "consumed four-hour development evidence; not Rank7 or formal OOS",
+  "confirmed_current_count": 0,
+  "converted_artifact": {
+    "artifact_ids": [
+      12380066141,
+      12380031353,
+      12379956473
+    ],
+    "index_artifact_id": 12380255656,
+    "manifest_sha256": "41b79496d025c33e4b4d1294e3dbdd949bfe2c4b719d2a6ceb0205d5402f0766",
+    "parts": 3,
+    "source_bytes": 849108631,
+    "source_sha256": "ccb28bbfc5d70f0f66ee31e99255f35c06259b2e95b6cc9e89b3b17875c190be",
+    "verification": "verified_byte_identical"
+  },
+  "coverage": {
+    "collector_region": "unknown",
+    "complete_utc_days": 0,
+    "mapped_btc_markets": 50,
+    "paper_gate_eligible": false,
+    "window_utc": [
+      "2026-10-21T14:13:16.407Z",
+      "2026-10-21T18:13:26.011Z"
+    ]
+  },
+  "family34": {
+    "economic_result": null,
+    "error": "ValueError: invalid venue BBO",
+    "output_bytes": 0,
+    "status": "engineering_failure"
+  },
+  "family35": {
+    "control_pairs": {
+      "400ms": 0,
+      "500ms": 0
+    },
+    "correction_denominator": 873,
+    "formal_pooled_fresh_gate_implemented": false,
+    "promotion_eligible": false,
+    "variants": {
+      "base": {
+        "400ms": {
+          "filled_shares": 40.0,
+          "fills": 8,
+          "intents": 10,
+          "pnl_usd": -7.4689
+        },
+        "500ms": {
+          "filled_shares": 40.0,
+          "fills": 8,
+          "intents": 10,
+          "pnl_usd": -7.41866
+        }
+      },
+      "delay_5s": {
+        "400ms": {
+          "filled_shares": 10.0,
+          "fills": 2,
+          "intents": 10,
+          "pnl_usd": -1.10774
+        },
+        "500ms": {
+          "filled_shares": 15.0,
+          "fills": 3,
+          "intents": 10,
+          "pnl_usd": 2.36796
+        }
+      },
+      "shallow": {
+        "400ms": {
+          "filled_shares": 15.0,
+          "fills": 3,
+          "intents": 3,
+          "pnl_usd": 1.39692
+        },
+        "500ms": {
+          "filled_shares": 15.0,
+          "fills": 3,
+          "intents": 3,
+          "pnl_usd": 1.34808
+        }
+      }
+    }
+  },
+  "family36": {
+    "arms": {
+      "baseline": {
+        "400ms": {"fills": 0, "opportunities": 48, "pnl_usd": 0.0},
+        "500ms": {"fills": 0, "opportunities": 48, "pnl_usd": 0.0}
+      },
+      "confirmation_veto": {
+        "400ms": {"fills": 0, "opportunities": 48, "pnl_usd": 0.0},
+        "500ms": {"fills": 0, "opportunities": 48, "pnl_usd": 0.0}
+      },
+      "receipt_time_shifted_placebo": {
+        "400ms": {"fills": 0, "opportunities": 48, "pnl_usd": 0.0},
+        "500ms": {"fills": 0, "opportunities": 48, "pnl_usd": 0.0}
+      }
+    },
+    "paper_gate_eligible": false,
+    "promotion_eligible": false,
+    "status": "no_executable_sends_or_fills"
+  },
+  "formal_oos_result": null,
+  "orders_submitted": 0,
+  "production_modified": false,
+  "recording_run": 39614816930,
+  "source_commit": "e2957f1edc46e19c07e8887a3f15c6c17dca8940",
+  "strict_btc_replay": {
+    "current_h_development_diagnostic": {
+      "400ms": {
+        "exact_p": 0.08737547471299485,
+        "filled_shares": 172.267415,
+        "fills": 25,
+        "net_ev_per_share": 0.08872926649734078,
+        "pnl_usd": 15.285161374343
+      },
+      "500ms": {
+        "exact_p": 0.149234808906031,
+        "filled_shares": 156.242452,
+        "fills": 18,
+        "net_ev_per_share": 0.04950382445902091,
+        "pnl_usd": 7.734598916855
+      },
+      "promotion_eligible": false
+    },
+    "dependency_error": "ValueError: source-race dependency drift: strict_prebuild.py",
+    "source_race_output_bytes": 0,
+    "status": "freeze_dependency_rejection"
+  },
+  "workflow": {
+    "analyze_conclusion": "failure",
+    "completed_at_utc": "2026-10-21T20:31:06Z",
+    "run_id": 39614816930
+  }
+}
