@@ -1,0 +1,35 @@
+{
+  "artifact_expiry_utc": "2026-10-22T14:12:09Z",
+  "artifact_ids": {
+    "index": 12352671108,
+    "parts": [
+      12351968202,
+      12352296807,
+      12351513587,
+      12351488676,
+      12352242079
+    ]
+  },
+  "as_of_utc": "2026-10-21T14:55:53Z",
+  "disposition": "transport_identity_only_not_market_coverage_or_oos_evidence",
+  "economic_replay_performed": false,
+  "formal_oos_result": null,
+  "manifest_sha256": "ec67ef8d95af2be41acac8e9e67aa308ee7f90e72eaf923ffaf2868bd8e1c3e8",
+  "parts": 5,
+  "rank7_result": null,
+  "source_bytes": 2067793920,
+  "source_sha256": "8e7d1ab2917cf2bf04ecc538b9d2e1eb46740f71d535d2d7e8042b9db2cf1367",
+  "status": "verified_byte_identical",
+  "verification": {
+    "assembled_output": false,
+    "command": "artifact_parts.py verify",
+    "test_count": 22,
+    "tests": "passed"
+  },
+  "workflow": {
+    "analyze_job_id": 119272931231,
+    "analyze_status_at_audit": "in_progress_resolve_convert_and_test",
+    "head_sha": "6ff3027178a9c2fe1f0df750437a013dcc615a72",
+    "run_id": 39582692313
+  }
+}
