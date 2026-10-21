@@ -1,0 +1,73 @@
+{
+  "schema": "btc5m-forward-pool-delta-audit-v1",
+  "as_of": "2026-10-21T20:03:17Z",
+  "source_parent": "6d39529aa3cf42a963860b0b1bd58f3cc53d7997",
+  "source_commit": "e2957f1edc46e19c07e8887a3f15c6c17dca8940",
+  "recording_run": 39614816930,
+  "classification": "consumed four-hour development evidence; not Rank7 or formal OOS",
+  "csv_append_audit": {
+    "passed": true,
+    "removed_keys": 0,
+    "semantically_changed_existing_rows": 0,
+    "text_only_float_normalizations": {
+      "momentum5s.csv": 138,
+      "theta30.csv": 4
+    },
+    "files": {
+      "markets.csv": {"old_rows": 14360, "new_rows": 14600, "added_rows": 240},
+      "momentum5s.csv": {"old_rows": 6360, "new_rows": 6532, "added_rows": 172},
+      "theta30.csv": {"old_rows": 1872, "new_rows": 1920, "added_rows": 48},
+      "trades.csv": {"old_rows": 17378, "new_rows": 17670, "added_rows": 292},
+      "paper_ledger.csv": {"old_rows": 970, "new_rows": 986, "added_rows": 16}
+    }
+  },
+  "new_segment": {
+    "market_start_min_utc": "2026-10-21T14:20:00Z",
+    "market_start_max_utc": "2026-10-21T18:15:00Z",
+    "five_minute_epochs": 48,
+    "coins": ["btc", "doge", "eth", "sol", "xrp"],
+    "registered_market_rows": 240,
+    "complete_utc_days": 0,
+    "momentum5s": {
+      "300ms": {"signals": 43, "fills": 31, "book_unavailable": 11, "depth_failures": 1, "net_pnl_5shares_usd": 14.401135, "net_ev_cents_per_share": 9.291054838709678},
+      "350ms": {"signals": 43, "fills": 30, "book_unavailable": 11, "depth_failures": 2, "net_pnl_5shares_usd": 11.801375, "net_ev_cents_per_share": 7.867583333333335},
+      "400ms": {"signals": 43, "fills": 29, "book_unavailable": 11, "depth_failures": 3, "net_pnl_5shares_usd": 11.049185, "net_ev_cents_per_share": 7.620127586206897},
+      "500ms": {"signals": 43, "fills": 30, "book_unavailable": 11, "depth_failures": 2, "net_pnl_5shares_usd": 17.404035, "net_ev_cents_per_share": 11.602690000000002}
+    },
+    "paper_ledger": {
+      "tau30": {"trades": 6, "filled_shares": 599.0, "net_pnl_usd": 43.938292},
+      "tau60": {"trades": 10, "filled_shares": 879.93, "net_pnl_usd": -27.58420864}
+    }
+  },
+  "cumulative_diagnostics": {
+    "frozen_momentum5s": {
+      "300ms": {"fills": 1709, "net_ev_cents_per_share": -0.34, "p": 1.0},
+      "350ms": {"fills": 1708, "net_ev_cents_per_share": -0.94, "p": 1.0},
+      "400ms": {"fills": 1711, "net_ev_cents_per_share": -0.77, "p": 1.0},
+      "500ms": {"fills": 1714, "net_ev_cents_per_share": -0.84, "p": 1.0}
+    },
+    "preregistered_7": {"passed_raw_p_0_05": 0, "passed_bonferroni": 0, "best_id": 9, "best_trades": 1358, "best_net_ev_cents_per_share": -0.72, "best_raw_p": 0.822},
+    "september_chain_6": {"passed_raw_p_0_05": 0, "passed_bonferroni": 0, "best_id": 104, "best_trades": 856, "best_net_ev_cents_per_share": -2.94, "best_raw_p": 0.976},
+    "queue_maker_109": {"fills": 249, "net_ev_cents_per_share": -2.50, "stopping_threshold": 2000, "status": "insufficient_fills"},
+    "theta30": {"post_freeze_markets": 1920, "orders": 138, "fills": 93, "net_ev_cents_per_share": -0.05, "fair_price_exact_p": 0.606, "status": "insufficient_fills"}
+  },
+  "paper_report_reconciliation": {
+    "tau30": {"reported_total_pnl_usd": 8.940661229300312, "total_shares": 19011.35, "reported_equal_trade_mean_cents": 0.42707432452830296, "share_weighted_cents": 0.0470280186798955},
+    "tau60": {"reported_total_pnl_usd": -1799.712684899899, "total_shares": 58364.79, "reported_equal_trade_mean_cents": -2.7162696393897354, "share_weighted_cents": -3.0835589143726874},
+    "interpretation": "paper_report.md labels the equal-trade mean of per-share returns as per-share PnL; capacity and cash accounting must instead use total PnL divided by total filled shares"
+  },
+  "upstream_analysis_job": {
+    "status": "in_progress",
+    "strict_btc_replay_step": "failure",
+    "failure_cause_available": false,
+    "family34": "completed_success",
+    "family35": "in_progress",
+    "family36": "pending",
+    "converted_artifact_published": false
+  },
+  "rank7_pnl_usd": null,
+  "formal_oos_result": null,
+  "confirmed_current_count": 0,
+  "orders_submitted": 0,
+  "production_modified": false
+}
