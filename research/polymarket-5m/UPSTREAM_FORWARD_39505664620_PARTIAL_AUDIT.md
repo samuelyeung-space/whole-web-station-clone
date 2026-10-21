@@ -3,12 +3,12 @@
 ## Decision
 
 The new raw recording is byte-complete and has been recovered before its Actions
-artifacts expire. It still does **not** create a rank7 row. The published BTC result
+artifacts expire. The workflow later terminated with `failure`: its strict-BTC
+artifact gate failed, although the Family 34/35/36 steps themselves completed.
+It still does **not** create a rank7 row. The published BTC result
 slice contains 48 consecutive five-minute starts from 2026-10-20 22:15 UTC through
 2026-10-21 02:10 UTC: four hours, zero complete UTC days, versus the common
-seven-day requirement of 2,016 markets. The workflow analysis was still running at
-the audit checkpoint, its strict-BTC-artifact gate had failed, and Family 36 had not
-finished. A failed admission gate is not zero PnL.
+seven-day requirement of 2,016 markets. A failed admission gate is not zero PnL.
 
 Unified rank7 PnL therefore remains `null`; qualified independent mechanisms remain
 0/10.
@@ -30,6 +30,31 @@ Unified rank7 PnL therefore remains `null`; qualified independent mechanisms rem
 The detailed read-only integrity record is
 `capture_archive_integrity_39505664620.json`. No price or outcome was used by that
 integrity scan, and the scan performed no financial replay.
+
+The later converted archive was also reconstructed byte-identically from two
+published parts: 611,358,942 bytes, SHA256
+`213e0ab9c4fa8d8ad0ca2d4d0ab6f42c05b9f8892c708b3f5a2ae834a1385230`.
+
+## Terminal Family 34/35/36 outputs
+
+- **Family 34:** the expected `complement-queue-lag.json` is a zero-byte file.
+  Therefore this run supplies no parseable Family 34 economic result; it is a
+  failed/missing output, not a zero-PnL strategy.
+- **Family 35:** development-only, five-share displayed-depth simulation. At both
+  400 and 500 ms, the base arm had 5 intents, 4 fills and **-$0.88784**; the
+  five-second-delay arm had 5 intents, 3 fills and **+$2.54724**; the shallow arm
+  had 7 intents, 6 fills and **+$6.02282**. The identical 400/500 ms rows, tiny
+  sample, absent 600/1,000 ms cells, unknown collector region and displayed-depth
+  fill model prohibit promotion. These correlated variants are not independent
+  mechanisms.
+- **Family 36:** each arm recorded 48 opportunities but zero sends and zero fills
+  at 400 and 500 ms. Its economic PnL remains **null**. The artifact's arithmetic
+  zero is an intention diagnostic, not a completed profitability test.
+
+The strict converted manifest covers 50 mapped outcomes and declares its strict
+spot/futures receipt streams internally complete. That does not repair the raw
+archive's stale generic RTDS tails, validate the unverified region, supply a full
+UTC day, or satisfy the common 500/600/1,000 ms rank7 grid.
 
 ## New BTC paper ledger
 

@@ -1,16 +1,23 @@
 {
-  "schema": "btc5m-upstream-forward-partial-audit-v1",
-  "checked_at_utc": "2026-10-21T03:54:18Z",
+  "schema": "btc5m-upstream-forward-terminal-audit-v2",
+  "checked_at_utc": "2026-10-21T04:24:00Z",
   "recording_run_id": 39505664620,
   "recording_source_commit": "56b2a704f975d5a6ecea5dd5d827ad62334c1cb5",
   "published_result_commit": "cec4d40e9f84d60c3d1b49b605ae5d0aa2f972f7",
-  "workflow_status_at_check": "in_progress",
+  "workflow_status_at_check": "completed",
   "analysis_job_status_at_check": {
     "strict_btc_replay_artifact_gate": "failed",
     "family_34": "completed_success",
     "family_35": "completed_success",
-    "family_36": "in_progress",
-    "final_conclusion": null
+    "family_36": "completed_success",
+    "final_conclusion": "failure"
+  },
+  "converted_archive": {
+    "bytes": 611358942,
+    "sha256": "213e0ab9c4fa8d8ad0ca2d4d0ab6f42c05b9f8892c708b3f5a2ae834a1385230",
+    "transport_parts": 2,
+    "transport_manifest_sha256": "9cb346a43f731d34ffd48fa09cd0ac516eb5ae7bf168b10b0bad07d4faebaac5",
+    "byte_identity_verified": true
   },
   "raw_capture": {
     "started_ms": 1792534051796.9792,
@@ -97,6 +104,36 @@
       "audit": "upstream_forward_cec4d40_cumulative_paper_weighting.json"
     }
   },
+  "terminal_family_outputs": {
+    "family_34": {
+      "step_status": "completed_success",
+      "result_file_bytes": 0,
+      "economic_result": null,
+      "status": "missing_or_unparseable_output_not_zero_pnl"
+    },
+    "family_35": {
+      "sample_scope": "development_forward_artifact",
+      "fill_model": "displayed_direct_depth_upper_bound",
+      "requested_shares_per_intent": 5,
+      "promotion_eligible": false,
+      "latencies_available_ms": [400, 500],
+      "base": {"intents": 5, "fills": 4, "filled_shares": 20.0, "net_pnl_usd": -0.88784},
+      "delay_5s": {"intents": 5, "fills": 3, "filled_shares": 15.0, "net_pnl_usd": 2.54724},
+      "shallow": {"intents": 7, "fills": 6, "filled_shares": 30.0, "net_pnl_usd": 6.02282},
+      "latency_rows_400_and_500_identical": true,
+      "formal_oos_result": null
+    },
+    "family_36": {
+      "opportunities_per_arm": 48,
+      "arms": ["baseline", "confirmation_veto", "receipt_time_shifted_placebo"],
+      "latencies_available_ms": [400, 500],
+      "sends_per_arm": 0,
+      "fills_per_arm": 0,
+      "economic_pnl_usd": null,
+      "status": "no_send_no_fill_not_completed_profit_test",
+      "promotion_eligible": false
+    }
+  },
   "admission": {
     "new_financial_replays": 0,
     "rank7_admitted": false,
@@ -105,7 +142,8 @@
     "qualified_independent_mechanisms": 0,
     "reasons": [
       "Only 48 consecutive published BTC5m result slots and zero complete UTC days, not the common 2016-slot week.",
-      "The strict BTC replay artifact gate failed and the analysis workflow was not terminal at the check.",
+      "The strict BTC replay artifact gate failed and the analysis workflow terminated with failure.",
+      "Family 34 produced a zero-byte result; Family 35 is a tiny five-share development run without the 600/1000ms grid; Family 36 sent no orders.",
       "Feed health is explicitly unverified; RTDS and RTDS-Binance stopped well before capture end.",
       "Legacy ledgers use old rules/sizes and no independent 1000 USD continuous cash account.",
       "The upstream per-share paper statistic is equal-trade weighted rather than total-PnL/total-share weighted."
