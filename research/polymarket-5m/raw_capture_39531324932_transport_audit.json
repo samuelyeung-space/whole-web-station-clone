@@ -1,0 +1,64 @@
+{
+  "schema": "btc5m-raw-capture-transport-audit-v1",
+  "as_of": "2026-10-21T06:25:00Z",
+  "run_id": 39531324932,
+  "evidence_class": "transport_only_not_market_coverage_or_economic_validation",
+  "declared_source": {
+    "bytes": 1665781760,
+    "sha256": "9f023368b227cb5d263cad1bdbd761c1e85509f24694908265e30ebbeb52f1a8"
+  },
+  "observed_reconstruction_sha256": "6f48d2efcb9fff68e57cdffbc1780ec1c6dc91886851f66f2635c4a7c84681d0",
+  "parts": [
+    {
+      "index": 0,
+      "artifact_id": 12324338710,
+      "outer_digest": "dd814bd7d34bd64621e2f3d8f7e99587267a0d7b59884b76af637f1deb3be9e0",
+      "inner_zip_sha256": "e86ef248d4fb5075c06f83534cfe8653c340b14c932dc5c8e947aecab80ffe3a",
+      "declared_payload_sha256": "c2f729e032c048f14a5ec6a0af12bcce6ac51fe0e024afe3f33303f6e831ab89",
+      "observed_payload_sha256": "c2f729e032c048f14a5ec6a0af12bcce6ac51fe0e024afe3f33303f6e831ab89",
+      "valid": true
+    },
+    {
+      "index": 1,
+      "artifact_id": 12324568114,
+      "outer_digest": "d49851484b576d577e78562da1427d415dbb52d7ee2812806fe47e79b760d820",
+      "inner_zip_sha256": "fc3c54bb57748844e4e0cf7d327374555aa862a5e9bc6eb06032f73b2ad3a8fd",
+      "declared_payload_sha256": "c0bdefe1ff72b3f77c6df639af6dacabffd5f0347f8fbf88dac5ad88aef75cb6",
+      "observed_payload_sha256": "c0bdefe1ff72b3f77c6df639af6dacabffd5f0347f8fbf88dac5ad88aef75cb6",
+      "valid": true
+    },
+    {
+      "index": 2,
+      "artifact_id": 12324368716,
+      "outer_digest": "2036237f4619254c1f79725cd5654be85dab4587b2b10848cb610c256287db9b",
+      "inner_zip_sha256": "178c58ef3357c984fd0e736b115f457f6d5d304358a4485636866a486387210f",
+      "declared_payload_sha256": "3788dc5c8828937b97cdf744d24a3a1a197af9a9f0cd366950202e392a632c35",
+      "observed_payload_sha256": "3788dc5c8828937b97cdf744d24a3a1a197af9a9f0cd366950202e392a632c35",
+      "valid": true
+    },
+    {
+      "index": 3,
+      "artifact_id": 12324523221,
+      "outer_digest": "96cbf76f49e6b0b7343e99b351322360186d16b9ab9719e6798c147eef4761ff",
+      "inner_zip_sha256": "7b23e246554fb8935c7782e18065dfb073e12c95d173247aee10d9eb8a55e2c4",
+      "declared_payload_sha256": "e31cab0e81bc8737fb6c3258e70bed5d40b40349fafee90f6f1e8afc68ef91c3",
+      "observed_payload_sha256": "9e6de65debdc86bbb8c187f9e1f086055e37c4c030706b44ca226a5982999243",
+      "valid": false,
+      "failure": "inner ZIP lacks EOCD and payload hash mismatches"
+    }
+  ],
+  "publication_reconstructable": false,
+  "library_persistence": {
+    "attempted": true,
+    "status": "failed",
+    "error_code": "transfer_failed"
+  },
+  "workflow": {
+    "record_job": "success",
+    "analyze_job": "in_progress",
+    "successor_run_id": 39553701104
+  },
+  "rank7_pnl_usd": null,
+  "confirmed_current_count": 0,
+  "production_modified": false
+}
