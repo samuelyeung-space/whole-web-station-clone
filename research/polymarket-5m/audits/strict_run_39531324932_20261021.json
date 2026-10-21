@@ -1,0 +1,64 @@
+{
+  "schema": "btc5m-strict-run-audit-v1",
+  "audited_at": "2026-10-21T08:20:00Z",
+  "run_id": 39531324932,
+  "source_commit": "6d42bacb5d3496900b0bd0fa865d0afef2128ac7",
+  "evidence_class": "development_audit_only",
+  "rank7": {
+    "complete_utc_days": 0,
+    "required_slots": 2016,
+    "admitted": false,
+    "pnl": null
+  },
+  "capture": {
+    "duration_hours": 4.002641892089843,
+    "markets": 50,
+    "outcomes": 50,
+    "collector_region": "unknown",
+    "strict_complete": true,
+    "receipt_race_ready": true,
+    "clob_disconnects": 83,
+    "source_time_regressions": 455,
+    "receive_time_regressions": 0
+  },
+  "converted_handoff": {
+    "index_artifact_id": 12328607622,
+    "part_artifact_ids": [12328327804, 12328088395],
+    "manifest_sha256": "85a4fffce0f6a263e4e462ed4ff7faf3fed0511ec7301858a07b075cd55d5aa9",
+    "archive_sha256": "332ddc3bde50216d544c579dab81fbafaeadc5536c23f0b77d1336b827c734ee",
+    "retained_through": "2026-11-20"
+  },
+  "failed_outputs": [
+    {
+      "family": "source_race_h",
+      "reason": "dependency drift: strict_prebuild.py",
+      "pnl": null
+    },
+    {
+      "family": 34,
+      "reason": "invalid venue BBO",
+      "pnl": null
+    }
+  ],
+  "development_results": {
+    "family35_500ms": {
+      "base": {"intents": 6, "fills": 4, "filled_shares": 20.0, "itt_pnl": 3.56422},
+      "delay_5s": {"intents": 6, "fills": 4, "filled_shares": 20.0, "itt_pnl": -5.4961},
+      "shallow": {"intents": 4, "fills": 3, "filled_shares": 15.0, "itt_pnl": 0.87328}
+    },
+    "family36_500ms": {
+      "opportunities": 47,
+      "baseline": {"fills": 2, "filled_shares": 11.704546, "itt_pnl": -2.2145702494079993, "exact_p": 1.0},
+      "confirmation_veto": {"fills": 1, "filled_shares": 5.0, "itt_pnl": 0.8006150000000005, "exact_p": 0.8398769999999999},
+      "receipt_time_shifted_placebo": {"fills": 0, "itt_pnl": 0.0, "exact_p": 1.0}
+    }
+  },
+  "published_forward": {
+    "cumulative_multiasset_markets": 13875,
+    "preregistered_candidates_positive": 0,
+    "best_candidate": {"id": 9, "trades": 1284, "ev_cents_per_share": -0.33, "raw_p": 0.675, "bonferroni_p": 1.0},
+    "september_onchain_rules_positive": 0,
+    "queue_weak_side": {"fills": 241, "ev_cents_per_share": -2.42, "stop_fills": 2000}
+  },
+  "qualified_oos_large_edge": 0
+}
