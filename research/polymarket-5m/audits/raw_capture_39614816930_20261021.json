@@ -1,0 +1,98 @@
+{
+  "schema": "btc5m-raw-capture-intake-audit-v1",
+  "as_of": "2026-10-21T18:57:02Z",
+  "run_id": 39614816930,
+  "source_commit": "e3a8c39f9646bfb86acd34379e30e15bbd8058ad",
+  "transport": {
+    "index_artifact_id": 12370685244,
+    "part_artifact_ids": [
+      12369930865,
+      12370320617,
+      12370275651,
+      12370295616,
+      12370060816,
+      12369865907
+    ],
+    "part_count": 6,
+    "source_bytes": 2339788800,
+    "manifest_sha256": "c209aaf9760d48f63f26b8c3e109787e1692a6239b9b5fa6673d8ba6315beadc",
+    "source_sha256": "224972a31b1e740fdcab14c5b8b5221433ab107d75a224f3bcb039edf886dcfd",
+    "outer_action_artifact_digests_verified": true,
+    "inner_zip_digests_verified": true,
+    "payload_digests_verified": true,
+    "aggregate_source_digest_verified": true,
+    "assembled_output_created": false,
+    "expires_at_utc": "2026-10-22T18:13:38Z"
+  },
+  "capture": {
+    "started_utc": "2026-10-21T14:13:16.009870Z",
+    "ended_utc": "2026-10-21T18:13:26.026169Z",
+    "duration_hours": 4.002782305230035,
+    "collector_region": "unverified",
+    "runtime_complete": true,
+    "feed_health_verified": false,
+    "writer": {
+      "accepted": 35031371,
+      "written": 35031371,
+      "flushed": 35031371,
+      "pending_bytes": 0,
+      "error": null
+    },
+    "health_heartbeats": 1436,
+    "maximum_heartbeat_gap_ms": 11411.034423828125,
+    "final_clob_epoch": 129,
+    "slow_consumer_error_rows": 112,
+    "rtds_binance_end_staleness_ms": 5666482.731933594,
+    "terminal_clob_active": true
+  },
+  "btc5m_scope": {
+    "unique_discovered_markets": 50,
+    "markets_with_resolved_event_metadata_in_raw_checkpoint": 47,
+    "decision_rows": 96,
+    "decision_markets": 48,
+    "decision_outcomes": {
+      "ask_outside_band": 24,
+      "no_book": 56,
+      "executed": 16
+    },
+    "paper_ledger_rows": 16,
+    "paper_ledger_markets": 12,
+    "complete_utc_days": 0
+  },
+  "embedded_paper_report": {
+    "classification": "capture-time diagnostic only; not Rank7, formal OOS or a fixed-100 common-window result",
+    "tau30": {
+      "trades": 6,
+      "wins": 6,
+      "filled_shares": 599,
+      "net_pnl_usd": 43.94
+    },
+    "tau60": {
+      "trades": 10,
+      "wins": 9,
+      "filled_shares": 880,
+      "net_pnl_usd": -27.58
+    },
+    "nonuniform_position_sizes_present": true
+  },
+  "admission": {
+    "transport_verified": true,
+    "market_coverage_verified": false,
+    "feed_health_verified": false,
+    "rank7_eligible": false,
+    "formal_source_race_eligible": false,
+    "reasons": [
+      "Only 4.002782 hours were recorded; no complete UTC day exists.",
+      "Collector region is unverified rather than the frozen eu-west-1 requirement.",
+      "Feed health is not verified: 129 CLOB connection epochs, 112 slow-consumer errors and RTDS Binance ending about 94.4 minutes stale.",
+      "The capture-time paper ledger is short, has nonuniform sizes and does not use the common seven-day fixed-100 ranking protocol."
+    ]
+  },
+  "analysis_job_status": "in_progress_resolve_convert_and_test",
+  "financial_replay_performed_by_this_audit": false,
+  "rank7_pnl_usd": null,
+  "formal_oos_result": null,
+  "confirmed_current_count": 0,
+  "orders_submitted": 0,
+  "production_modified": false
+}
