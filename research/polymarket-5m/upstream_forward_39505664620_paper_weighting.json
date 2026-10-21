@@ -1,0 +1,37 @@
+{
+  "financial_replay_performed": false,
+  "formal_oos_result": null,
+  "groups": [
+    {
+      "cost_usd": 342.884918,
+      "equal_trade_weighted_mean_pnl_per_share_usd": 0.06101396749999996,
+      "filled_shares": 365.0,
+      "markets": 4,
+      "net_pnl_usd": 22.115081999999987,
+      "roi_on_cost": 0.06449709753638096,
+      "share_weighted_net_pnl_per_share_usd": 0.060589265753424625,
+      "tau_seconds": 30,
+      "trades": 4,
+      "weighting_difference_usd_per_share": -0.0004247017465753358,
+      "wins": 4
+    },
+    {
+      "cost_usd": 794.63794911,
+      "equal_trade_weighted_mean_pnl_per_share_usd": -0.04985524999999999,
+      "filled_shares": 900.07,
+      "markets": 12,
+      "net_pnl_usd": -78.55794910999998,
+      "roi_on_cost": -0.0988600521759443,
+      "share_weighted_net_pnl_per_share_usd": -0.08727982169164618,
+      "tau_seconds": 60,
+      "trades": 12,
+      "weighting_difference_usd_per_share": -0.03742457169164619,
+      "wins": 10
+    }
+  ],
+  "input_file": "39505664620-ledger.csv",
+  "input_sha256": "cfd199154ad8394226afde093504d1306f6f2c91d967a72bccc60bc084d8d953",
+  "note": "Share-weighted PnL is total PnL divided by total filled shares; equal-trade weighting is retained only to reconcile the upstream report.",
+  "rank7_result": null,
+  "schema": "paper-ledger-weighting-audit-v1"
+}

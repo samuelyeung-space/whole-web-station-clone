@@ -1,0 +1,116 @@
+{
+  "schema": "btc5m-upstream-forward-partial-audit-v1",
+  "checked_at_utc": "2026-10-21T03:54:18Z",
+  "recording_run_id": 39505664620,
+  "recording_source_commit": "56b2a704f975d5a6ecea5dd5d827ad62334c1cb5",
+  "published_result_commit": "cec4d40e9f84d60c3d1b49b605ae5d0aa2f972f7",
+  "workflow_status_at_check": "in_progress",
+  "analysis_job_status_at_check": {
+    "strict_btc_replay_artifact_gate": "failed",
+    "family_34": "completed_success",
+    "family_35": "completed_success",
+    "family_36": "in_progress",
+    "final_conclusion": null
+  },
+  "raw_capture": {
+    "started_ms": 1792534051796.9792,
+    "ended_ms": 1792548461815.0388,
+    "runtime_seconds": 14410.018059570313,
+    "archive_bytes": 1833512960,
+    "archive_sha256": "03153749711a51bec31ef42858e1d4289bcc5d047c221b78535961c7fbe7a325",
+    "transport_manifest_sha256": "a112b5c9efc5974970e119fc931b2bd6a8fbb0ac4ab1d4686cb93d3b50f79166",
+    "transport_parts": 5,
+    "checkpoint_files": 38,
+    "all_member_hashes_verified": true,
+    "all_gzip_eof_crc_verified": true,
+    "registered_btc5m_markets": 50,
+    "complete_feed_health_verified": false,
+    "collector_region": "unverified",
+    "tail_age_seconds_at_capture_end": {
+      "rtds": 1727.335,
+      "rtds_binance": 4904.48,
+      "clob_btc": 10.028,
+      "binance_strict": 10.016,
+      "deribit_strict": 10.015
+    },
+    "integrity_audit": "capture_archive_integrity_39505664620.json"
+  },
+  "new_published_market_rows": {
+    "all_assets": 243,
+    "by_asset": {"btc": 48, "doge": 49, "eth": 48, "sol": 49, "xrp": 49},
+    "btc_first_start_utc": "2026-10-20T22:15:00Z",
+    "btc_last_start_utc": "2026-10-21T02:10:00Z",
+    "btc_consecutive_slots": 48,
+    "full_recorded_utc_days": 0,
+    "rank7_required_slots": 2016
+  },
+  "run_local_paper_ledger": {
+    "input_sha256": "cfd199154ad8394226afde093504d1306f6f2c91d967a72bccc60bc084d8d953",
+    "tau_30_seconds": {
+      "trades": 4, "wins": 4, "filled_shares": 365.0,
+      "net_pnl_usd": 22.115081999999987,
+      "share_weighted_net_pnl_per_share_usd": 0.060589265753424625,
+      "upstream_equal_trade_weighted_mean_per_share_usd": 0.06101396749999996,
+      "roi_on_cost": 0.06449709753638096
+    },
+    "tau_60_seconds": {
+      "trades": 12, "wins": 10, "filled_shares": 900.07,
+      "net_pnl_usd": -78.55794910999998,
+      "share_weighted_net_pnl_per_share_usd": -0.08727982169164618,
+      "upstream_equal_trade_weighted_mean_per_share_usd": -0.04985524999999999,
+      "roi_on_cost": -0.0988600521759443
+    },
+    "combined_net_pnl_usd": -56.442867109999995,
+    "cash_ledger_status": "not_an_independent_1000_usd_rank7_account",
+    "execution_status": "paper_only_displayed_depth"
+  },
+  "published_cumulative_legacy_results": {
+    "momentum5s": {
+      "signals": 1921, "five_share_fills_500ms": 1573, "trigger_days": 11,
+      "net_ev_cents_per_share_500ms": -0.96, "exact_p_500ms": 1.0,
+      "all_published_latency_rows_negative": true,
+      "frozen_first_1000_400ms": {
+        "net_ev_cents_per_share": -0.60,
+        "one_sided_99pct_day_lower_cents_per_share": -4.67,
+        "exact_p": 1.0, "status": "failed_terminal_unchanged"
+      }
+    },
+    "theta30": {
+      "orders": 128, "persistent_depth_fills": 87, "trigger_days": 8,
+      "net_ev_cents_per_share": -0.59, "exact_p": 0.6795,
+      "status": "insufficient_fills_not_profitable_evidence"
+    },
+    "seven_preregistered": {
+      "raw_p_below_0_05": 0, "bonferroni_passes": 0,
+      "positive_in_both_halves": 0, "best_rule_id": 9,
+      "best_rule_trades": 1264, "best_rule_ev_cents_per_share": -0.27,
+      "best_rule_raw_p": 0.643
+    },
+    "rule_101": {"trades": 28, "ev_cents_per_share": -2.37, "raw_p": 0.739},
+    "rules_103_to_108_all_negative": true,
+    "rule_109": {"fills": 238, "ev_cents_per_share": -2.39, "stopping_target": 2000, "status": "not_judged"},
+    "cumulative_paper_share_weighting": {
+      "tau_30_seconds_share_weighted_cents_per_share": -0.7003631551304358,
+      "tau_30_seconds_upstream_equal_trade_weighted_cents_per_share": -0.16423736546184633,
+      "tau_60_seconds_share_weighted_cents_per_share": -3.1362990872878145,
+      "tau_60_seconds_upstream_equal_trade_weighted_cents_per_share": -2.7545867011834303,
+      "audit": "upstream_forward_cec4d40_cumulative_paper_weighting.json"
+    }
+  },
+  "admission": {
+    "new_financial_replays": 0,
+    "rank7_admitted": false,
+    "rank7_pnl_usd": null,
+    "formal_oos_result": null,
+    "qualified_independent_mechanisms": 0,
+    "reasons": [
+      "Only 48 consecutive published BTC5m result slots and zero complete UTC days, not the common 2016-slot week.",
+      "The strict BTC replay artifact gate failed and the analysis workflow was not terminal at the check.",
+      "Feed health is explicitly unverified; RTDS and RTDS-Binance stopped well before capture end.",
+      "Legacy ledgers use old rules/sizes and no independent 1000 USD continuous cash account.",
+      "The upstream per-share paper statistic is equal-trade weighted rather than total-PnL/total-share weighted."
+    ]
+  },
+  "orders_submitted": 0,
+  "production_changes": false
+}

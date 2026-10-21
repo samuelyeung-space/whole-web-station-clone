@@ -1,0 +1,373 @@
+{
+  "schema": "capture-archive-opaque-integrity-v1",
+  "run_id": "39505664620",
+  "source_commit": "56b2a704f975d5a6ecea5dd5d827ad62334c1cb5",
+  "archive_bytes": 1833512960,
+  "archive_sha256": "03153749711a51bec31ef42858e1d4289bcc5d047c221b78535961c7fbe7a325",
+  "all_member_hashes_verified": true,
+  "checkpoint_file_count": 38,
+  "all_gzip_eof_crc_verified": true,
+  "gzip_streams": [
+    {
+      "path": "raw/2026-10-20/binance-futures-strict.jsonl.gz",
+      "records": 1937757,
+      "expanded_bytes": 534432317,
+      "compressed_bytes": 47115002,
+      "gzip_eof_crc_verified": true,
+      "semantic_access": "opaque_bytes_only"
+    },
+    {
+      "path": "raw/2026-10-20/binance-futures-trade-strict.jsonl.gz",
+      "records": 125943,
+      "expanded_bytes": 31134259,
+      "compressed_bytes": 2690439,
+      "gzip_eof_crc_verified": true,
+      "semantic_access": "opaque_bytes_only"
+    },
+    {
+      "path": "raw/2026-10-20/binance-strict.jsonl.gz",
+      "records": 361002,
+      "expanded_bytes": 81972912,
+      "compressed_bytes": 6226556,
+      "gzip_eof_crc_verified": true,
+      "semantic_access": "opaque_bytes_only"
+    },
+    {
+      "path": "raw/2026-10-20/binance.jsonl.gz",
+      "records": 85825,
+      "expanded_bytes": 9391568,
+      "compressed_bytes": 1650012,
+      "gzip_eof_crc_verified": true,
+      "semantic_access": "opaque_bytes_only"
+    },
+    {
+      "path": "raw/2026-10-20/capture-health.jsonl.gz",
+      "records": 673,
+      "expanded_bytes": 567483,
+      "compressed_bytes": 143869,
+      "gzip_eof_crc_verified": true,
+      "semantic_access": "opaque_bytes_only"
+    },
+    {
+      "path": "raw/2026-10-20/clob-btc.jsonl.gz",
+      "records": 3646794,
+      "expanded_bytes": 2607745340,
+      "compressed_bytes": 374391759,
+      "gzip_eof_crc_verified": true,
+      "semantic_access": "opaque_bytes_only"
+    },
+    {
+      "path": "raw/2026-10-20/clob-doge.jsonl.gz",
+      "records": 650224,
+      "expanded_bytes": 395231004,
+      "compressed_bytes": 53988161,
+      "gzip_eof_crc_verified": true,
+      "semantic_access": "opaque_bytes_only"
+    },
+    {
+      "path": "raw/2026-10-20/clob-eth.jsonl.gz",
+      "records": 1360656,
+      "expanded_bytes": 910387649,
+      "compressed_bytes": 128191542,
+      "gzip_eof_crc_verified": true,
+      "semantic_access": "opaque_bytes_only"
+    },
+    {
+      "path": "raw/2026-10-20/clob-sol.jsonl.gz",
+      "records": 947812,
+      "expanded_bytes": 617642240,
+      "compressed_bytes": 86304132,
+      "gzip_eof_crc_verified": true,
+      "semantic_access": "opaque_bytes_only"
+    },
+    {
+      "path": "raw/2026-10-20/clob-xrp.jsonl.gz",
+      "records": 784702,
+      "expanded_bytes": 504286589,
+      "compressed_bytes": 70415736,
+      "gzip_eof_crc_verified": true,
+      "semantic_access": "opaque_bytes_only"
+    },
+    {
+      "path": "raw/2026-10-20/coinbase.jsonl.gz",
+      "records": 60762,
+      "expanded_bytes": 7286898,
+      "compressed_bytes": 1251671,
+      "gzip_eof_crc_verified": true,
+      "semantic_access": "opaque_bytes_only"
+    },
+    {
+      "path": "raw/2026-10-20/decisions.jsonl.gz",
+      "records": 46,
+      "expanded_bytes": 7453,
+      "compressed_bytes": 1882,
+      "gzip_eof_crc_verified": true,
+      "semantic_access": "opaque_bytes_only"
+    },
+    {
+      "path": "raw/2026-10-20/deribit-strict.jsonl.gz",
+      "records": 55051,
+      "expanded_bytes": 12902113,
+      "compressed_bytes": 1485120,
+      "gzip_eof_crc_verified": true,
+      "semantic_access": "opaque_bytes_only"
+    },
+    {
+      "path": "raw/2026-10-20/errors.jsonl.gz",
+      "records": 101,
+      "expanded_bytes": 16839,
+      "compressed_bytes": 3646,
+      "gzip_eof_crc_verified": true,
+      "semantic_access": "opaque_bytes_only"
+    },
+    {
+      "path": "raw/2026-10-20/markets.jsonl.gz",
+      "records": 232,
+      "expanded_bytes": 1251999,
+      "compressed_bytes": 156088,
+      "gzip_eof_crc_verified": true,
+      "semantic_access": "registration_slug_metadata_only"
+    },
+    {
+      "path": "raw/2026-10-20/rtds-binance.jsonl.gz",
+      "records": 40467,
+      "expanded_bytes": 10053309,
+      "compressed_bytes": 969860,
+      "gzip_eof_crc_verified": true,
+      "semantic_access": "opaque_bytes_only"
+    },
+    {
+      "path": "raw/2026-10-20/rtds.jsonl.gz",
+      "records": 17740,
+      "expanded_bytes": 4913156,
+      "compressed_bytes": 641075,
+      "gzip_eof_crc_verified": true,
+      "semantic_access": "opaque_bytes_only"
+    },
+    {
+      "path": "raw/2026-10-21/binance-futures-strict.jsonl.gz",
+      "records": 3634295,
+      "expanded_bytes": 1004469890,
+      "compressed_bytes": 87687488,
+      "gzip_eof_crc_verified": true,
+      "semantic_access": "opaque_bytes_only"
+    },
+    {
+      "path": "raw/2026-10-21/binance-futures-trade-strict.jsonl.gz",
+      "records": 210399,
+      "expanded_bytes": 52210765,
+      "compressed_bytes": 4456181,
+      "gzip_eof_crc_verified": true,
+      "semantic_access": "opaque_bytes_only"
+    },
+    {
+      "path": "raw/2026-10-21/binance-strict.jsonl.gz",
+      "records": 666089,
+      "expanded_bytes": 151378664,
+      "compressed_bytes": 10786502,
+      "gzip_eof_crc_verified": true,
+      "semantic_access": "opaque_bytes_only"
+    },
+    {
+      "path": "raw/2026-10-21/binance.jsonl.gz",
+      "records": 131607,
+      "expanded_bytes": 14413401,
+      "compressed_bytes": 2465624,
+      "gzip_eof_crc_verified": true,
+      "semantic_access": "opaque_bytes_only"
+    },
+    {
+      "path": "raw/2026-10-21/capture-health.jsonl.gz",
+      "records": 766,
+      "expanded_bytes": 649109,
+      "compressed_bytes": 160823,
+      "gzip_eof_crc_verified": true,
+      "semantic_access": "opaque_bytes_only"
+    },
+    {
+      "path": "raw/2026-10-21/clob-btc.jsonl.gz",
+      "records": 4603519,
+      "expanded_bytes": 3292381933,
+      "compressed_bytes": 472911221,
+      "gzip_eof_crc_verified": true,
+      "semantic_access": "opaque_bytes_only"
+    },
+    {
+      "path": "raw/2026-10-21/clob-doge.jsonl.gz",
+      "records": 859520,
+      "expanded_bytes": 519555364,
+      "compressed_bytes": 70951404,
+      "gzip_eof_crc_verified": true,
+      "semantic_access": "opaque_bytes_only"
+    },
+    {
+      "path": "raw/2026-10-21/clob-eth.jsonl.gz",
+      "records": 2061606,
+      "expanded_bytes": 1373818987,
+      "compressed_bytes": 194181399,
+      "gzip_eof_crc_verified": true,
+      "semantic_access": "opaque_bytes_only"
+    },
+    {
+      "path": "raw/2026-10-21/clob-sol.jsonl.gz",
+      "records": 1186459,
+      "expanded_bytes": 771644307,
+      "compressed_bytes": 107745981,
+      "gzip_eof_crc_verified": true,
+      "semantic_access": "opaque_bytes_only"
+    },
+    {
+      "path": "raw/2026-10-21/clob-xrp.jsonl.gz",
+      "records": 1100494,
+      "expanded_bytes": 712155965,
+      "compressed_bytes": 99755895,
+      "gzip_eof_crc_verified": true,
+      "semantic_access": "opaque_bytes_only"
+    },
+    {
+      "path": "raw/2026-10-21/coinbase.jsonl.gz",
+      "records": 71674,
+      "expanded_bytes": 8592597,
+      "compressed_bytes": 1504617,
+      "gzip_eof_crc_verified": true,
+      "semantic_access": "opaque_bytes_only"
+    },
+    {
+      "path": "raw/2026-10-21/decisions.jsonl.gz",
+      "records": 50,
+      "expanded_bytes": 7742,
+      "compressed_bytes": 2352,
+      "gzip_eof_crc_verified": true,
+      "semantic_access": "opaque_bytes_only"
+    },
+    {
+      "path": "raw/2026-10-21/deribit-strict.jsonl.gz",
+      "records": 115960,
+      "expanded_bytes": 27408806,
+      "compressed_bytes": 3023677,
+      "gzip_eof_crc_verified": true,
+      "semantic_access": "opaque_bytes_only"
+    },
+    {
+      "path": "raw/2026-10-21/errors.jsonl.gz",
+      "records": 60,
+      "expanded_bytes": 10705,
+      "compressed_bytes": 2246,
+      "gzip_eof_crc_verified": true,
+      "semantic_access": "opaque_bytes_only"
+    },
+    {
+      "path": "raw/2026-10-21/markets.jsonl.gz",
+      "records": 269,
+      "expanded_bytes": 1458666,
+      "compressed_bytes": 184797,
+      "gzip_eof_crc_verified": true,
+      "semantic_access": "registration_slug_metadata_only"
+    },
+    {
+      "path": "raw/2026-10-21/rtds-binance.jsonl.gz",
+      "records": 16522,
+      "expanded_bytes": 4105301,
+      "compressed_bytes": 399642,
+      "gzip_eof_crc_verified": true,
+      "semantic_access": "opaque_bytes_only"
+    },
+    {
+      "path": "raw/2026-10-21/rtds.jsonl.gz",
+      "records": 43260,
+      "expanded_bytes": 11994933,
+      "compressed_bytes": 1581452,
+      "gzip_eof_crc_verified": true,
+      "semantic_access": "opaque_bytes_only"
+    }
+  ],
+  "btc5m_registered_markets": 50,
+  "root_metadata": {
+    "capture-health.json": {
+      "at": 1792548460648.8274,
+      "clob_active": true,
+      "clob_epoch": 80,
+      "event_loop_lag_ms": 1.2842979995184578,
+      "where": "capture-heartbeat",
+      "writer": {
+        "accepted": 24778333,
+        "error": null,
+        "flushed": 24778333,
+        "last_flush_ms": 1792548459803.7324,
+        "latest_stream_enqueue_ms": {
+          "binance": 1792548451761.709,
+          "binance-futures-strict": 1792548451799.5286,
+          "binance-futures-trade-strict": 1792548451799.7554,
+          "binance-strict": 1792548451799.2861,
+          "capture-health": 1792548450639.7168,
+          "clob-btc": 1792548451787.3093,
+          "clob-doge": 1792548451704.032,
+          "clob-eth": 1792548451787.236,
+          "clob-sol": 1792548451735.9385,
+          "clob-xrp": 1792548451704.2278,
+          "coinbase": 1792548451784.2786,
+          "decisions": 1792548270004.9001,
+          "deribit-strict": 1792548451799.925,
+          "errors": 1792548380984.346,
+          "markets": 1792548428151.1084,
+          "rtds": 1792546734479.7166,
+          "rtds-binance": 1792543557335.071
+        },
+        "pending_bytes": 0,
+        "written": 24778333
+      }
+    },
+    "capture-runtime.json": {
+      "collector_region": "unverified",
+      "complete": true,
+      "ended_ms": 1792548461815.0388,
+      "feed_health_verified": false,
+      "run_id": "39505664620",
+      "schema": "buffered-capture-v1",
+      "source_sha256": "c7ddb4a29e4f8a62a4b0cba56c8ed4840e403db0c7ec5085b8d912768110d634",
+      "started_ms": 1792534051796.9792,
+      "wrapper_sha256": "7a51218c98d24a98549e6401b7df1005eff64a25070f093b75ae084e59cbb0a3",
+      "writer": {
+        "accepted": 24778336,
+        "error": null,
+        "flushed": 24778336,
+        "last_flush_ms": 1792548461799.7969,
+        "latest_stream_enqueue_ms": {
+          "binance": 1792548451761.709,
+          "binance-futures-strict": 1792548451799.5286,
+          "binance-futures-trade-strict": 1792548451799.7554,
+          "binance-strict": 1792548451799.2861,
+          "capture-health": 1792548460648.855,
+          "clob-btc": 1792548451787.3093,
+          "clob-doge": 1792548451704.032,
+          "clob-eth": 1792548451787.236,
+          "clob-sol": 1792548451735.9385,
+          "clob-xrp": 1792548451704.2278,
+          "coinbase": 1792548451784.2786,
+          "decisions": 1792548270004.9001,
+          "deribit-strict": 1792548451799.925,
+          "errors": 1792548461799.592,
+          "markets": 1792548428151.1084,
+          "rtds": 1792546734479.7166,
+          "rtds-binance": 1792543557335.071
+        },
+        "pending_bytes": 0,
+        "written": 24778336
+      },
+      "writer_sha256": "f573098c1f535f55f3cf555efe178739ad98c9e0f958acde478f81051bbd55b5"
+    }
+  },
+  "raw_files_extracted": false,
+  "prices_or_outcomes_semantically_read": false,
+  "execution_input_admitted": false,
+  "full_recorded_utc_days": null,
+  "new_financial_replays": 0,
+  "seven_day_result": null,
+  "formal_oos_result": null,
+  "durable_saved": false,
+  "limits": [
+    "Registration presence is not per-market book/outcome coverage",
+    "Opaque CRC does not validate quote JSON semantics or feed health",
+    "Valid bytes are not observed private fills or OOS evidence"
+  ]
+}
