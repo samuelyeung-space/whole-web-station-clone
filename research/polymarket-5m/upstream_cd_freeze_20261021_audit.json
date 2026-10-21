@@ -1,0 +1,70 @@
+{
+  "schema": "btc5m-upstream-cd-freeze-audit-v1",
+  "as_of_utc": "2026-10-21T02:10:45Z",
+  "source": {
+    "commit": "d0a1c8db8c0ef8eb51296be8e11668acc53ed6ef",
+    "workflow_run": 39516477146,
+    "workflow_head": "43581a61b98d36b67f9a6ba2c762311a8fc39a3e",
+    "artifacts": [],
+    "incremental_recording_run": 39471706733
+  },
+  "test_c": {
+    "cumulative_rows_300ms": 3571,
+    "cumulative_ev_cents_per_share_300ms": -0.77,
+    "cumulative_exact_p_300ms": 1.0,
+    "new_run_disconnect_candidates_dropped": 4,
+    "frozen_first_n": 1500,
+    "frozen_ev_cents_per_share": -2.08,
+    "frozen_exact_p": 1.0,
+    "frozen_verdict": "fail_terminal_unchanged"
+  },
+  "test_d": {
+    "cumulative_rows": 2383,
+    "cumulative_ev_cents_per_share": 1.07,
+    "cumulative_exact_p": 0.1228,
+    "new_run_disconnect_candidates_dropped": 169,
+    "frozen_first_n": 1200,
+    "frozen_ev_cents_per_share": -0.04,
+    "frozen_exact_p": 1.0,
+    "frozen_verdict": "fail_terminal_unchanged"
+  },
+  "legacy_evidence_limits": [
+    "exchange_timestamp_alignment",
+    "later_health_evidence_required",
+    "disconnect_candidates_dropped",
+    "no_common_continuous_2016_market_week",
+    "no_independent_1000_usd_100_share_rank_ledger"
+  ],
+  "source_race_freeze_recovery": {
+    "research_parent_commit": "69a5414482e7c5796e463d624e9371468c18c9dd",
+    "escrow_freeze_sha256": "29ad66236aa0d2927843764970e384cb5de238c405be4e050f6b790a31a1dc63",
+    "dependency_count": 18,
+    "current_checkout_dependencies": 16,
+    "immutable_snapshot_dependencies": [
+      {
+        "path": "eu_strict.py",
+        "expected_sha256": "95b6e3fc744dd6231e9ef431206ca8633505f2810434c8aa76039c02bcd99435",
+        "current_sha256": "a122652f8fdbaeda3a62523d7cd70cb05c2bc8d1aadf3708e40b86ca2b1e725b"
+      },
+      {
+        "path": "poly_clob_rec.py",
+        "expected_sha256": "528c465db7a09a75fab81ab89ef990ba86fae31289a0bb62f1cdbbf26b3e9de6",
+        "current_sha256": "db88ec4933a0f111d9ee6c0b0929f5fe483b893411fa7699d694aed8adac9adc"
+      }
+    ],
+    "unresolved_dependencies": [],
+    "runnable_from_escrow": true,
+    "economic_replay_performed": false,
+    "old_freeze_modified": false
+  },
+  "rank7": {
+    "status": "pending",
+    "pnl_usd": null,
+    "complete_utc_days": 0,
+    "required_markets": 2016,
+    "qualified_independent_mechanisms": 0
+  },
+  "new_financial_replays": 0,
+  "orders_submitted": 0,
+  "production_modified": false
+}

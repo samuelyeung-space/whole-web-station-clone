@@ -4,6 +4,10 @@ The adapter does not edit the registered freeze or the working tree.  It creates
 temporary import root containing exactly the dependency bytes named by the freeze,
 using the current checkout when it still matches and an explicit immutable snapshot
 only when the checkout has drifted.
+
+Audit-only mode inventories every dependency in one report.  Missing hash-matching
+bytes return status 2 without running the evaluator; execution mode remains fail
+closed before any subprocess starts.
 """
 
 from __future__ import annotations
@@ -23,7 +27,7 @@ from typing import Any
 
 
 _DIGEST = re.compile(r"[0-9a-f]{64}")
-_REPORT_SCHEMA = "frozen-dependency-runner-v1"
+_REPORT_SCHEMA = "frozen-dependency-runner-v2"
 
 
 def _sha256(path: Path) -> str:
@@ -64,12 +68,13 @@ def _read_freeze(path: Path) -> tuple[dict[str, Any], str]:
     return payload, actual
 
 
-def _select_dependencies(
+def _dependency_inventory(
     root: Path,
     snapshot_root: Path,
     dependencies: Mapping[str, object],
-) -> tuple[list[dict[str, str]], list[tuple[Path, Path]]]:
-    audit: list[dict[str, str]] = []
+) -> tuple[list[dict[str, Any]], list[tuple[Path, Path]]]:
+    """Resolve every dependency and retain all failures for one audit report."""
+    audit: list[dict[str, Any]] = []
     selected: list[tuple[Path, Path]] = []
     for raw_name in sorted(dependencies):
         relative = _safe_relative(raw_name, "dependency path")
@@ -78,20 +83,40 @@ def _select_dependencies(
             raise ValueError(f"invalid dependency digest: {raw_name}")
         current = root / relative
         snapshot = snapshot_root / relative
-        if current.is_file() and _sha256(current) == expected:
+        current_sha256 = _sha256(current) if current.is_file() else None
+        snapshot_sha256 = _sha256(snapshot) if snapshot.is_file() else None
+        source: Path | None
+        if current_sha256 == expected:
             source = current
             origin = "current_checkout"
-        elif snapshot.is_file() and _sha256(snapshot) == expected:
+        elif snapshot_sha256 == expected:
             source = snapshot
             origin = "immutable_snapshot"
         else:
-            raise ValueError(f"no hash-matching dependency bytes: {raw_name}")
-        audit.append({
+            source = None
+            origin = "unresolved"
+        row = {
             "path": str(PurePosixPath(*relative.parts)),
             "sha256": expected,
             "origin": origin,
-        })
-        selected.append((relative, source))
+            "current_sha256": current_sha256,
+            "snapshot_sha256": snapshot_sha256,
+        }
+        audit.append(row)
+        if source is not None:
+            selected.append((relative, source))
+    return audit, selected
+
+
+def _select_dependencies(
+    root: Path,
+    snapshot_root: Path,
+    dependencies: Mapping[str, object],
+) -> tuple[list[dict[str, Any]], list[tuple[Path, Path]]]:
+    audit, selected = _dependency_inventory(root, snapshot_root, dependencies)
+    unresolved = [row["path"] for row in audit if row["origin"] == "unresolved"]
+    if unresolved:
+        raise ValueError("no hash-matching dependency bytes: " + ", ".join(unresolved))
     return audit, selected
 
 
@@ -150,9 +175,14 @@ def run(
     entrypoint = _safe_relative(entrypoint, "entrypoint")
     freeze_target = _safe_relative(freeze_target, "freeze target")
     frozen, freeze_sha256 = _read_freeze(freeze_path)
-    audit, selected = _select_dependencies(
-        root, snapshot_root, frozen["dependencies_sha256"],
-    )
+    if audit_only:
+        audit, selected = _dependency_inventory(
+            root, snapshot_root, frozen["dependencies_sha256"],
+        )
+    else:
+        audit, selected = _select_dependencies(
+            root, snapshot_root, frozen["dependencies_sha256"],
+        )
     entry_hashes = {
         row["path"]: row for row in audit
     }
@@ -169,13 +199,17 @@ def run(
         "substituted_dependencies": [
             row for row in audit if row["origin"] == "immutable_snapshot"
         ],
+        "unresolved_dependencies": [
+            row for row in audit if row["origin"] == "unresolved"
+        ],
+        "runnable": all(row["origin"] != "unresolved" for row in audit),
         "audit_only": audit_only,
         "exit_code": None,
     }
     if audit_only:
-        report["exit_code"] = 0
+        report["exit_code"] = 0 if report["runnable"] else 2
         _write_report(report_path, report)
-        return 0
+        return int(report["exit_code"])
 
     with tempfile.TemporaryDirectory(prefix="frozen-evaluator-") as temporary:
         materialized = Path(temporary)

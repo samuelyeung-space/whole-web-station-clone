@@ -69,11 +69,15 @@ class FrozenDependencyRunnerTest(unittest.TestCase):
         payload = json.loads(report.read_text(encoding="utf-8"))
         self.assertEqual(result, 0)
         self.assertEqual(payload["exit_code"], 0)
-        self.assertEqual(payload["substituted_dependencies"], [{
-            "origin": "immutable_snapshot",
-            "path": "dep.py",
-            "sha256": _sha(b"VALUE = 'frozen'\n"),
-        }])
+        self.assertTrue(payload["runnable"])
+        self.assertEqual(payload["unresolved_dependencies"], [])
+        self.assertEqual(len(payload["substituted_dependencies"]), 1)
+        substituted = payload["substituted_dependencies"][0]
+        self.assertEqual(substituted["origin"], "immutable_snapshot")
+        self.assertEqual(substituted["path"], "dep.py")
+        self.assertEqual(substituted["sha256"], _sha(b"VALUE = 'frozen'\n"))
+        self.assertEqual(substituted["snapshot_sha256"], substituted["sha256"])
+        self.assertNotEqual(substituted["current_sha256"], substituted["sha256"])
 
     def test_execution_imports_frozen_bytes_without_editing_checkout(self) -> None:
         report = self.tmp_path / "report.json"
@@ -95,7 +99,42 @@ class FrozenDependencyRunnerTest(unittest.TestCase):
             "VALUE = 'drifted'\n",
         )
 
-    def test_missing_matching_bytes_fails_closed(self) -> None:
+    def test_audit_reports_every_missing_hash_matching_dependency(self) -> None:
+        (self.snapshot / "dep.py").write_text(
+            "VALUE = 'also drifted'\n", encoding="utf-8",
+        )
+        missing = b"MISSING = True\n"
+        payload = json.loads(self.freeze.read_text(encoding="utf-8"))
+        payload["dependencies_sha256"]["missing.py"] = _sha(missing)
+        raw = (json.dumps(payload, indent=2, sort_keys=True) + "\n").encode()
+        _write(self.freeze, raw)
+        _write(self.freeze.with_suffix(".sha256"), (_sha(raw) + "\n").encode())
+        report = self.tmp_path / "report.json"
+
+        result = runner.run(
+            root=self.root,
+            freeze_path=self.freeze,
+            snapshot_root=self.snapshot,
+            entrypoint=Path("entry.py"),
+            freeze_target=Path("forward/freeze.json"),
+            entry_args=(),
+            report_path=report,
+            audit_only=True,
+        )
+
+        audit = json.loads(report.read_text(encoding="utf-8"))
+        self.assertEqual(result, 2)
+        self.assertFalse(audit["runnable"])
+        self.assertEqual(
+            [row["path"] for row in audit["unresolved_dependencies"]],
+            ["dep.py", "missing.py"],
+        )
+        self.assertIsNotNone(audit["unresolved_dependencies"][0]["current_sha256"])
+        self.assertIsNotNone(audit["unresolved_dependencies"][0]["snapshot_sha256"])
+        self.assertIsNone(audit["unresolved_dependencies"][1]["current_sha256"])
+        self.assertIsNone(audit["unresolved_dependencies"][1]["snapshot_sha256"])
+
+    def test_execution_with_missing_matching_bytes_fails_closed(self) -> None:
         (self.snapshot / "dep.py").write_text(
             "VALUE = 'also drifted'\n", encoding="utf-8",
         )
@@ -110,7 +149,7 @@ class FrozenDependencyRunnerTest(unittest.TestCase):
                 freeze_target=Path("forward/freeze.json"),
                 entry_args=(),
                 report_path=None,
-                audit_only=True,
+                audit_only=False,
             )
 
     def test_unsafe_paths_are_rejected(self) -> None:
