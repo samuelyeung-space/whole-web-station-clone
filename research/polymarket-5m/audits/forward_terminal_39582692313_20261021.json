@@ -1,0 +1,133 @@
+{
+  "schema": "btc5m-forward-terminal-audit-v1",
+  "as_of_utc": "2026-10-21T17:05:00Z",
+  "run_id": 39582692313,
+  "job_id": 119272931231,
+  "workflow_head_sha": "6ff3027178a9c2fe1f0df750437a013dcc615a72",
+  "terminal_conclusion": "failure",
+  "strict_capture": {
+    "started_utc": "2026-10-21T10:11:48.160750Z",
+    "ended_utc": "2026-10-21T14:11:57.763311Z",
+    "duration_hours": 4.002667377997504,
+    "markets": 50,
+    "outcomes": 50,
+    "complete_utc_days": 0,
+    "collector_region": "unknown",
+    "strict_complete": true,
+    "receipt_race_ready": true,
+    "unresolved_markets": 0,
+    "clob_disconnects": 74,
+    "clob_source_time_regressions": 881,
+    "clob_receive_time_regressions": 0
+  },
+  "converted_publication": {
+    "source_bytes": 731734376,
+    "source_sha256": "1f7df83f12ca233ff287d84a14e09deb4c6cec838f4be5399ba22a03504f2b48",
+    "part_count": 2,
+    "part_artifact_ids": [12359328889, 12359353817],
+    "index_artifact_id": 12359083355,
+    "manifest_sha256": "d1b12d2e96aa18fe35988a00dd22050987bef871a797e143608c8d9a0bb7bfca",
+    "all_declared_hashes_verified": true,
+    "full_archive_independently_reconstructed": true,
+    "transport_only_not_economic_admission": true
+  },
+  "failed_outputs": [
+    {
+      "family": "source_race_h",
+      "reason": "source-race dependency drift: strict_prebuild.py",
+      "pnl_usd": null
+    },
+    {
+      "family": 34,
+      "reason": "invalid venue BBO",
+      "pnl_usd": null
+    }
+  ],
+  "development_results": {
+    "current_h_500ms": {
+      "signals": 206853,
+      "sent": 48,
+      "fills": 12,
+      "filled_shares": 174.014777,
+      "pnl_usd": 9.287818663108999,
+      "net_ev_per_filled_share_usd": 0.053373735398971306,
+      "exact_p": 0.23732709000693217,
+      "paper_gate_eligible": false,
+      "classification": "one_partial_utc_day_collector_region_unknown_development_only"
+    },
+    "family35_500ms": {
+      "base": {
+        "intents": 8,
+        "fills": 6,
+        "filled_shares": 30.0,
+        "intention_to_trade_pnl_usd": -3.4403,
+        "intention_to_trade_ev_per_requested_share_usd": -0.0860075
+      },
+      "delay_5s": {
+        "intents": 8,
+        "fills": 2,
+        "filled_shares": 10.0,
+        "intention_to_trade_pnl_usd": -0.6553200000000001
+      },
+      "shallow": {
+        "intents": 7,
+        "fills": 3,
+        "filled_shares": 15.0,
+        "intention_to_trade_pnl_usd": -4.682919999999999
+      },
+      "matched_control_pairs": 0,
+      "promotion_eligible": false
+    },
+    "family36_500ms": {
+      "baseline": {
+        "opportunities": 48,
+        "sent": 1,
+        "fills": 0,
+        "intention_to_trade_pnl_usd": 0.0
+      },
+      "confirmation_veto": {
+        "opportunities": 48,
+        "sent": 0,
+        "fills": 0,
+        "intention_to_trade_pnl_usd": 0.0
+      },
+      "shifted_placebo": {
+        "opportunities": 48,
+        "sent": 0,
+        "fills": 0,
+        "intention_to_trade_pnl_usd": 0.0
+      },
+      "classification": "zero_fill_diagnostic_not_positive_backtest",
+      "promotion_eligible": false
+    }
+  },
+  "cumulative_checks": {
+    "momentum5s_primary_stop_400ms": {
+      "fills": 1000,
+      "days": 8,
+      "net_ev_cents_per_share": -0.60,
+      "one_sided_99pct_day_lower_cents": -4.67,
+      "exact_p": 1.0,
+      "status": "lower_bound_not_positive"
+    },
+    "theta30": {
+      "markets": 1872,
+      "sent": 136,
+      "fills": 92,
+      "days": 9,
+      "total_pnl_usd": -0.5637246000000026,
+      "mean_pnl_per_share_usd": -0.0012254882608695907,
+      "exact_p": 0.61862,
+      "qualification": false
+    }
+  },
+  "admission": {
+    "rank7": "pending",
+    "rank7_pnl_usd": null,
+    "formal_oos_result": null,
+    "confirmed_current_count": 0,
+    "reason": "four-hour partial UTC day; collector region unknown; 100-share rank7 cash protocol not executed"
+  },
+  "orders_submitted": 0,
+  "production_modified": false
+}
