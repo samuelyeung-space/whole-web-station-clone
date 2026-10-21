@@ -1,0 +1,123 @@
+{
+  "schema": "btc5m-upstream-report-delta-audit-v1",
+  "passed": false,
+  "interpretation": "historical_run_rewritten_fail_closed_not_rank7_or_oos_input",
+  "files": [
+    {
+      "path": "real/latency-test-c.md",
+      "status": "checked",
+      "old_sha256": "a4027c1cce4e3dff78dac417456bd70ef1cfc5984bff5e949ad2c9b7aacad1ad",
+      "new_sha256": "6a91e8029ec2af4dfd311e78deb2adc46b23989c84433b253c36d1e7bea4da82",
+      "old_records": 81,
+      "new_records": 82
+    },
+    {
+      "path": "real/latency-test-d.md",
+      "status": "checked",
+      "old_sha256": "181af2e847955cb40e88f47ac0a1cea63d70b2f12b62be81f1ba0d8098765137",
+      "new_sha256": "c3cfeb003f1f50de60e0f6c23113f061ed63c78724c22ea863824d95e329f231",
+      "old_records": 86,
+      "new_records": 87
+    },
+    {
+      "path": "real/latency-test-f.md",
+      "status": "checked",
+      "old_sha256": "2ba4c90d09afc85e8ec632ff7e715028fd5856cea8ed0191bfb2a4c2e1e3fb00",
+      "new_sha256": "9e0504f7924c5ff0fb591657049e318e710b1e1cfdde3497097117ab79ccf36c",
+      "old_records": 86,
+      "new_records": 87
+    },
+    {
+      "path": "real/latency-test-g.md",
+      "status": "checked",
+      "old_sha256": "596eb521cff7112d68a26a98f22ba63d325d031cd93c1b08054429de6f27da5a",
+      "new_sha256": "818f9fe1851fe7b9bdf97105bdc79a95f2b2c7e5d74a3ce0ee9e32430fd7b61b",
+      "old_records": 87,
+      "new_records": 88
+    },
+    {
+      "path": "real/latency-test-i.md",
+      "status": "checked",
+      "old_sha256": "02b1e4f5c5bb0ee12a3511dafeff3f5a144835bf47b2f9017cc088b58e30f0ba",
+      "new_sha256": "3be208af9a5a466844af97798357d786a144701d8d6bd7b37e370ff04a3e3242",
+      "old_records": 91,
+      "new_records": 92
+    },
+    {
+      "path": "real/latency-test-j.md",
+      "status": "checked",
+      "old_sha256": "5e2dd8588f7c1602439b386a6883c94d0f7a6a74daa60328c9685734332eee5f",
+      "new_sha256": "c26a6b559afe61d4d5d413a9dbc6b98060213dcce55107a57d4a48914e21a800",
+      "old_records": 0,
+      "new_records": 0
+    },
+    {
+      "path": "real/recorder-check.md",
+      "status": "checked",
+      "old_sha256": "acfe89d2586bcdafb449c5d41a3c32d032c3d4df5eb4aa65e63af467c1b42f7d",
+      "new_sha256": "eb1f657f19078a1f0854f74dbb621a9017d8f2f3f3aa3a980c207bbd28709db8",
+      "old_records": 91,
+      "new_records": 92
+    }
+  ],
+  "changed_existing_records": [
+    {
+      "path": "real/latency-test-f.md",
+      "key": "note:38909708508",
+      "old": "- btc 38909708508: 1720 candidates dropped because the CLOB socket closed between the quote and the order (260 disconnects in the recording; test C counts its judged lag only)",
+      "new": "- btc 38909708508: 1694 candidates dropped because the CLOB socket closed between the quote and the order (260 disconnects in the recording; test C counts its judged lag only)"
+    },
+    {
+      "path": "real/latency-test-g.md",
+      "key": "note:38909708508",
+      "old": "- btc 38909708508: 1728 candidates dropped because the CLOB socket closed between the quote and the order (260 disconnects in the recording; test C counts its judged lag only)",
+      "new": "- btc 38909708508: 1697 candidates dropped because the CLOB socket closed between the quote and the order (260 disconnects in the recording; test C counts its judged lag only)"
+    },
+    {
+      "path": "real/latency-test-i.md",
+      "key": "note:38909708508",
+      "old": "- btc 38909708508: 3582 candidates dropped because the CLOB socket closed between the quote and the order (260 disconnects in the recording; test C counts its judged lag only)",
+      "new": "- btc 38909708508: 3554 candidates dropped because the CLOB socket closed between the quote and the order (260 disconnects in the recording; test C counts its judged lag only)"
+    },
+    {
+      "path": "real/recorder-check.md",
+      "key": "row:38909708508",
+      "old": "| GitHub 38909708508 | 546 | 7% | 15% | 29% | 44% | 52% | 78% | 90% | 251 / 1676 | 45 / 119 / 5827 |",
+      "new": "| GitHub 38909708508 | 545 | 7% | 15% | 29% | 44% | 52% | 79% | 90% | 255 / 1703 | 45 / 119 / 5827 |"
+    }
+  ],
+  "removed_existing_records": [],
+  "duplicate_record_keys": [],
+  "added_records": [
+    {
+      "path": "real/latency-test-c.md",
+      "key": "note:39553701104",
+      "new": "- btc 39553701104: 6 candidates dropped because the CLOB socket closed between the quote and the order (115 disconnects in the recording; test C counts its judged lag only)"
+    },
+    {
+      "path": "real/latency-test-d.md",
+      "key": "note:39553701104",
+      "new": "- btc 39553701104: 304 candidates dropped because the CLOB socket closed between the quote and the order (115 disconnects in the recording; test C counts its judged lag only)"
+    },
+    {
+      "path": "real/latency-test-f.md",
+      "key": "note:39553701104",
+      "new": "- btc 39553701104: 1189 candidates dropped because the CLOB socket closed between the quote and the order (115 disconnects in the recording; test C counts its judged lag only)"
+    },
+    {
+      "path": "real/latency-test-g.md",
+      "key": "note:39553701104",
+      "new": "- btc 39553701104: 1006 candidates dropped because the CLOB socket closed between the quote and the order (115 disconnects in the recording; test C counts its judged lag only)"
+    },
+    {
+      "path": "real/latency-test-i.md",
+      "key": "note:39553701104",
+      "new": "- btc 39553701104: 2377 candidates dropped because the CLOB socket closed between the quote and the order (115 disconnects in the recording; test C counts its judged lag only)"
+    },
+    {
+      "path": "real/recorder-check.md",
+      "key": "row:39553701104",
+      "new": "| GitHub 39553701104 | 388 | 5% | 18% | 38% | 57% | 65% | 79% | 87% | 206 / 1543 | 71 / 1596 / 25154 |"
+    }
+  ]
+}
