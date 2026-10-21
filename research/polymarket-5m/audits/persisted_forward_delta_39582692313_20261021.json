@@ -1,0 +1,71 @@
+{
+  "schema": "persisted-forward-delta-audit-v1",
+  "observed_at_utc": "2026-10-21T15:46:12Z",
+  "workflow_run_id": 39582692313,
+  "analysis_job_id": 119272931231,
+  "source_parent": "e3a8c39f9646bfb86acd34379e30e15bbd8058ad",
+  "source_commit": "3e3b590da48f1ed588c4809e0c2bc7148d36dac2",
+  "source_commit_message": "research: forward-test results from recording run 39582692313",
+  "strict_replay_step": {
+    "conclusion": "failure",
+    "failure_reason_available": false,
+    "reason_unavailable_because_job_still_in_progress": true
+  },
+  "persistence_step": {
+    "conclusion": "success",
+    "ordinary_failure_path_confirmed": true
+  },
+  "new_interval": {
+    "complete_utc_days": 0,
+    "momentum5s": {
+      "new_signals": 46,
+      "five_share_scenarios": {
+        "300ms": {"fills": 40, "net_pnl_usd": 0.93751, "net_per_filled_share_usd": 0.00468755},
+        "350ms": {"fills": 39, "net_pnl_usd": -0.742665, "net_per_filled_share_usd": -0.0038085384615384613},
+        "400ms": {"fills": 41, "net_pnl_usd": 2.314745, "net_per_filled_share_usd": 0.01129143902439024},
+        "500ms": {"fills": 40, "net_pnl_usd": 1.995315, "net_per_filled_share_usd": 0.009976575}
+      },
+      "classification": "post-stop incremental development evidence; correlated latency alternatives; not rank7 or OOS"
+    },
+    "theta30": {
+      "markets_added": 49,
+      "orders_added": 5,
+      "fills_added": 3,
+      "net_pnl_usd": 1.080245,
+      "cumulative_fills": 92,
+      "cumulative_net_ev_cents_per_share": -0.12,
+      "classification": "insufficient and negative cumulative EV; not rank7 or OOS"
+    },
+    "paper_ledger": {
+      "rows_added": 15,
+      "tau30": {"trades": 5, "shares": 500.0, "net_pnl_usd": 53.6141},
+      "tau60": {"trades": 10, "shares": 890.07, "net_pnl_usd": 80.83933144},
+      "classification": "incremental paper-development rows only; cumulative report remains negative total PnL at both horizons"
+    }
+  },
+  "cumulative_momentum_stopping_sample": {
+    "fills": 1000,
+    "days": 8,
+    "net_ev_cents_per_share": -0.60,
+    "one_sided_99pct_day_lower_bound_cents": -4.67,
+    "exact_p": 1.0,
+    "status": "lower_bound_not_positive",
+    "unchanged_by_post_stop_increment": true
+  },
+  "row_identity_audit": {
+    "momentum_old_rows": 6176,
+    "momentum_new_rows": 6360,
+    "added_keys": 184,
+    "removed_keys": 0,
+    "existing_keys_with_textual_changes": 114,
+    "textual_changes_are_float_serialization_only": true,
+    "maximum_numeric_delta": 4.440892098500626e-16,
+    "economic_value_change": false
+  },
+  "rank7_pnl_usd": null,
+  "formal_oos_result": null,
+  "qualified_distinct_strategies": 0,
+  "financial_replay_performed_by_this_audit": false,
+  "orders_submitted": 0,
+  "production_modified": false
+}
