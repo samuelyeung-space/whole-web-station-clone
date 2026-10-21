@@ -140,51 +140,67 @@ def read_manifest(path, expected_sha256):
     return m
 
 
+def verify_parts(manifest_path, parts_dir, expected_manifest_sha256, dest=None):
+    """Stream-verify every part and the aggregate source without requiring reassembly.
+
+    If ``dest`` is supplied, the verified payload bytes are also written to that
+    already-open binary file.  Verification alone intentionally creates no output.
+    """
+    m = read_manifest(manifest_path, expected_manifest_sha256)
+    parts_dir = Path(parts_dir)
+    whole = hashlib.sha256()
+    for p in m['parts']:
+        path = parts_dir / p['name']
+        if path.is_symlink() or not path.is_file() or path.stat().st_size != p['zip_bytes']:
+            raise ValueError('missing/invalid part: ' + p['name'])
+        # Keep one open descriptor for hashing AND decoding.
+        with path.open('rb') as raw:
+            h = hashlib.sha256()
+            for b in iter(lambda: raw.read(BLOCK), b''): h.update(b)
+            if h.hexdigest() != p['zip_sha256']:
+                raise ValueError('part ZIP hash mismatch: ' + p['name'])
+            raw.seek(0)
+            with zipfile.ZipFile(raw) as z:
+                entries = z.infolist()
+                if len(entries) != 1 or entries[0].filename != 'payload.bin':
+                    raise ValueError('unexpected ZIP members')
+                info = entries[0]
+                if info.file_size != p['payload_bytes'] or info.compress_type != zipfile.ZIP_STORED:
+                    raise ValueError('unexpected compression/size')
+                n = 0; h = hashlib.sha256()
+                with z.open(info) as f:
+                    for b in iter(lambda: f.read(BLOCK), b''):
+                        n += len(b)
+                        if n > p['payload_bytes']: raise ValueError('expanded part too large')
+                        h.update(b); whole.update(b)
+                        if dest is not None: dest.write(b)
+                if n != p['payload_bytes'] or h.hexdigest() != p['payload_sha256']:
+                    raise ValueError('payload hash mismatch')
+    if whole.hexdigest() != m['source_sha256']:
+        raise ValueError('reconstructed source hash mismatch')
+    return {'status': 'verified_byte_identical', 'parts': len(m['parts']),
+            'bytes': m['source_bytes'], 'sha256': whole.hexdigest(),
+            'assembled_output': dest is not None,
+            'economic_replay_performed': False, 'formal_oos_result': None}
+
+
 def assemble(manifest_path, parts_dir, output, expected_manifest_sha256):
     m = read_manifest(manifest_path, expected_manifest_sha256)
-    parts_dir, output = Path(parts_dir), Path(output)
+    output = Path(output)
     if output.exists() or output.is_symlink():
         raise ValueError('output already exists; refusing overwrite')
     output.parent.mkdir(parents=True, exist_ok=True)
     fd, name = tempfile.mkstemp(prefix='.reassembly-', dir=output.parent)
     stage = Path(name)
-    whole = hashlib.sha256()
     try:
         with os.fdopen(fd, 'wb') as dest:
-            for p in m['parts']:
-                path = parts_dir / p['name']
-                if path.is_symlink() or not path.is_file() or path.stat().st_size != p['zip_bytes']:
-                    raise ValueError('missing/invalid part: ' + p['name'])
-                # Keep one open descriptor for hashing AND decoding.
-                with path.open('rb') as raw:
-                    h = hashlib.sha256()
-                    for b in iter(lambda: raw.read(BLOCK), b''): h.update(b)
-                    if h.hexdigest() != p['zip_sha256']:
-                        raise ValueError('part ZIP hash mismatch: ' + p['name'])
-                    raw.seek(0)
-                    with zipfile.ZipFile(raw) as z:
-                        entries = z.infolist()
-                        if len(entries) != 1 or entries[0].filename != 'payload.bin':
-                            raise ValueError('unexpected ZIP members')
-                        info = entries[0]
-                        if info.file_size != p['payload_bytes'] or info.compress_type != zipfile.ZIP_STORED:
-                            raise ValueError('unexpected compression/size')
-                        n = 0; h = hashlib.sha256()
-                        with z.open(info) as f:
-                            for b in iter(lambda: f.read(BLOCK), b''):
-                                n += len(b)
-                                if n > p['payload_bytes']: raise ValueError('expanded part too large')
-                                h.update(b); whole.update(b); dest.write(b)
-                        if n != p['payload_bytes'] or h.hexdigest() != p['payload_sha256']:
-                            raise ValueError('payload hash mismatch')
+            result = verify_parts(manifest_path, parts_dir, expected_manifest_sha256, dest)
             dest.flush(); os.fsync(dest.fileno())
-        if stage.stat().st_size != m['source_bytes'] or whole.hexdigest() != m['source_sha256']:
+        if stage.stat().st_size != m['source_bytes']:
             raise ValueError('reconstructed source hash mismatch')
         # Hard-link publication gives exclusive, atomic creation, unlike replace().
         os.link(stage, output)
-        return {'status': 'verified_byte_identical', 'parts': len(m['parts']),
-                'bytes': m['source_bytes'], 'sha256': whole.hexdigest(),
-                'economic_replay_performed': False, 'formal_oos_result': None}
+        return result
     finally:
         stage.unlink(missing_ok=True)
 
@@ -196,14 +212,18 @@ def main(argv=None):
     s.add_argument('--part-mib',type=int,default=400)
     a = sub.add_parser('assemble');a.add_argument('--manifest',required=True);a.add_argument('--parts-dir',required=True)
     a.add_argument('--out',required=True);a.add_argument('--expected-manifest-sha256',required=True)
+    v = sub.add_parser('verify');v.add_argument('--manifest',required=True);v.add_argument('--parts-dir',required=True)
+    v.add_argument('--expected-manifest-sha256',required=True)
     args = p.parse_args(argv)
     try:
         if args.command == 'split':
             m = split_archive(args.source,args.out,args.part_mib*BLOCK)
             print(json.dumps({'parts':len(m['parts']),'source_sha256':m['source_sha256'],
                               'manifest_sha256':digest_file(Path(args.out)/'manifest.json')}))
-        else:
+        elif args.command == 'assemble':
             print(json.dumps(assemble(args.manifest,args.parts_dir,args.out,args.expected_manifest_sha256)))
+        else:
+            print(json.dumps(verify_parts(args.manifest,args.parts_dir,args.expected_manifest_sha256)))
         return 0
     except (OSError,ValueError,KeyError,zipfile.BadZipFile) as e:
         print(json.dumps({'status':'blocked','reason':str(e),'pnl':None}));return 2
