@@ -1,0 +1,128 @@
+{
+  "schema": "btc5m-strict-run-audit-v1",
+  "audited_at": "2026-10-21T11:38:00Z",
+  "run_id": 39553701104,
+  "source_commit": "50ef187be61dc9519b15df14417493bf8441b586",
+  "result_commit": "404d653491b321e2aa8376f6aba7085ce6c149a7",
+  "evidence_class": "development_audit_only",
+  "rank7": {
+    "complete_utc_days": 0,
+    "required_slots": 2016,
+    "admitted": false,
+    "pnl": null
+  },
+  "capture": {
+    "duration_hours": 4.002654321024153,
+    "markets": 50,
+    "outcomes": 49,
+    "collector_region": "unknown",
+    "strict_complete": true,
+    "receipt_race_ready": true,
+    "clob_disconnects": 115,
+    "source_time_regressions": 358,
+    "receive_time_regressions": 0,
+    "unresolved_markets": 1
+  },
+  "converted_handoff": {
+    "index_artifact_id": 12341236447,
+    "part_artifact_ids": [12341141598, 12342500488],
+    "manifest_sha256": "c3f5d546c4f555dae2375ad77cea50880e73873f3ca99745050a97410161e420",
+    "archive_sha256": "1a764f6c70852b1b9453524b6b73abf32925d65b896a3940f78ed0dfc0aecf30",
+    "archive_bytes": 648823967,
+    "independently_reconstructed": true,
+    "retained_through": "2026-11-20"
+  },
+  "failed_outputs": [
+    {
+      "family": "source_race_h",
+      "reason": "dependency drift: strict_prebuild.py",
+      "pnl": null
+    },
+    {
+      "family": 34,
+      "reason": "invalid venue BBO",
+      "pnl": null
+    }
+  ],
+  "development_results": {
+    "current_h_500ms": {
+      "signals": 144166,
+      "sent": 41,
+      "fills": 8,
+      "filled_shares": 46.973937,
+      "pnl": 1.8208492296759982,
+      "net_ev_per_filled_share": 0.03876296827485416,
+      "exact_p": 0.5386281927782068,
+      "paper_gate_eligible": false
+    },
+    "family35_500ms": {
+      "base": {
+        "intents": 6,
+        "fills": 4,
+        "filled_shares": 20.0,
+        "intention_to_trade_pnl": 8.85946,
+        "intention_to_trade_ev_per_requested_share": 0.2953153333333333
+      },
+      "delay_5s": {
+        "intents": 6,
+        "fills": 1,
+        "filled_shares": 5.0,
+        "intention_to_trade_pnl": 2.9667399999999997,
+        "intention_to_trade_ev_per_requested_share": 0.09889133333333332
+      },
+      "shallow": {
+        "intents": 6,
+        "fills": 6,
+        "filled_shares": 30.0,
+        "intention_to_trade_pnl": -4.4624,
+        "intention_to_trade_ev_per_requested_share": -0.14874666666666667
+      },
+      "matched_control_pairs": 0,
+      "promotion_eligible": false
+    },
+    "family36_500ms": {
+      "opportunities": 47,
+      "baseline": {"sent": 0, "fills": 0, "pnl": null},
+      "confirmation_veto": {"sent": 0, "fills": 0, "pnl": null},
+      "receipt_time_shifted_placebo": {"sent": 0, "fills": 0, "pnl": null},
+      "promotion_eligible": false,
+      "classification": "no_send_diagnostic_not_zero_pnl_backtest"
+    },
+    "momentum5s_primary_stop": {
+      "latency_ms": 400,
+      "fills": 1000,
+      "days": 8,
+      "net_ev_cents_per_share": -0.60,
+      "one_sided_99pct_day_lower_cents": -4.67,
+      "exact_p": 1.0,
+      "status": "lower_bound_not_positive"
+    },
+    "theta30": {
+      "post_freeze_markets": 1823,
+      "orders": 131,
+      "fills": 89,
+      "days": 9,
+      "net_ev_cents_per_share": -0.37,
+      "exact_p": 0.6505,
+      "status": "insufficient_fills"
+    }
+  },
+  "published_forward": {
+    "cumulative_multiasset_markets": 14115,
+    "preregistered_candidates_positive": 0,
+    "best_candidate": {
+      "id": 9,
+      "trades": 1306,
+      "ev_cents_per_share": -0.30,
+      "raw_p": 0.664,
+      "bonferroni_p": 1.0
+    },
+    "september_onchain_rules_positive": 0,
+    "queue_weak_side": {
+      "fills": 242,
+      "ev_cents_per_share": -2.42,
+      "stop_fills": 2000
+    }
+  },
+  "qualified_oos_large_edge": 0
+}
