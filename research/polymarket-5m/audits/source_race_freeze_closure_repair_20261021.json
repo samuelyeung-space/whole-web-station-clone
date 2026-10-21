@@ -1,0 +1,43 @@
+{
+  "schema": "source-race-freeze-closure-repair-v1",
+  "as_of_utc": "2026-10-21T12:37:08Z",
+  "source_branch_head": "404d653491b321e2aa8376f6aba7085ce6c149a7",
+  "research_parent": "2906d5c7b7a81ae277262e793de67f95d305e9e2",
+  "registered_freeze": {
+    "created_at_utc": "2026-10-09T16:56:20Z",
+    "cutoff_utc": "2026-10-10T00:00:00Z",
+    "sha256": "29ad66236aa0d2927843764970e384cb5de238c405be4e050f6b790a31a1dc63",
+    "source_branch_match": true
+  },
+  "fault": {
+    "classification": "research_branch_packaging_drift",
+    "observed_freeze_sha256": "ddb147fa25fddd406361b2853368e6df8304285bc92af09bccf42bcb2d3d7bdf",
+    "changed_dependency_entries": [
+      "eu_strict.py",
+      "poly_clob_rec.py"
+    ],
+    "effect": "The immutable snapshot adapter reported one unresolved dependency and could not execute the registered evaluator."
+  },
+  "repair": {
+    "action": "Restored the byte-identical registered freeze and fingerprint from the source branch; strategy, thresholds, cutoff and evidence were not changed.",
+    "dependency_count": 18,
+    "current_checkout_dependencies": 16,
+    "immutable_snapshot_dependencies": [
+      "eu_strict.py",
+      "poly_clob_rec.py"
+    ],
+    "unresolved_dependencies": [],
+    "audit_only_runnable": true
+  },
+  "tests": {
+    "unittest_passed": 6,
+    "real_closure_regression_added": true,
+    "financial_replays": 0
+  },
+  "evidence_class": "reproducibility_repair_only",
+  "rank7_pnl_usd": null,
+  "formal_oos_result": null,
+  "qualified_independent_mechanisms": 0,
+  "orders_submitted": 0,
+  "production_modified": false
+}
