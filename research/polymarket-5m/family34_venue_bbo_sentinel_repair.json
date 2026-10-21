@@ -1,0 +1,38 @@
+{
+  "schema": "family34-venue-bbo-sentinel-repair-v1",
+  "as_of_local_date": "2026-10-20",
+  "workflow_run": 39471706733,
+  "source_archive_sha256": "d7f55efaf2a0caec223d4e382a2f1155875be47d27569cacf9904ffede168c53",
+  "scan": {
+    "previously_rejected_rows": 549498,
+    "empty_ask_only": 272531,
+    "empty_bid_only": 272531,
+    "both_empty": 4436,
+    "finite_interior_crosses": 0,
+    "classification": "venue_empty_side_sentinels"
+  },
+  "semantics": {
+    "empty_bid_sentinel": 0,
+    "empty_ask_sentinel": 1,
+    "accepted_as_executable_price": false,
+    "explicit_empty_must_match_local_empty": true,
+    "mismatch_action": "invalidate_market_and_require_snapshot",
+    "invalid": [
+      "bid_1",
+      "ask_0",
+      "nonfinite",
+      "crossed_executable_sides"
+    ]
+  },
+  "verification": {
+    "direct_assertions": 11,
+    "syntax_import_smoke": true,
+    "full_archive_economic_rerun": false
+  },
+  "evidence_class": "engineering_repair_only",
+  "new_freeze_required": true,
+  "rank7_admitted": false,
+  "rank7_pnl_usd": null,
+  "qualified_mechanism_delta": 0,
+  "live_orders_or_production_changes": false
+}

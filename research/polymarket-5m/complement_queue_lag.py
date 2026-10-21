@@ -26,6 +26,45 @@ _FEE_QUANTUM = Decimal("0.00001")
 _FEE_RATE_072_UNTIL_MS = 1_782_864_000_000
 
 
+def _valid_venue_bbo(
+    bid: float | None,
+    ask: float | None,
+) -> bool:
+    """Validate CLOB BBO fields while preserving explicit empty-side sentinels.
+
+    The venue reports an empty bid as 0 and an empty ask as 1.  Those boundary
+    values are state, not executable prices.  The opposite boundaries (bid=1,
+    ask=0), non-finite values and crossed executable sides remain invalid.
+    """
+    if bid is not None and (not math.isfinite(bid) or bid < 0 or bid >= 1):
+        return False
+    if ask is not None and (not math.isfinite(ask) or ask <= 0 or ask > 1):
+        return False
+    live_bid = None if bid == 0 else bid
+    live_ask = None if ask == 1 else ask
+    return not (
+        live_bid is not None
+        and live_ask is not None
+        and live_bid >= live_ask
+    )
+
+
+def _venue_level_matches(
+    reported: float | None,
+    local: float | None,
+    *,
+    empty_sentinel: float,
+) -> bool:
+    """Match a venue BBO side, treating its explicit boundary as empty."""
+    if reported is None:
+        return True
+    if reported == empty_sentinel:
+        return local is None
+    return local is not None and math.isclose(
+        local, reported, rel_tol=0.0, abs_tol=_EPS,
+    )
+
+
 @dataclass(frozen=True)
 class QueueLagConfig:
     minimum_queue_shares: float = 5.0
@@ -674,26 +713,8 @@ def replay(
                         venue_bid = venue_ask = None
                         valid_venue_bbo = False
                     else:
-                        valid_venue_bbo = not (
-                            (
-                                venue_bid is not None
-                                and (
-                                    not math.isfinite(venue_bid)
-                                    or not 0 < venue_bid < 1
-                                )
-                            )
-                            or (
-                                venue_ask is not None
-                                and (
-                                    not math.isfinite(venue_ask)
-                                    or not 0 < venue_ask < 1
-                                )
-                            )
-                            or (
-                                venue_bid is not None
-                                and venue_ask is not None
-                                and venue_bid >= venue_ask
-                            )
+                        valid_venue_bbo = _valid_venue_bbo(
+                            venue_bid, venue_ask,
                         )
                     if not valid_venue_bbo:
                         # The delta itself may be well formed while the venue's
@@ -706,6 +727,10 @@ def replay(
                         counters["invalid_venue_bbo"] += 1
                         regressed_markets.add(state.market_id)
                     else:
+                        if venue_bid == 0:
+                            counters["reported_empty_bid"] += 1
+                        if venue_ask == 1:
+                            counters["reported_empty_ask"] += 1
                         key = (state.market_id, asset_id)
                         previous_bid, previous_ask = reported_bbo.get(
                             key, (None, None)
@@ -738,13 +763,11 @@ def replay(
             book = markets[market_id].books[asset_id]
             local_bid = book.best_bid
             local_ask = book.best_ask
-            bid_matches = venue_bid is None or (
-                local_bid is not None
-                and math.isclose(local_bid, venue_bid, rel_tol=0.0, abs_tol=_EPS)
+            bid_matches = _venue_level_matches(
+                venue_bid, local_bid, empty_sentinel=0.0,
             )
-            ask_matches = venue_ask is None or (
-                local_ask is not None
-                and math.isclose(local_ask, venue_ask, rel_tol=0.0, abs_tol=_EPS)
+            ask_matches = _venue_level_matches(
+                venue_ask, local_ask, empty_sentinel=1.0,
             )
             if not (bid_matches and ask_matches):
                 book.bids.clear()
