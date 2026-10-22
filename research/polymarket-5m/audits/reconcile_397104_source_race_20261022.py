@@ -57,6 +57,8 @@ def source_race(root):
             sent = sum(r['sent'] for r in sample)
             shares = math.fsum(r['filled_shares'] for r in fills)
             pnl = math.fsum(r['pnl'] for r in fills)
+            total_cost = math.fsum(r['all_in_cost'] * r['filled_shares'] for r in fills)
+            total_fees = math.fsum(r['fill_fee'] for r in fills)
             assert sent == reported['sent']
             assert len(fills) == reported['fills']
             close(shares, reported['filled_shares'])
@@ -71,6 +73,11 @@ def source_race(root):
                 'failed_sends': sent - sum(r['filled'] for r in sample),
                 'resolved_fills': len(fills), 'unresolved_fills': len(unresolved),
                 'shares': shares, 'resolved_pnl_usd': pnl,
+                'filled_markets': len({r['market_id'] for r in fills}),
+                'simulated_fee_usd': total_fees,
+                'filled_principal_and_fee_usd': total_cost,
+                'no_payout_reuse_cash_floor_from_1000_usd': 1000 - total_cost,
+                'cash_diagnostic_assumption': 'all resolved payouts withheld to segment end; small-size recorded fills only, no 100-share rerun',
                 'complete_outcome_pnl_usd': None if unresolved else pnl,
                 'share_weighted_net_cents': pnl / shares * 100 if shares else None,
                 'reported_reason_total': reason_total,
@@ -83,9 +90,10 @@ def source_race(root):
     return output
 
 
-def family34(root):
-    result = json.loads((root / 'family34_result2.json').read_text())
-    rows = read_rows(root / 'family34_rows2.jsonl')
+def family34(root, attempt='2'):
+    result = json.loads((root / ('family34_result' + attempt + '.json')).read_text())
+    row_path = root / ('family34_rows' + attempt + '.jsonl')
+    rows = read_rows(row_path)
     assert len(rows) == result['record_count']
     output = {}
     for variant, reported_variant in result['variants'].items():
@@ -107,15 +115,18 @@ def family34(root):
                 close(pnl, reported['pnl'])
             latencies[delay] = {'attempts': reported['attempts'], 'fills': len(fills),
                 'unresolved_fills': unresolved, 'resolved_shares': shares,
-                'complete_outcome_pnl_usd': None if unresolved else pnl,
+                'raw_output_pnl_usd': None if unresolved else pnl,
+                'economic_result_pnl_usd': None if unresolved or not reported['attempts'] else pnl,
                 'resolved_pnl_usd': pnl, 'share_weighted_net_cents': pnl / shares * 100 if shares else None}
         output[variant] = latencies
     assert result['promotion_eligible'] is False
-    return {'rows': len(rows), 'sha256': digest(root / 'family34_rows2.jsonl'), 'variants': output}
+    return {'rows': len(rows), 'sha256': digest(row_path), 'variants': output,
+            'counters': result['counters'], 'classification': 'no_attempt_data_consistency_blocked' if not rows else 'development_only'}
 
 
 if __name__ == '__main__':
     root = Path(sys.argv[1])
     print(json.dumps({'schema': 'run397104-independent-reconciliation-v1',
         'source_race': source_race(root), 'family34': family34(root),
+        'family34_after_one_sided_fix': family34(root, '3'),
         'rank7_pnl_usd': None, 'formal_oos_result': None}, indent=2, allow_nan=False))
