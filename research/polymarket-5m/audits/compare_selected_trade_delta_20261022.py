@@ -52,6 +52,9 @@ if __name__ == '__main__':
         'added_by_run': dict(collections.Counter(r['run'] for r in added)),
         'removed_by_run': dict(collections.Counter(r['run'] for r in removed)),
         'changed_by_run': dict(collections.Counter(k[2] for k in changed)),
+        'changed_fields': dict(collections.Counter(
+            field for key in changed for field in new[key]
+            if not same({field: new[key][field]}, {field: old[key][field]}))),
         'new_run397104_rows_by_variant_latency': dict(collections.Counter(
             r['variant'] + '/' + r['lag'] for r in added if r['run'] == '39710494768')),
         'independent_new_oos': False,
