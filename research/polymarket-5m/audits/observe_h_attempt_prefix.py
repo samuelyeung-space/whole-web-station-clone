@@ -114,6 +114,8 @@ def worker(data,out,*,duration_ms=DURATION_MS,branch_opportunities=False):
         assert len(pending_keys)==counters['censored_evaluations']
         branch_audit={'schema':'h-eligible-branch-ledger-audit-v1',
             'eligible_signals':len(signal_ids),'delay_branch_opportunities':len(branch_keys),
+            'real_branch_behavior_exercised':bool(signal_ids),
+            'validation_status':'matched_nonempty_trace' if signal_ids else 'not_exercised_no_eligible_signals',
             'every_signal_delay_has_exactly_one_outcome':True,
             'suppressed_unsent_join_exact':True,'evaluated_or_censored_join_exact':True,
             'skipped_opportunities_are_order_attempts':False,
