@@ -12,7 +12,7 @@ import heapq
 import json
 import math
 from collections import Counter
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import asdict, dataclass, field, replace
 from decimal import ROUND_DOWN, Decimal
 from itertools import groupby
@@ -456,6 +456,7 @@ def replay(
     *,
     segment_end_ms: float,
     config: QueueLagConfig | None = None,
+    bbo_diagnostic_hook: Callable[[Mapping[str, Any]], None] | None = None,
 ) -> tuple[list[dict[str, Any]], Counter[str]]:
     """Detect, execute and settlement-score the frozen development protocol."""
     cfg = config or QueueLagConfig()
@@ -771,6 +772,22 @@ def replay(
             ask_matches = _venue_level_matches(
                 venue_ask, local_ask, empty_sentinel=1.0,
             )
+            if bbo_diagnostic_hook is not None:
+                # Scalars only: observers cannot modify books or signal state.
+                # Called before invalidation so an existing snapshot latch is
+                # distinguishable from a newly observed depth disagreement.
+                bbo_diagnostic_hook({
+                    "market_id": market_id, "asset_id": asset_id,
+                    "recv_ms": receive_ms, "batch_order": batch_order,
+                    "book_recv_ms": book.recv_ms,
+                    "book_source_ms": book.source_ms,
+                    "venue_bid": venue_bid, "venue_ask": venue_ask,
+                    "local_bid": local_bid, "local_ask": local_ask,
+                    "bid_matches": bid_matches, "ask_matches": ask_matches,
+                    "ready_before_check": book.ready,
+                    "snapshot_required_before_check": book.snapshot_required,
+                    "bid_levels": len(book.bids), "ask_levels": len(book.asks),
+                })
             if not (bid_matches and ask_matches):
                 book.bids.clear()
                 book.asks.clear()
