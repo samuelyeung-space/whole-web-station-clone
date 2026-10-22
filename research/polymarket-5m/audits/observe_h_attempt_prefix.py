@@ -29,7 +29,7 @@ def sha(path):
         while b:=f.read(1<<20):h.update(b)
     return h.hexdigest()
 
-def worker(data,out,*,duration_ms=DURATION_MS,branch_opportunities=False):
+def worker(data,out,*,duration_ms=DURATION_MS,branch_opportunities=False,upstream_gates=False):
     import h_source_race as race
     import h_replay_run as engine
     import h_replay_archive as archive
@@ -55,6 +55,9 @@ def worker(data,out,*,duration_ms=DURATION_MS,branch_opportunities=False):
     observed=Counter();suppressed=Counter();source_counts=Counter()
     trace=out/'attempts.jsonl.gz'
     signal_ids=set();branch_keys={};unsent_keys=set();evaluated_keys=set();machines=[]
+    signal_context={};upstream_joined=set();upstream_observer=None
+    if upstream_gates:
+        import h_upstream_observer
     def bounded(path,family):
         for row in archive.iter_normalized_events(path,family=family):
             if float(row['recv_ms'])>stop:break
@@ -70,6 +73,19 @@ def worker(data,out,*,duration_ms=DURATION_MS,branch_opportunities=False):
                 if event['kind']=='eligible_signal':
                     assert event['audit_signal_sequence'] not in signal_ids
                     signal_ids.add(event['audit_signal_sequence'])
+                    if upstream_gates:
+                        signal_context[event['audit_signal_sequence']]=dict(event)
+                if event['kind']=='upstream_gate' and event['stage']=='eligible':
+                    seq=max(signal_ids)
+                    assert seq not in upstream_joined
+                    eligible=signal_context[seq]
+                    assert eligible['signal_receive_ms']==event['event_recv_ms']
+                    assert eligible['signal_source_ms']==event['candidate_source_ms']
+                    assert eligible['signal_source']==event['source']
+                    assert eligible['market_id']==event['market_id']
+                    assert eligible['fair']==event['fair']
+                    event['audit_signal_sequence']=seq
+                    upstream_joined.add(seq)
                 if event['kind']=='unsent_attempt':
                     suppressed[(event['evaluation_ms'],event['reason'],event['signal_source'])]+=1
                     assert event['pnl'] is None and event['sent'] is False
@@ -89,7 +105,10 @@ def worker(data,out,*,duration_ms=DURATION_MS,branch_opportunities=False):
                 machine=observed_class(cfg,sink=sink);machines.append(machine);return machine
             engine.replay.HReplay=factory
             try:
-                rows,counters=engine.replay_normalized(
+                replay_function=engine.replay_normalized
+                if upstream_gates:
+                    replay_function,upstream_observer=h_upstream_observer.instrument(engine,sink)
+                rows,counters=replay_function(
                     bounded(root/'source_events.jsonl.gz','source'),
                     bounded(root/'clob_events.jsonl.gz','clob'),
                     mappings,{},execution,signal,trigger_sources=race.CANDIDATE_SOURCES)
@@ -101,6 +120,12 @@ def worker(data,out,*,duration_ms=DURATION_MS,branch_opportunities=False):
     assert observed['evaluation']==len(rows)
     assert all(r['winner'] is None and r['pnl'] is None for r in rows)
     branch_audit=None
+    upstream_audit=None
+    if upstream_gates:
+        assert upstream_joined==signal_ids
+        assert observed['upstream_gate']==upstream_observer.sequence
+        upstream_audit=upstream_observer.reconcile(counters,eligible_signals=len(signal_ids))
+        upstream_audit['eligible_signal_identity_join_exact']=True
     if branch_opportunities:
         assert len(machines)==1
         machine=machines[0]
@@ -141,6 +166,8 @@ def worker(data,out,*,duration_ms=DURATION_MS,branch_opportunities=False):
         'engine_sha256':observer.verify_engine(),
         'observer_sha256':sha(Path(observer.__file__)),
         'branch_observer_sha256':sha(Path(branch_observer.__file__)) if branch_opportunities else None,
+        'upstream_observer_sha256':sha(Path(h_upstream_observer.__file__)) if upstream_gates else None,
+        'upstream_gate_audit':upstream_audit,
         'eligible_branch_audit':branch_audit,
         'worker_sha256':sha(Path(__file__)),'trace_sha256':sha(trace),
         'trace_bytes':trace.stat().st_size,'observations':dict(observed),
@@ -162,11 +189,14 @@ def main():
     ap.add_argument('--worker',action='store_true')
     ap.add_argument('--duration-ms',type=float,default=DURATION_MS)
     ap.add_argument('--branch-opportunities',action='store_true')
+    ap.add_argument('--upstream-gates',action='store_true')
     a=ap.parse_args();data=a.archive.resolve();out=a.out_dir.resolve()
     if not math.isfinite(a.duration_ms) or a.duration_ms<=0:
         ap.error('duration-ms must be positive and finite')
+    if a.upstream_gates and not a.branch_opportunities:
+        ap.error('upstream-gates requires branch-opportunities for signal identity reconciliation')
     if a.worker:
-        worker(data,out,duration_ms=a.duration_ms,branch_opportunities=a.branch_opportunities);return
+        worker(data,out,duration_ms=a.duration_ms,branch_opportunities=a.branch_opportunities,upstream_gates=a.upstream_gates);return
     sys.path.insert(0,str(ROOT))
     import frozen_dependency_runner as runner
     freeze=ROOT/'forward/source-race-freeze.json'
@@ -178,11 +208,13 @@ def main():
     registration={'schema':'h-attempt-prefix-registration-v1',
         'duration_ms':a.duration_ms,'evaluation_ms':LAGS,'data_already_consumed':True,
         'branch_opportunities':a.branch_opportunities,
+        'upstream_gates':a.upstream_gates,
         'settlement_labels_loaded':False,'financial_result':None,
         'formal_oos_result':None,'rank7_pnl_usd':None,
         'worker_code_sha256':sha(Path(__file__)),
         'observer_code_sha256':sha(ROOT/'h_attempt_observer.py'),
         'branch_observer_code_sha256':sha(ROOT/'h_branch_observer.py') if a.branch_opportunities else None,
+        'upstream_observer_code_sha256':sha(ROOT/'h_upstream_observer.py') if a.upstream_gates else None,
         'registered_source_race_freeze_sha256':EXPECTED_FREEZE,
         'old_freezes_changed':False,'dependencies':audit}
     reg=out/'registration.json'
@@ -193,10 +225,13 @@ def main():
         shutil.copyfile(ROOT/'h_attempt_observer.py',root/'h_attempt_observer.py')
         if a.branch_opportunities:
             shutil.copyfile(ROOT/'h_branch_observer.py',root/'h_branch_observer.py')
+        if a.upstream_gates:
+            shutil.copyfile(ROOT/'h_upstream_observer.py',root/'h_upstream_observer.py')
         shutil.copyfile(__file__,root/'worker.py')
         command=[sys.executable,str(root/'worker.py'),'--worker','--archive',str(data),
             '--out-dir',str(out),'--duration-ms',str(a.duration_ms)]
         if a.branch_opportunities:command.append('--branch-opportunities')
+        if a.upstream_gates:command.append('--upstream-gates')
         process=subprocess.run(command,cwd=root)
     registration['exit_code']=process.returncode
     reg.write_text(json.dumps(registration,sort_keys=True,indent=2)+'\n')
