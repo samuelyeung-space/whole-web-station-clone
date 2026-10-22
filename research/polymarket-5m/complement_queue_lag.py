@@ -761,8 +761,10 @@ def replay(
 
         for (market_id, asset_id), (venue_bid, venue_ask) in reported_bbo.items():
             book = markets[market_id].books[asset_id]
-            local_bid = book.best_bid
-            local_ask = book.best_ask
+            # Venue consistency is checked per side, even when the other side
+            # is empty. Trade-facing best_* still requires two-sided readiness.
+            local_bid = max(book.bids, default=None)
+            local_ask = min(book.asks, default=None)
             bid_matches = _venue_level_matches(
                 venue_bid, local_bid, empty_sentinel=0.0,
             )
