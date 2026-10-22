@@ -1,0 +1,39 @@
+{
+  "as_of": "2026-10-22T01:20:27Z",
+  "classification": "source cumulative-report delta and immutability audit; development only",
+  "source_parent": "27ce0b6f7c3ddcc27676c5134c934c7e5adb2dab",
+  "source_commit": "bfe7b5e9680ad39e9b47997001a793c7f4980357",
+  "source_workflow_run": 39692744707,
+  "source_workflow_conclusion": "success",
+  "source_workflow_artifacts": [],
+  "appended_recording_run": 39650865752,
+  "cumulative_diagnostics": {
+    "C_300ms": {"trades": 3820, "incremental_trades": 46, "net_ev_cents_per_share": -0.71, "p": 1.0, "frozen_verdict": "fail_unchanged"},
+    "D_300ms": {"trades": 2568, "incremental_trades": 38, "net_ev_cents_per_share": 1.65, "p": 0.0302, "frozen_first_1200_verdict": "fail_unchanged"},
+    "F_300ms": {"trades": 2441, "incremental_trades": 32, "net_ev_cents_per_share": 4.76, "frozen_verdict": "unchanged"},
+    "G_300ms": {"trades": 1210, "incremental_trades": 26, "net_ev_cents_per_share": 12.09, "frozen_verdict": "unchanged"},
+    "I_400ms": {"markets": 1246, "trades": 1896, "incremental_markets": 26, "incremental_trades": 56, "net_ev_cents_per_share": 8.86, "p": 0.0, "frozen_verdict": "unchanged"},
+    "J_500ms": {"sends": 1971, "markets": 1237, "incremental_sends": 45, "incremental_markets": 26, "net_ev_cents_per_ordered_share": 1.77, "p": 0.0064, "frozen_verdict": "unchanged"},
+    "J_600ms": {"net_ev_cents_per_ordered_share": 1.39, "p": 0.0231}
+  },
+  "immutability_audit": {
+    "passed": false,
+    "historical_run_rewritten": 38909708508,
+    "changed_existing_fields": 6,
+    "rewrites": {
+      "F_candidates_dropped": [1694, 1720],
+      "G_candidates_dropped": [1697, 1728],
+      "I_candidates_dropped": [3554, 3582],
+      "recorder_urgent_moves": [545, 546],
+      "recorder_plus_1000ms_pct": [79, 78],
+      "recorder_first_move_summary": ["255 / 1703", "251 / 1676"]
+    },
+    "rank7_oos_admission": "rejected"
+  },
+  "complete_recorded_utc_days_added": 0,
+  "rank7_pnl_usd": null,
+  "formal_oos_result": null,
+  "confirmed_current_count": 0,
+  "orders_submitted": 0,
+  "production_modified": false
+}
