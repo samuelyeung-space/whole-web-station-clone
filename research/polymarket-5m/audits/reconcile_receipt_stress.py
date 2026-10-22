@@ -53,8 +53,13 @@ def audit_arm(rows,summary):
 def main(root):
     frozen=json.loads((root/'source_race_result.json').read_text())
     stress=json.loads((root/'stress/result.json').read_text())
-    out={'schema':'new-receipt-and-stress-reconciliation-v1','run_id':39733110725,
+    identity=frozen['artifact_identity']
+    assert str(identity['run_id'])==str(stress['artifact_identity']['run_id'])
+    assert identity['files']==stress['artifact_identity']['files']
+    out={'schema':'new-receipt-and-stress-reconciliation-v2','run_id':int(identity['run_id']),
         'registered_comparison':{},'separate_development_stress':{},
+        'source_race_formal_sample_eligible':frozen['formal_sample_eligible'],
+        'source_race_activation_gate':frozen['activation_gate'],
         'formal_oos_result':None,'rank7_pnl_usd':None,'positive_pnl_is_confirmed_alpha':False}
     for arm in ['baseline','candidate']:
         p=root/'rows'/(arm+'.jsonl');rows=[json.loads(l) for l in p.read_text().splitlines()]
@@ -66,8 +71,6 @@ def main(root):
         corrected=audit_reason_buckets(rows,raw['raw_counters'],raw['summary'])
         out['separate_development_stress'][arm]={'rows_sha256':digest(p),
             'cells':audit_arm(rows,corrected),'reason_accounting':corrected['reason_accounting']}
-    assert frozen['formal_sample_eligible'] is False
-    assert frozen['activation_gate']['passes'] is False
     return out
 
 if __name__=='__main__':
