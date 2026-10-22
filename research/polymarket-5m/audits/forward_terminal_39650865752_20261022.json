@@ -1,0 +1,92 @@
+{
+  "as_of": "2026-10-22T00:02:31Z",
+  "classification": "terminal partial-day development audit; not Rank7 or formal OOS",
+  "source_parent": "95aabc2e5fb8be50ce2c0fb39f68073c755183b4",
+  "source_commit": "27ce0b6f7c3ddcc27676c5134c934c7e5adb2dab",
+  "recording_run": 39650865752,
+  "jobs": {
+    "record": "success",
+    "analyze": "failure"
+  },
+  "converted_artifact": {
+    "bytes": 606561501,
+    "sha256": "c302704be595f634a4960ffd410be159f0ea9cb7205adad22aff8e70eb06105a",
+    "manifest_sha256": "75b08ddfe22c31ca1d0faab554da44fada4a308937f14c715d832ffaa72b03da",
+    "parts": 2,
+    "verified": true
+  },
+  "coverage": {
+    "started_ms": 1792606489099.8127,
+    "ended_ms": 1792620898553.9973,
+    "hours": 4.0026247096,
+    "btc_markets": 50,
+    "btc_outcomes": 50,
+    "complete_utc_days": 0,
+    "collector_region": "unknown",
+    "clob_connection_cycles": 82,
+    "clob_source_time_regressions": 1071
+  },
+  "strict_source_race": {
+    "status": "failed_before_pnl",
+    "reason": "source-race dependency drift: strict_prebuild.py",
+    "pnl_usd": null
+  },
+  "family34": {
+    "status": "failed_before_pnl",
+    "reason": "invalid venue BBO",
+    "pnl_usd": null
+  },
+  "current_h_500ms": {
+    "sends": 54,
+    "fills": 18,
+    "filled_shares": 210.54993,
+    "pnl_usd": 35.842378960982,
+    "net_ev_per_filled_share_usd": 0.17023220554374915,
+    "exact_nominal_p": 0.004365598049181917,
+    "days": 1,
+    "day_cluster_lower_99": null,
+    "rank7_eligible": false
+  },
+  "family35_500ms": {
+    "base": {"intents": 9, "fills": 4, "filled_shares": 20.0, "pnl_usd": 8.42314},
+    "delay_5s": {"intents": 9, "fills": 5, "filled_shares": 25.0, "pnl_usd": 11.336},
+    "shallow": {"intents": 6, "fills": 5, "filled_shares": 25.0, "pnl_usd": -6.2969},
+    "matched_control_pairs": 0,
+    "promotion_eligible": false
+  },
+  "family36_500ms": {
+    "opportunities_per_arm": 47,
+    "baseline": {"sends": 1, "fills": 1, "filled_shares": 6.486487, "pnl_usd": 3.980646801621, "p": 0.386317},
+    "confirmation_veto": {"sends": 1, "fills": 1, "filled_shares": 6.486487, "pnl_usd": 3.980646801621, "p": 0.386317},
+    "shifted_placebo": {"sends": 0, "fills": 0, "pnl_usd": 0.0},
+    "promotion_eligible": false
+  },
+  "momentum_increment_500ms": {
+    "signals": 43,
+    "fills": 40,
+    "target_shares_per_fill": 5,
+    "pnl_usd": -9.717965
+  },
+  "cumulative_momentum_500ms": {
+    "signals": 2141,
+    "fills": 1754,
+    "net_ev_cents_per_share": -0.93,
+    "exact_p": 1.0,
+    "frozen_first_1000_verdict": "fail_unchanged"
+  },
+  "source_table_immutability": {
+    "passed": false,
+    "reason": "existing rows deleted and re-added in markets.csv, momentum5s.csv and theta30.csv",
+    "rank7_oos_admission": "rejected"
+  },
+  "successor_run": {
+    "run_id": 39692744707,
+    "status": "in_progress",
+    "artifacts": []
+  },
+  "rank7_pnl_usd": null,
+  "formal_oos_result": null,
+  "confirmed_current_count": 0,
+  "orders_submitted": 0,
+  "production_modified": false
+}
