@@ -113,11 +113,22 @@ def audit_family36(root):
                 'rank7_pnl_usd':None,'formal_oos_pnl_usd':None}
     matched={d:signatures[('baseline',d)]==signatures[('confirmation_veto',d)]
              for d in result['arms']['baseline']['latencies']}
+    empty={d:not signatures[('baseline',d)] and not signatures[('confirmation_veto',d)]
+           for d in matched}
+    differences={d:{'baseline_only_fill_rows':len(signatures[('baseline',d)]-signatures[('confirmation_veto',d)]),
+                    'veto_only_fill_rows':len(signatures[('confirmation_veto',d)]-signatures[('baseline',d)])}
+                 for d in matched}
+    classification=('development_no_execution_evidence' if all(empty.values()) else
+                    'development_no_confirmation_veto_increment_identified' if all(matched.values()) else
+                    'development_fill_ledger_differences_require_economic_review')
     return {'result_sha256':digest(rp),'rows_file_sha256':digest(p),
             'rows_canonical_sha256':canonical36(rows),'rows':len(rows),
             'unsent_confirmation_rejections_without_execution_health_fields':sum('future_health_checked' not in r for r in rows),
             'groups':groups,'same_positive_fill_ledger_baseline_vs_veto':matched,
-            'classification':'development_no_confirmation_veto_increment_identified'}
+            'same_fill_ledger_baseline_vs_veto':matched,
+            'both_baseline_and_veto_have_zero_fills':empty,
+            'fill_ledger_differences':differences,
+            'classification':classification}
 
 def audit(root):
     return {'schema':'published-families-reconciliation-v1',
