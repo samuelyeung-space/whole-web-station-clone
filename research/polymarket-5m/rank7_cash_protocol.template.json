@@ -1,0 +1,47 @@
+{
+  "schema": "rank7-cash-protocol-v1",
+  "role": "template_not_frozen_experiment",
+  "registered_at_utc": null,
+  "cash_admission_code_sha256": {
+    "rank7_cash_admission.py": null,
+    "rank7_cash_integrity.py": null
+  },
+  "rank7_protocol": {
+    "schema": "rank7-protocol-v2",
+    "role": "template_not_a_frozen_experiment",
+    "registered_at_utc": null,
+    "window_start_utc": null,
+    "window_end_utc": null,
+    "candidate_sha256": null,
+    "strategy_identity_sha256": null,
+    "code_sha256": null,
+    "cache_key": null,
+    "events_sha256": null,
+    "benchmark": {
+      "initial_cash_usd": 1000,
+      "requested_shares": 100,
+      "primary_latency_ms": 500,
+      "latencies_ms": [
+        500,
+        600,
+        1000
+      ],
+      "max_quote_age_ms": 250,
+      "cash_release_delay_ms": 0,
+      "require_constraints": true
+    },
+    "market_universe": {
+      "asset": "BTC",
+      "interval_seconds": 300,
+      "market_ids": null
+    },
+    "formal_oos_result": null,
+    "note": "Fill and freeze every identity from admitted data and loaded strategies before replay. This null template must fail admission; never report it as a registered or completed experiment. Cash delay0 is an explicit unmeasured baseline, not observed redemption timing. V2 requires independent verification against the pinned --cache and both admission code hashes. Existing freezes cannot inherit the new schema; register a strictly later untouched window before formal use.",
+    "admission_code_sha256": {
+      "seven_day_ranking.py": null,
+      "rank7_input_window.py": null
+    }
+  },
+  "formal_oos_result": null,
+  "note": "Fill and durably freeze the new cash-admission code hashes and nested rank7 identities before replay. No inheritance by old results or existing Oct10/11/Oct12-19/Oct19-26 protocols. Empty or inferred cash ledgers cannot substantiate submitted orders. This checks accounting only, not actual private fills or redemption timing."
+}
