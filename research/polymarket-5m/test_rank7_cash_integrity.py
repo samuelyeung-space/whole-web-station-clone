@@ -95,5 +95,29 @@ class CashTests(unittest.TestCase):
         for i,r in enumerate(self.e,1):r['event_sequence']=i
         self.blocked()
 
+    def test_ranking_amounts_and_order_counts_must_match_attempts(self):
+        original=deepcopy(self.s)
+        for field in ('net_pnl_usd','realized_pnl_usd','net_pnl_per_filled_share_usd',
+                'attempts','submitted_orders','full_fills','partial_fills','filled_shares',
+                'fees_usd','extra_cost_usd','settled_positions','unresolved_positions','cost_usd'):
+            with self.subTest(field=field):
+                self.s=deepcopy(original);self.s[0][field]=999
+                self.blocked()
+        self.s=deepcopy(original);self.s[0]['status_counts']={};self.blocked()
+
+    def test_no_signal_and_no_fill_keep_their_distinct_null_semantics(self):
+        from unittest.mock import patch
+        with patch(__name__+'.signal',return_value=None):a,e,s=fixture()
+        self.assertTrue(all(row['net_pnl_usd'] is None for row in s))
+        self.assertTrue(audit_cash(a,e,s)['ranking_totals_independently_reconciled'])
+        a,e,s=fixture(post_send_reject_bps=10000)
+        self.assertTrue(all(row['net_pnl_usd']==0 for row in s))
+        self.assertTrue(all(row['net_pnl_per_filled_share_usd'] is None for row in s))
+        self.assertTrue(audit_cash(a,e,s)['ranking_totals_independently_reconciled'])
+
+    def test_unfilled_fee_cannot_be_hidden_in_a_zero_cost_attempt(self):
+        self.a,self.e,self.s=fixture(post_send_reject_bps=10000)
+        self.a[0]['fees_usd']=.1;self.blocked()
+
 
 if __name__=='__main__':unittest.main()
