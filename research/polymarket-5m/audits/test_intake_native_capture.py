@@ -66,3 +66,12 @@ def test_missing_part_is_rejected(tmp_path):
     manifest, transfers = fixture(tmp_path)
     with pytest.raises(ValueError, match="incomplete"):
         intake(manifest, transfers[:-1], tmp_path/"result", copy)
+
+
+def test_transfer_failure_does_not_echo_short_lived_url(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    import intake_native_capture as module
+    monkeypatch.setattr(module.subprocess, "run", lambda *a, **k: SimpleNamespace(returncode=22))
+    with pytest.raises(RuntimeError) as error:
+        module.download({"download_url": "https://example.test/short-lived-private-reference"}, tmp_path/"unused")
+    assert "private-reference" not in str(error.value)
