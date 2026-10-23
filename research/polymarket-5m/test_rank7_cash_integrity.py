@@ -119,5 +119,51 @@ class CashTests(unittest.TestCase):
         self.a,self.e,self.s=fixture(post_send_reject_bps=10000)
         self.a[0]['fees_usd']=.1;self.blocked()
 
+    def test_payout_must_match_binary_winner_and_side(self):
+        original=deepcopy(self.a)
+        for field in ('side','winner'):
+            with self.subTest(field=field):
+                self.a=deepcopy(original)
+                self.a[0][field]='Down' if self.a[0][field]=='Up' else 'Up'
+                self.blocked()
+        for field in ('side','winner'):
+            with self.subTest(missing=field):
+                self.a=deepcopy(original);del self.a[0][field];self.blocked()
+
+    def test_fill_cannot_exceed_fixed_decision_limit(self):
+        self.a[0]['limit_price']=.1
+        with self.assertRaisesRegex(ValueError,'exceeds fixed decision limit'):self.check()
+
+    def test_submitted_limit_requires_valid_binary_price(self):
+        for limit in (None,0,1,-.1,1.1,float('nan'),True):
+            with self.subTest(limit=limit):
+                self.a,self.e,self.s=fixture();self.a[0]['limit_price']=limit;self.blocked()
+
+    def test_fill_status_and_quantity_must_agree_even_when_summary_matches(self):
+        from collections import Counter
+        for status in ('filled_partial','no_fill'):
+            with self.subTest(status=status):
+                self.a,self.e,self.s=fixture();row=self.a[0];row['status']=status
+                summary=next(x for x in self.s if
+                    (x['candidate_id'],x['latency_ms'])==(row['candidate_id'],row['latency_ms']))
+                counts=Counter(x['status'] for x in self.a if
+                    (x['candidate_id'],x['latency_ms'])==(row['candidate_id'],row['latency_ms']))
+                summary.update(status_counts=dict(counts),full_fills=counts['filled_full'],
+                               partial_fills=counts['filled_partial'])
+                self.blocked()
+        self.a,self.e,self.s=fixture(depth_fraction=.5)
+        self.assertTrue(self.check()['ranking_totals_independently_reconciled'])
+        self.a,self.e,self.s=fixture(depth_fraction=1-5e-10)
+        self.assertEqual(self.a[0]['status'],'filled_partial')
+        self.assertTrue(self.check()['ranking_totals_independently_reconciled'])
+
+    def test_immediate_or_zero_payout_cannot_be_marked_unreleased(self):
+        for delay,loser_only in ((0,False),(60000,True)):
+            with self.subTest(delay=delay):
+                self.a,self.e,self.s=fixture(cash_release_delay_ms=delay)
+                row=next(x for x in self.a if not loser_only or x['payout_usd']==0)
+                row['cash_released']=False
+                with self.assertRaisesRegex(ValueError,'falsely marked locked'):self.check()
+
 
 if __name__=='__main__':unittest.main()
