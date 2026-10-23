@@ -6,7 +6,7 @@ book reconstruction, fee arithmetic and summary binding are engine-free.
 import argparse
 from bisect import bisect_right
 from collections import Counter, defaultdict
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal, ROUND_HALF_UP, ROUND_CEILING
 import gzip
 import hashlib
 import json
@@ -26,11 +26,80 @@ def rows(path):
         for line in f:yield json.loads(line)
 
 
+def reconstruct_cash_events(attempts, metrics, delay):
+    """Recover an independent cash trace from intact saved order lifecycles.
+
+    This is not the lost engine mutation stream. Every intermediate saved
+    per-order cash value, admission and terminal asset must reconcile. The
+    reconstruction refuses ambiguous same-account simultaneous event phases.
+    """
+    states={(m['candidate_id'],m['latency_ms']):dict(cash=1000.,reserved=0.,locked=0.,realized=0.) for m in metrics}
+    actions=[]; occupied={}
+    for r in attempts:
+        actions.append((r['decision_ms'],0,int(r['attempt_id']),'decision',r))
+        if r['submitted']:actions.append((r['match_ms'],1,int(r['attempt_id']),'match',r))
+        if r['settled']:
+            actions.append((r['settlement_ms'],2,int(r['attempt_id']),'settlement',r))
+            if r['payout_usd'] and r['cash_released']:
+                actions.append((r['cash_release_due_ms'],3,int(r['attempt_id']),'payout_release',r))
+    trace=[]
+    def emit(kind,now,r,s):
+        trace.append(dict(candidate_id=r['candidate_id'],latency_ms=r['latency_ms'],
+            attempt_id=r['attempt_id'],event_sequence=len(trace)+1,event_ms=now,event_type=kind,
+            cash_usd=s['cash'],reserved_usd=s['reserved'],locked_payout_usd=s['locked'],
+            realized_pnl_usd=s['realized']))
+    for now,phase,_,kind,r in sorted(actions,key=lambda x:x[:3]):
+        k=(r['candidate_id'],r['latency_ms']);s=states[k]
+        token=(k,now)
+        if token in occupied and occupied[token]!=phase:
+            raise ValueError('ambiguous same-account coincident lifecycle phases; require original engine trace')
+        occupied[token]=phase
+        if kind=='decision':
+            close(r['cash_before_decision'],s['cash'],'reconstructed decision cash')
+            if r['submitted'] or r['status']=='rejected_insufficient_available_cash':
+                price=Decimal(str(r['limit_price']));rate=Decimal(str(r['fee_rate_decision']))
+                fee=(Decimal(100)*rate*price*(1-price)).quantize(Decimal('.00001'),rounding=ROUND_CEILING)
+                need=100*r['limit_price']+float(fee)
+                admit=s['cash']-s['reserved']+1e-9>=need
+                if admit!=r['submitted']:raise ValueError('reconstructed cash admission differs')
+                if admit:
+                    close(r['reserved_usd_at_decision'],need,'reconstructed reserve')
+                    s['reserved']+=need;emit('reservation',now,r,s)
+        elif kind=='match':
+            s['reserved']-=r['reserved_usd_at_decision'];s['reserved']=max(0.,s['reserved'])
+            emit('reservation_release',now,r,s)
+            s['cash']-=r['cost_usd']
+            if r['cash_after_match'] is not None:close(r['cash_after_match'],s['cash'],'reconstructed match cash')
+            if r['filled_shares'] or r['status']=='no_fill':
+                emit('fill' if r['filled_shares'] else 'no_fill',now,r,s)
+        elif kind=='settlement':
+            s['locked']+=r['payout_usd'];s['realized']+=r['net_pnl_usd']
+            close(r['cash_after_settlement'],s['cash'],'reconstructed outcome cash')
+            close(r['realized_equity_after_settlement'],1000+s['realized'],'reconstructed realized equity')
+            emit(kind,now,r,s)
+        else:
+            s['cash']+=r['payout_usd'];s['locked']-=r['payout_usd']
+            close(r['cash_after_release'],s['cash'],'reconstructed release cash')
+            emit(kind,now,r,s)
+    return trace
+
+
 def audit(input_path, root):
     completion=json.loads((root/'completion.json').read_text())
     if completion['input_sha256']!=sha(input_path):raise ValueError('input changed')
+    damaged=[]
     for name,want in completion['outputs_sha256'].items():
-        if sha(root/name)!=want:raise ValueError('saved artifact changed: '+name)
+        if sha(root/name)!=want:
+            if name!='86400000/cash_events.jsonl.gz':raise ValueError('saved artifact changed: '+name)
+            try:
+                list(rows(root/name))
+            except EOFError:
+                pass
+            else:
+                raise ValueError('hash mismatch without proved truncation; reconstruction refused')
+            damaged.append(dict(path=name,expected_sha256=want,observed_sha256=sha(root/name),
+              observed_bytes=(root/name).stat().st_size,truncation_verified='gzip EOFError',
+              accepted_as_original_engine_trace=False))
     books=defaultdict(list);clocks=defaultdict(list);outcomes={};header=None
     for r in rows(input_path):
         if r['type']=='dataset':header=r
@@ -42,11 +111,25 @@ def audit(input_path, root):
         if i<0:raise ValueError('no causal book')
         return books[mid][i]
     report={'schema':'cash-release-saved-independent-audit-v1','input_sha256':sha(input_path),
-            'new_financial_replays':0,'rank7_result':None,'formal_oos_result':None,'scenarios':{}}
+            'new_financial_replays':0,'rank7_result':None,'formal_oos_result':None,
+            'damaged_original_files_quarantined':damaged,'scenarios':{}}
     for delay in (3600000,86400000):
         folder=root/str(delay);doc=json.loads((folder/'summary.json').read_text())
-        aa=list(rows(folder/'attempts.jsonl.gz'));ee=list(rows(folder/'cash_events.jsonl.gz'))
+        aa=list(rows(folder/'attempts.jsonl.gz'))
         cfg=doc['config'];metrics=doc['summary'];grouped=defaultdict(list)
+        if delay==86400000 and damaged:
+            ee=reconstruct_cash_events(aa,metrics,delay)
+            target=root/'reconstructed_86400000_cash_events.jsonl.gz'
+            if target.exists():
+                if list(rows(target))!=ee:raise ValueError('prior reconstruction changed')
+            else:
+                with target.open('xb') as raw,gzip.GzipFile(fileobj=raw,mode='wb',filename='',mtime=0) as f:
+                    for row in ee:f.write((json.dumps(row,separators=(',',':'))+'\n').encode())
+            if sum(1 for _ in rows(target))!=len(ee):raise ValueError('truncated reconstruction')
+            report['reconstructed_cash_trace']=dict(path=target.name,sha256=sha(target),rows=len(ee),
+                scope='independent lifecycle reconstruction; not recovered original mutation bytes',
+                financial_replays_repeated=0,intermediate_order_cash_values_all_checked=True)
+        else:ee=list(rows(folder/'cash_events.jsonl.gz'))
         if (cfg['cash_release_delay_ms']!=delay or cfg['shares']!=100 or cfg['initial_cash_usd']!=1000
               or cfg['latencies_ms']!=[500,600,1000] or not cfg['require_constraints']
               or cfg['full_or_zero'] or cfg['side_specific_books'] or cfg['post_send_reject_bps']
