@@ -34,7 +34,7 @@ class CashAdmissionTests(unittest.TestCase):
         self.assertIsNone(r['net_pnl_usd']);self.assertIsNone(r['formal_oos_result'])
         self.assertIn('missing mandatory order cash transitions',r['reasons'][0])
 
-    def test_actual_engine_output_can_pass_guard_with_complete_cash_trace(self):
+    def complete_engine_fixture(self):
         import replay_engine as engine
         from test_rank7_cash_integrity import signal
         # These are synthetic input prices; replay creates the ledger rather
@@ -54,11 +54,43 @@ class CashAdmissionTests(unittest.TestCase):
                 engine.ReplayConfig(**scenario['config']))
             r.update(mode='isolated',engine_config=scenario['config'],inherited_execution_assumptions=[])
             self.base.results[scenario['name']]=r
-        self.base.build();result=self.check()
+        self.base.build()
+
+    def test_actual_engine_output_can_pass_guard_with_complete_cash_trace(self):
+        self.complete_engine_fixture();result=self.check()
         self.assertEqual(result['status'],'assessed_development_only',result)
         self.assertEqual(len(result['ranking']),1)
         self.assertEqual(len(result['cash_evidence']),3)
         self.assertEqual(result['qualified_strategies'],0)
+
+    def mutate_summary_sidecars(self,field,value):
+        import json
+        root=self.base.root;name=self.base.scenarios[0]['name']
+        audit=json.loads((root/name/'audit.json').read_text())
+        audit['summary'][0][field]=value
+        self.base.write(root/name/'audit.json',audit)
+        metrics=json.loads((root/'metrics.json').read_text())
+        for row in metrics:
+            if row['scenario']==name and row['latency_ms']==500:row[field]=value
+        self.base.write(root/'metrics.json',metrics)
+        done=json.loads((root/'completion.json').read_text())
+        for rel in [name+'/audit.json','metrics.json']:
+            done['output_sha256'][rel]=sha(root/rel)
+        self.base.write(root/'completion.json',done)
+
+    def test_stale_summary_hash_refresh_cannot_inflate_ranking_profit(self):
+        self.complete_engine_fixture();self.mutate_summary_sidecars('net_pnl_usd',558.32)
+        self.assertEqual(self.base.assess()['status'],'assessed_development_only')
+        r=self.check();self.assertEqual(r['status'],'blocked')
+        self.assertIn('summary/cash mismatch: net_pnl_usd',r['reasons'][0])
+        self.assertEqual(r['ranking'],[]);self.assertIsNone(r['net_pnl_usd'])
+
+    def test_stale_filled_quantity_cannot_change_capacity_or_share_returns(self):
+        self.complete_engine_fixture();self.mutate_summary_sidecars('filled_shares',1)
+        self.assertEqual(self.base.assess()['status'],'assessed_development_only')
+        r=self.check();self.assertEqual(r['status'],'blocked')
+        self.assertIn('summary/attempt mismatch: filled_shares',r['reasons'][0])
+        self.assertEqual(r['ranking'],[])
 
     def test_late_guard_cannot_upgrade_old_replay(self):
         self.protocol['registered_at_utc']='1970-01-10T00:00:00Z'
