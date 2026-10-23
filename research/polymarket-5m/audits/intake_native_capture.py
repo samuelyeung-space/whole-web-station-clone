@@ -125,8 +125,11 @@ def intake(manifest, transfers, output, downloader):
 
 
 def download(transport, target):
-    subprocess.run(["curl", "--silent", "--show-error", "--fail", "--location", "--retry", "2",
-                    transport["download_url"], "--output", str(target)], check=True)
+    result = subprocess.run(["curl", "--silent", "--show-error", "--fail", "--location", "--retry", "2",
+                             transport["download_url"], "--output", str(target)], check=False)
+    if result.returncode:
+        # CalledProcessError would expose the short-lived URL in its command.
+        raise RuntimeError("artifact byte transfer failed; no source admission")
 
 
 if __name__ == "__main__":
