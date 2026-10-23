@@ -2,7 +2,7 @@
 
 事先写死（10 月 2 日约 08:30 UTC，数据还没录）：2026-10-02 09:00 UTC 起开始的 BTC 5m 市场；币安逐笔成交 2σ 触发（剩 240–15 秒），公平价按 H：从触发前 2 秒的 Up 中间价起算，加上这 2 秒币安的涨跌；0.4 秒后按卖一买顺势一方，公平价 − 卖一 − 手续费 ≥ 12¢ 才买；同一市场每次都买，买到后 2 秒内不再买；第一笔和与第一笔同方向的加仓每笔 1 份，反方向的加仓每笔 2 份；持有到结算。每份赚的钱 = Σ份数×盈亏 / Σ份数，标准误按市场聚类（同一市场的几笔一起结算），单边正态 p。按每个市场第一笔的时间取前 1,000 个有成交的市场、它们的全部成交，判定一次：每份 > 0 且 p < 0.025 才算通过。数据处理同检验 G（每段录制单独算、盘口健康、断线检查）。
 
-录制段 102 个，0.4 秒：成交 2,189 笔、1,401 个市场。
+录制段 99 个，0.4 秒：成交 2,161 笔、1,378 个市场。
 
 录制段备注（跳过的和断线检查）：
 
@@ -23,7 +23,6 @@
 - btc 37111395430: 431 candidates dropped because the CLOB socket closed between the quote and the order (77 disconnects in the recording; test C counts its judged lag only)
 - btc 37128550183: 396 candidates dropped because the CLOB socket closed between the quote and the order (58 disconnects in the recording; test C counts its judged lag only)
 - btc 37146417247: 1754 candidates dropped because the CLOB socket closed between the quote and the order (102 disconnects in the recording; test C counts its judged lag only)
-- btc 37164037946: 762 candidates dropped because the CLOB socket closed between the quote and the order (61 disconnects in the recording; test C counts its judged lag only)
 - btc 37179397738: 576 candidates dropped because the CLOB socket closed between the quote and the order (70 disconnects in the recording; test C counts its judged lag only)
 - btc 37194238626: 1008 candidates dropped because the CLOB socket closed between the quote and the order (78 disconnects in the recording; test C counts its judged lag only)
 - btc 37230483105: 3579 candidates dropped because the CLOB socket closed between the quote and the order (179 disconnects in the recording; test C counts its judged lag only)
@@ -54,7 +53,6 @@
 - btc 38204238337: 1353 candidates dropped because the CLOB socket closed between the quote and the order (55 disconnects in the recording; test C counts its judged lag only)
 - btc 38224319208: 2827 candidates dropped because the CLOB socket closed between the quote and the order (102 disconnects in the recording; test C counts its judged lag only)
 - btc 38256540882: 1629 candidates dropped because the CLOB socket closed between the quote and the order (155 disconnects in the recording; test C counts its judged lag only)
-- btc 38295792174: 1349 candidates dropped because the CLOB socket closed between the quote and the order (114 disconnects in the recording; test C counts its judged lag only)
 - btc 38328336070: 1351 candidates dropped because the CLOB socket closed between the quote and the order (90 disconnects in the recording; test C counts its judged lag only)
 - btc 38356084728: 1263 candidates dropped because the CLOB socket closed between the quote and the order (115 disconnects in the recording; test C counts its judged lag only)
 - btc 38392307218: 3054 candidates dropped because the CLOB socket closed between the quote and the order (168 disconnects in the recording; test C counts its judged lag only)
@@ -70,7 +68,7 @@
 - btc 38801525953: 417 candidates dropped because the CLOB socket closed between the quote and the order (27 disconnects in the recording; test C counts its judged lag only)
 - btc 38838476036: 161 candidates dropped because the CLOB socket closed between the quote and the order (24 disconnects in the recording; test C counts its judged lag only)
 - btc 38869686142: 3896 candidates dropped because the CLOB socket closed between the quote and the order (207 disconnects in the recording; test C counts its judged lag only)
-- btc 38909708508: 3554 candidates dropped because the CLOB socket closed between the quote and the order (260 disconnects in the recording; test C counts its judged lag only)
+- btc 38909708508: 3582 candidates dropped because the CLOB socket closed between the quote and the order (260 disconnects in the recording; test C counts its judged lag only)
 - btc 38956287813: 1055 candidates dropped because the CLOB socket closed between the quote and the order (95 disconnects in the recording; test C counts its judged lag only)
 - btc 38991449708: 280 candidates dropped because the CLOB socket closed between the quote and the order (56 disconnects in the recording; test C counts its judged lag only)
 - btc 39006828209: 336 candidates dropped because the CLOB socket closed between the quote and the order (47 disconnects in the recording; test C counts its judged lag only)
@@ -90,10 +88,8 @@
 - btc 39264275362: 1753 candidates dropped because the CLOB socket closed between the quote and the order (112 disconnects in the recording; test C counts its judged lag only)
 - btc 39298446083: 751 candidates dropped because the CLOB socket closed between the quote and the order (61 disconnects in the recording; test C counts its judged lag only)
 - btc 39331573209: 506 candidates dropped because the CLOB socket closed between the quote and the order (84 disconnects in the recording; test C counts its judged lag only)
-- btc 39356467687: 1000 candidates dropped because the CLOB socket closed between the quote and the order (100 disconnects in the recording; test C counts its judged lag only)
 - btc 39377988946: 1886 candidates dropped because the CLOB socket closed between the quote and the order (128 disconnects in the recording; test C counts its judged lag only)
 - btc 39405069051: 1370 candidates dropped because the CLOB socket closed between the quote and the order (100 disconnects in the recording; test C counts its judged lag only)
-- btc 39435891649: 2449 candidates dropped because the CLOB socket closed between the quote and the order (131 disconnects in the recording; test C counts its judged lag only)
 - btc 39471706733: 697 candidates dropped because the CLOB socket closed between the quote and the order (94 disconnects in the recording; test C counts its judged lag only)
 - btc 39505664620: 1141 candidates dropped because the CLOB socket closed between the quote and the order (80 disconnects in the recording; test C counts its judged lag only)
 - btc 39531324932: 753 candidates dropped because the CLOB socket closed between the quote and the order (83 disconnects in the recording; test C counts its judged lag only)
@@ -102,18 +98,19 @@
 - btc 39614816930: 2166 candidates dropped because the CLOB socket closed between the quote and the order (129 disconnects in the recording; test C counts its judged lag only)
 - btc 39650865752: 948 candidates dropped because the CLOB socket closed between the quote and the order (82 disconnects in the recording; test C counts its judged lag only)
 - btc 39685165486: 780 candidates dropped because the CLOB socket closed between the quote and the order (63 disconnects in the recording; test C counts its judged lag only)
-- btc 39710494768: 1364 candidates dropped because the CLOB socket closed between the quote and the order (78 disconnects in the recording; test C counts its judged lag only)
+- btc 39710494768: 1337 candidates dropped because the CLOB socket closed between the quote and the order (78 disconnects in the recording; test C counts its judged lag only)
 - btc 39733110725: 683 candidates dropped because the CLOB socket closed between the quote and the order (54 disconnects in the recording; test C counts its judged lag only)
 - btc 39762268955: 588 candidates dropped because the CLOB socket closed between the quote and the order (40 disconnects in the recording; test C counts its judged lag only)
 - btc 39794955858: 660 candidates dropped because the CLOB socket closed between the quote and the order (80 disconnects in the recording; test C counts its judged lag only)
 - btc 39830862786: 638 candidates dropped because the CLOB socket closed between the quote and the order (82 disconnects in the recording; test C counts its judged lag only)
 - btc 39864728112: 529 candidates dropped because the CLOB socket closed between the quote and the order (50 disconnects in the recording; test C counts its judged lag only)
+- btc 39889515024: 392 candidates dropped because the CLOB socket closed between the quote and the order (60 disconnects in the recording; test C counts its judged lag only)
 
 | 版本 | 延迟 | 市场 | 笔数 | 每份（±聚类标准误） | p |
 |---|---|---:|---:|---:|---:|
-| 反向 2 倍（检验的规则） | 0.4 秒 | 1,401 | 2,189 | +9.24¢ ±1.0 | 0.0000 |
-| 每次都加（每笔 1 份） | 0.4 秒 | 1,401 | 2,189 | +9.05¢ ±1.0 | 0.0000 |
-| 只买第一笔 | 0.4 秒 | 1,401 | 1,401 | +8.56¢ ±1.2 | 0.0000 |
-| 反向 2 倍（检验的规则） | 0.3 秒 | 1,600 | 2,638 | +11.78¢ ±0.9 | 0.0000 |
+| 反向 2 倍（检验的规则） | 0.4 秒 | 1,378 | 2,161 | +9.00¢ ±1.0 | 0.0000 |
+| 每次都加（每笔 1 份） | 0.4 秒 | 1,378 | 2,161 | +8.78¢ ±1.0 | 0.0000 |
+| 只买第一笔 | 0.4 秒 | 1,378 | 1,378 | +8.33¢ ±1.2 | 0.0000 |
+| 反向 2 倍（检验的规则） | 0.3 秒 | 1,570 | 2,600 | +11.40¢ ±0.9 | 0.0000 |
 
 检验 I（前 1,000 个市场）：H 每次都加、反向 2 倍、0.4 秒：1,524 笔，每份 +8.53¢ ±1.21，p = 0.0000 → 通过（录制段 72 个：36972067946, 37002779006, 37041041140, 37075141917, 37095301195, 37111395430, 37128550183, 37146417247, 37164037946, 37179397738, 37194238626, 37230483105, 37250413580, 37274274070, 37307261464, 37347643542, 37384144976, 37412793391, 37444926603, 37484528542, 37527655881, 37558084377, 37586562398, 37621711008, 37663361030, 37702189414, 37729957174, 37764001551, 37806403126, 37847134073, 37875151310, 37903011520, 37938384834, 38110498321, 38128792010, 38149300477, 38204238337, 38224319208, 38256540882, 38295792174, 38328336070, 38356084728, 38392307218, 38433952235, 38478901038, 38508898150, 38540600818, 38586775442, 38637645559, 38674242681, 38706009620, 38751308326, 38801525953, 38838476036, 38869686142, 38909708508, 38956287813, 38991449708, 39006828209, 39021801232, 39037366846, 39054705548, 39071954833, 39087435473, 39101542613, 39116565508, 39133000333, 39151195217, 39169485185, 39187186730, 39206741604, 39233436781；最后一笔触发于 2026-10-19 11:37 UTC）（已判定，不再重算）
