@@ -4,7 +4,7 @@
 
 | 币种 | 录制段 | 触发（按 L = 检验值） |
 |---|---:|---:|
-| btc | 99 | 3,999 |
+| btc | 101 | 4,080 |
 
 录制段备注（跳过的和断线检查）：
 
@@ -21,6 +21,7 @@
 - btc 37164037946: 3 candidates dropped because the CLOB socket closed between the quote and the order (61 disconnects in the recording; test C counts its judged lag only)
 - btc 37179397738: 3 candidates dropped because the CLOB socket closed between the quote and the order (70 disconnects in the recording; test C counts its judged lag only)
 - btc 37194238626: 7 candidates dropped because the CLOB socket closed between the quote and the order (78 disconnects in the recording; test C counts its judged lag only)
+- btc 37230483105: 8 candidates dropped because the CLOB socket closed between the quote and the order (179 disconnects in the recording; test C counts its judged lag only)
 - btc 37250413580: 11 candidates dropped because the CLOB socket closed between the quote and the order (161 disconnects in the recording; test C counts its judged lag only)
 - btc 37274274070: 9 candidates dropped because the CLOB socket closed between the quote and the order (214 disconnects in the recording; test C counts its judged lag only)
 - btc 37307261464: 7 candidates dropped because the CLOB socket closed between the quote and the order (182 disconnects in the recording; test C counts its judged lag only)
@@ -99,14 +100,14 @@
 
 | L | 笔数 | 胜率 | 平均价 | EV | p | 卖一数量中位 |
 |---:|---|---|---|---|---|---|
-| 0 秒 | 4,152 | 59.7% | 0.559 | +2.53¢ | 0.0001 | 94 |
-| 0.1 秒 | 4,079 | 59.7% | 0.568 | +1.68¢ | 0.0063 | 75 |
-| 0.2 秒 | 4,026 | 59.6% | 0.578 | +0.57¢ | 0.2062 | 65 |
-| 0.3 秒 | 3,999 | 59.7% | 0.590 | -0.61¢ | 1.0000 | 82 |
-| 0.4 秒 | 3,983 | 59.6% | 0.597 | -1.32¢ | 1.0000 | 100 |
-| 0.5 秒 | 3,971 | 59.6% | 0.602 | -1.79¢ | 1.0000 | 129 |
-| 1 秒 | 3,937 | 59.7% | 0.609 | -2.43¢ | 1.0000 | 242 |
-| 2 秒 | 3,880 | 59.6% | 0.611 | -2.74¢ | 1.0000 | 336 |
-| 5 秒 | 3,760 | 59.7% | 0.611 | -2.64¢ | 1.0000 | 385 |
+| 0 秒 | 4,235 | 59.7% | 0.560 | +2.45¢ | 0.0000 | 95 |
+| 0.1 秒 | 4,161 | 59.7% | 0.569 | +1.59¢ | 0.0083 | 75 |
+| 0.2 秒 | 4,107 | 59.6% | 0.579 | +0.49¢ | 0.2364 | 66 |
+| 0.3 秒 | 4,080 | 59.7% | 0.591 | -0.69¢ | 1.0000 | 81 |
+| 0.4 秒 | 4,063 | 59.7% | 0.598 | -1.39¢ | 1.0000 | 100 |
+| 0.5 秒 | 4,050 | 59.6% | 0.603 | -1.86¢ | 1.0000 | 130 |
+| 1 秒 | 4,015 | 59.7% | 0.610 | -2.52¢ | 1.0000 | 241 |
+| 2 秒 | 3,956 | 59.6% | 0.612 | -2.85¢ | 1.0000 | 335 |
+| 5 秒 | 3,830 | 59.7% | 0.612 | -2.72¢ | 1.0000 | 384 |
 
 检验 C（前 1,500 笔）：过期报价（z=3，0.3 秒后按卖一买）：1500 笔，EV -2.08¢，p = 1.0000 → 没通过（录制段 37 个：36704245701, 36740728504, 36781277830, 36807987110, 36835222993, 36869869857, 36912544596, 36946930986, 36972067946, 37002779006, 37041041140, 37075141917, 37095301195, 37111395430, 37128550183, 37146417247, 37164037946, 37179397738, 37194238626, 37230483105, 37250413580, 37274274070, 37307261464, 37347643542, 37384144976, 37412793391, 37444926603, 37484528542, 37527655881, 37558084377, 37586562398, 37621711008, 37663361030, 37702189414, 37729957174, 37764001551, 37806403126；最后一笔触发于 2026-10-08 18:36 UTC）（已判定，不再重算）
