@@ -10,6 +10,38 @@ import math
 from collections import Counter, defaultdict
 
 
+def summarize_with_receipt(summarize, rows, counters, suppressed_unsent=None, *, sink):
+    """Call the unchanged summarizer and export a separate lossless receipt.
+
+    The caller binds this wrapper only in its registered research worker, e.g.
+    ``run.summarize = partial(summarize_with_receipt, original, sink=write)``.
+    It must register that worker and wrapper hash before any future replay.
+    The returned legacy result is unchanged, including its known reason-count
+    collision. The sink receives corrected reasons plus original counters;
+    neither output upgrades economic or OOS admission.
+    """
+    snapshot_rows = copy.deepcopy(rows)
+    snapshot_counters = copy.deepcopy(counters)
+    if suppressed_unsent is None:
+        result = summarize(rows, counters)
+    else:
+        # Preserve the explicit third-argument contract; these buckets override
+        # the counters' fallback inside the original summarizer as well.
+        snapshot_counters['_suppressed_unsent'] = [
+            dict(evaluation_ms=delay, reason=reason, source=source, count=count)
+            for (delay, reason, source), count in suppressed_unsent.items()
+        ]
+        result = summarize(rows, counters, suppressed_unsent)
+    corrected = audit_reason_buckets(snapshot_rows, snapshot_counters, result)
+    receipt = dict(schema='current-h-pre-compaction-receipt-v1',
+        pre_compaction_counters=snapshot_counters,
+        retained_rows=len(snapshot_rows),
+        reason_accounting=corrected['reason_accounting'],
+        economic_admission=False, financial_result_unchanged=True)
+    sink(receipt)
+    return result
+
+
 def audit_reason_buckets(rows, counters, summary):
     rows = list(rows)
     buckets = counters.get('_suppressed_unsent', [])
