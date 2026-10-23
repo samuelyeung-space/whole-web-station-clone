@@ -29,7 +29,7 @@ def sha(path):
         while b:=f.read(1<<20):h.update(b)
     return h.hexdigest()
 
-def worker(data,out,*,duration_ms=DURATION_MS,branch_opportunities=False,upstream_gates=False,trigger_internals=False):
+def worker(data,out,*,duration_ms=DURATION_MS,branch_opportunities=False,upstream_gates=False,trigger_internals=False,clob_updates=False):
     import h_source_race as race
     import h_replay_run as engine
     import h_replay_archive as archive
@@ -55,7 +55,10 @@ def worker(data,out,*,duration_ms=DURATION_MS,branch_opportunities=False,upstrea
     observed=Counter();suppressed=Counter();source_counts=Counter()
     trace=out/'attempts.jsonl.gz'
     signal_ids=set();branch_keys={};unsent_keys=set();evaluated_keys=set();machines=[]
-    signal_context={};upstream_joined=set();upstream_observer=None;trigger_observer=None
+    signal_context={};upstream_joined=set();upstream_observer=None;trigger_observer=None;clob_observer=None
+    if clob_updates:
+        import h_clob_update_observer
+        clob_function,clob_observer=h_clob_update_observer.instrument(engine)
     if trigger_internals:
         import h_trigger_observer
         trigger_class,trigger_observer=h_trigger_observer.instrument(engine)
@@ -71,6 +74,8 @@ def worker(data,out,*,duration_ms=DURATION_MS,branch_opportunities=False,upstrea
     with trace.open('wb') as raw:
         with gzip.GzipFile(fileobj=raw,mode='wb',mtime=0) as stream:
             def sink(event):
+                if clob_updates and event['kind']=='upstream_gate' and event['stage']!='error':
+                    for clob_row in clob_observer.join_batch(event):sink(clob_row)
                 if trigger_internals and event['kind']=='upstream_gate':
                     trigger_row=trigger_observer.join(event)
                     if trigger_row is not None:sink(trigger_row)
@@ -114,6 +119,8 @@ def worker(data,out,*,duration_ms=DURATION_MS,branch_opportunities=False,upstrea
                 replay_function=engine.replay_normalized
                 if upstream_gates:
                     replay_function,upstream_observer=h_upstream_observer.instrument(engine,sink)
+                    if clob_updates:
+                        replay_function.__globals__["_apply_clob_batch"]=clob_function
                     if trigger_internals:
                         # Only this compiled research function owns this copied namespace.
                         replay_function.__globals__["TimestampedFirstTrigger"]=trigger_class
@@ -130,11 +137,16 @@ def worker(data,out,*,duration_ms=DURATION_MS,branch_opportunities=False,upstrea
     assert all(r['winner'] is None and r['pnl'] is None for r in rows)
     branch_audit=None
     upstream_audit=None
+    clob_audit=None
     if upstream_gates:
         assert upstream_joined==signal_ids
         assert observed['upstream_gate']==upstream_observer.sequence
         upstream_audit=upstream_observer.reconcile(counters,eligible_signals=len(signal_ids))
         upstream_audit['eligible_signal_identity_join_exact']=True
+        if clob_updates:
+            assert observed['clob_update_gate']==clob_observer.sequence
+            clob_audit=clob_observer.reconcile(source_counts.get('clob',0),counters.get('clob_batches',0))
+            upstream_audit['complete_clob_individual_update_rejection_ledger']=True
         if trigger_internals:
             trigger_audit=trigger_observer.reconcile(upstream_observer.source_events)
             upstream_audit['trigger_internal_audit']=trigger_audit
@@ -181,6 +193,8 @@ def worker(data,out,*,duration_ms=DURATION_MS,branch_opportunities=False,upstrea
         'branch_observer_sha256':sha(Path(branch_observer.__file__)) if branch_opportunities else None,
         'upstream_observer_sha256':sha(Path(h_upstream_observer.__file__)) if upstream_gates else None,
         'trigger_observer_sha256':sha(Path(h_trigger_observer.__file__)) if trigger_internals else None,
+        'clob_observer_sha256':sha(Path(h_clob_update_observer.__file__)) if clob_updates else None,
+        'clob_individual_update_audit':clob_audit,
         'upstream_gate_audit':upstream_audit,
         'eligible_branch_audit':branch_audit,
         'worker_sha256':sha(Path(__file__)),'trace_sha256':sha(trace),
@@ -205,6 +219,7 @@ def main():
     ap.add_argument('--branch-opportunities',action='store_true')
     ap.add_argument('--upstream-gates',action='store_true')
     ap.add_argument('--trigger-internals',action='store_true')
+    ap.add_argument('--clob-updates',action='store_true')
     a=ap.parse_args();data=a.archive.resolve();out=a.out_dir.resolve()
     if not math.isfinite(a.duration_ms) or a.duration_ms<=0:
         ap.error('duration-ms must be positive and finite')
@@ -212,8 +227,10 @@ def main():
         ap.error('upstream-gates requires branch-opportunities for signal identity reconciliation')
     if a.trigger_internals and not a.upstream_gates:
         ap.error('trigger-internals requires upstream-gates for per-event identity reconciliation')
+    if a.clob_updates and not a.upstream_gates:
+        ap.error('clob-updates requires upstream-gates for raw-to-merged identity reconciliation')
     if a.worker:
-        worker(data,out,duration_ms=a.duration_ms,branch_opportunities=a.branch_opportunities,upstream_gates=a.upstream_gates,trigger_internals=a.trigger_internals);return
+        worker(data,out,duration_ms=a.duration_ms,branch_opportunities=a.branch_opportunities,upstream_gates=a.upstream_gates,trigger_internals=a.trigger_internals,clob_updates=a.clob_updates);return
     sys.path.insert(0,str(ROOT))
     import frozen_dependency_runner as runner
     freeze=ROOT/'forward/source-race-freeze.json'
@@ -226,6 +243,7 @@ def main():
         'duration_ms':a.duration_ms,'evaluation_ms':LAGS,'data_already_consumed':True,
         'branch_opportunities':a.branch_opportunities,
         'upstream_gates':a.upstream_gates,'trigger_internals':a.trigger_internals,
+        'clob_updates':a.clob_updates,
         'settlement_labels_loaded':False,'financial_result':None,
         'formal_oos_result':None,'rank7_pnl_usd':None,
         'worker_code_sha256':sha(Path(__file__)),
@@ -233,6 +251,7 @@ def main():
         'branch_observer_code_sha256':sha(ROOT/'h_branch_observer.py') if a.branch_opportunities else None,
         'upstream_observer_code_sha256':sha(ROOT/'h_upstream_observer.py') if a.upstream_gates else None,
         'trigger_observer_code_sha256':sha(ROOT/'h_trigger_observer.py') if a.trigger_internals else None,
+        'clob_observer_code_sha256':sha(ROOT/'h_clob_update_observer.py') if a.clob_updates else None,
         'registered_source_race_freeze_sha256':EXPECTED_FREEZE,
         'old_freezes_changed':False,'dependencies':audit}
     reg=out/'registration.json'
@@ -247,12 +266,15 @@ def main():
             shutil.copyfile(ROOT/'h_upstream_observer.py',root/'h_upstream_observer.py')
         if a.trigger_internals:
             shutil.copyfile(ROOT/'h_trigger_observer.py',root/'h_trigger_observer.py')
+        if a.clob_updates:
+            shutil.copyfile(ROOT/'h_clob_update_observer.py',root/'h_clob_update_observer.py')
         shutil.copyfile(__file__,root/'worker.py')
         command=[sys.executable,str(root/'worker.py'),'--worker','--archive',str(data),
             '--out-dir',str(out),'--duration-ms',str(a.duration_ms)]
         if a.branch_opportunities:command.append('--branch-opportunities')
         if a.upstream_gates:command.append('--upstream-gates')
         if a.trigger_internals:command.append('--trigger-internals')
+        if a.clob_updates:command.append('--clob-updates')
         process=subprocess.run(command,cwd=root)
     registration['exit_code']=process.returncode
     reg.write_text(json.dumps(registration,sort_keys=True,indent=2)+'\n')
