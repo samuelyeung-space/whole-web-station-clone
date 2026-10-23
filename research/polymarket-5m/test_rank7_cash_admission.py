@@ -14,6 +14,7 @@ class CashAdmissionTests(unittest.TestCase):
         for result in self.base.results.values():
             for i,row in enumerate(result['attempts'],1):
                 row.update(attempt_id=str(i),requested_shares=100,fill_vwap=.4,
+                    limit_price=.4,side='Up',winner='Up',
                     reserved_usd_at_decision=row['cost_usd'],cash_before_decision=1000,
                     cash_after_match=1000-row['cost_usd'],cash_release_due_ms=row['settlement_ms'],
                     cash_released=True,cash_after_settlement=1000+row['net_pnl_usd'])
