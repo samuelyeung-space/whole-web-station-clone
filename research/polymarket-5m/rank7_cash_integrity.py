@@ -52,6 +52,45 @@ def read_cash_csv(path):
     return rows
 
 
+def reconcile_summary(summary, rows, state):
+    """Bind ranking totals to attempts and independently rebuilt cash.
+
+    Report hashes and a previously written reconciliation flag alone do not
+    establish that a later metrics sidecar still agrees with its ledger.
+    """
+    filled = [row for row in rows if row['filled_shares'] > 0]
+    settled = [row for row in filled if row.get('settled') is True]
+    statuses = Counter(row['status'] for row in rows)
+    totals = dict(attempts=len(rows), submitted_orders=sum(row['submitted'] for row in rows),
+        full_fills=statuses['filled_full'], partial_fills=statuses['filled_partial'],
+        filled_shares=math.fsum(row['filled_shares'] for row in filled),
+        fees_usd=math.fsum(amount(row,'fees_usd') for row in rows),
+        extra_cost_usd=math.fsum(amount(row,'extra_cost_usd') for row in rows),
+        settled_positions=len(settled), unresolved_positions=len(filled)-len(settled))
+    for name, value in totals.items():
+        same(amount(summary,name),value,'summary/attempt mismatch: '+name)
+    need(summary.get('status_counts')==dict(statuses),'summary/attempt mismatch: status_counts')
+    for name, value in dict(cost_usd=math.fsum(row['cost_usd'] for row in rows),
+        filled_orders=len(filled),failed_or_unfilled_attempts=len(rows)-len(filled)).items():
+        if name in summary:
+            same(amount(summary,name),value,'summary/attempt mismatch: '+name)
+    if rows:
+        same(amount(summary,'realized_pnl_usd'),state['realized_pnl_usd'],
+             'summary/cash mismatch: realized_pnl_usd')
+    else:
+        need(summary.get('realized_pnl_usd') is None,'no-signal realized PnL must remain null')
+    pnl=summary.get('net_pnl_usd')
+    if pnl is not None:
+        same(pnl,state['realized_pnl_usd'],'summary/cash mismatch: net_pnl_usd')
+    else:
+        need(summary.get('status')!='simulated_complete','completed ranking PnL missing')
+    ratio=summary.get('net_pnl_per_filled_share_usd')
+    if pnl is not None and totals['filled_shares']>0:
+        same(ratio,pnl/totals['filled_shares'],'summary/attempt mismatch: per-share PnL')
+    else:
+        need(ratio is None,'no-fill or pending per-share PnL must remain null')
+
+
 def audit_cash(attempts, events, summaries):
     """Cross-check event transitions, order collateral and terminal summaries.
 
@@ -60,6 +99,7 @@ def audit_cash(attempts, events, summaries):
     locked payouts can remain locked, but cannot be spent before their release.
     """
     states, indexed, counts, expected = {}, {}, Counter(), Counter()
+    by_account = {}
     summary_by_key = {}
     for row in summaries:
         key = account(row)
@@ -69,6 +109,7 @@ def audit_cash(attempts, events, summaries):
         states[key] = dict(zip(BALANCES,(1000.,0.,0.,0.)))
         states[key].update(min_available=1000.,peak_equity=1000.,max_drawdown=0.)
         summary_by_key[key] = row
+        by_account[key] = []
     need(bool(states), 'missing summary accounts')
     for row in attempts:
         key = account(row);aid = row.get('attempt_id')
@@ -76,6 +117,7 @@ def audit_cash(attempts, events, summaries):
         ident = key+(aid,)
         need(ident not in indexed, 'duplicate attempt identity')
         indexed[ident] = row
+        by_account[key].append(row)
         same(amount(row,'requested_shares'),100.,'attempt target is not100')
         d,m=amount(row,'decision_ms'),amount(row,'match_ms')
         same(m-d,key[1],'attempt match does not equal registered total latency')
@@ -108,6 +150,8 @@ def audit_cash(attempts, events, summaries):
                 expected[ident+('payout_release',)]+=1
         else:
             same(c,0.,'unfilled order debited')
+            same(amount(row,'fees_usd'),0.,'unfilled order charged fees')
+            same(amount(row,'extra_cost_usd'),0.,'unfilled order charged extra cost')
             if row.get('status')=='no_fill':expected[ident+('no_fill',)]+=1
             if row.get('status')=='rejected_post_send_stress':expected[ident+('post_send_reject',)]+=1
     previous_ms = -math.inf
@@ -172,7 +216,9 @@ def audit_cash(attempts, events, summaries):
         same(state['reserved_usd'],0.,'unreleased order collateral')
         same(state['cash_usd']+state['locked_payout_usd'],1000.+state['realized_pnl_usd'],
              'terminal cash conservation mismatch')
+        reconcile_summary(row,by_account[key],state)
     return dict(schema='rank7-independent-cash-integrity-v1',accounts=len(states),
         submitted_orders=sum(r['submitted'] for r in attempts),events=len(events),
         continuous_capital_reconstruction=True,daily_resets=0,topups_or_borrowing=0,
+        ranking_totals_independently_reconciled=True,
         observed_redemption_certified=False,financial_replays=0,formal_oos_result=None)
