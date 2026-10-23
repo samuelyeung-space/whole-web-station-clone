@@ -1,0 +1,194 @@
+{
+  "schema": "portfolio2-future-common-window-reservation-v1",
+  "registered_at_utc": "2026-10-23T22:24:43.499290+00:00",
+  "cohort_id": "PORT2-20261024-20261031",
+  "window_start_utc": "2026-10-24T00:00:00Z",
+  "window_end_exclusive_utc": "2026-10-31T00:00:00Z",
+  "expected_contiguous_utc_days": 7,
+  "expected_btc5m_market_slots": 2016,
+  "market_slots": "every300seconds from fixed window start inclusive to end exclusive",
+  "components": [
+    {
+      "id": "M500-010",
+      "version": "mine500-v1",
+      "name": "External 5s momentum / tau 180-295s / strength 1.5",
+      "family": "price_trend",
+      "template": "momentum_5s",
+      "parameter_variant_of": "momentum_5s",
+      "params": {
+        "tau_min_s": 180.0,
+        "tau_max_s": 295.0,
+        "tau_upper_inclusive": true,
+        "threshold": 0.75,
+        "threshold_multiplier": 1.5
+      },
+      "required_features": [
+        "tau_s",
+        "r_5s"
+      ],
+      "novelty": "existing_family_new_prespecified_grid",
+      "prior_art": [
+        "zoo100.py",
+        "strategy_zoo.py"
+      ],
+      "causal_rule": "Use only available receipt-time features in the declared tau interval. score=r_5s; buy its sign if abs(score)>=threshold; positive score buys Up, negative score buys Down, abs(score)>=threshold required.",
+      "execution_kind": "single_leg_taker_research",
+      "research_status": "registered_not_backtested",
+      "independent_mechanism_claim": false,
+      "rule_fingerprint": "a8fd241923ca45898ec3f55338e83ca28d45d87ca37f0ea686992b984009f589"
+    },
+    {
+      "id": "M500-680",
+      "version": "mine500-v1",
+      "name": "Fade PM 5s acceleration / tau 180-295s / strength 1.5",
+      "family": "pm_relative_value",
+      "template": "pm_acceleration_fade",
+      "parameter_variant_of": "pm_acceleration_fade",
+      "params": {
+        "tau_min_s": 180.0,
+        "tau_max_s": 295.0,
+        "tau_upper_inclusive": true,
+        "threshold": 0.0225,
+        "threshold_multiplier": 1.5
+      },
+      "required_features": [
+        "tau_s",
+        "pm_r_5s",
+        "pm_r_15s"
+      ],
+      "novelty": "existing_family_new_feature_interaction",
+      "prior_art": [
+        "zoo100.py",
+        "strategy_zoo.py"
+      ],
+      "causal_rule": "Use only available receipt-time features in the declared tau interval. score=-(pm_r_5s-(pm_r_15s-pm_r_5s)/2); positive score buys Up, negative score buys Down, abs(score)>=threshold required.",
+      "execution_kind": "single_leg_taker_research",
+      "research_status": "registered_not_backtested",
+      "independent_mechanism_claim": false,
+      "rule_fingerprint": "7b72fbdb072bb07c8ef756335e76a06075b15eb4d477bcc4170e8728b80893f0"
+    }
+  ],
+  "portfolio_id": "PORT-M500-010-680-v1",
+  "portfolio_policy": "earliest causal signal; stable component ID ties; one100shareattempt permarket; failed first signal never retries",
+  "model": "deterministic unchanged rules; no trained model",
+  "new_combination_policies": 1,
+  "new_independent_mechanisms": 0,
+  "code_sha256": {
+    "mine500_pair_portfolio.py": "3c5d3bc0e2bef4c37c0e9033017bec047873f40cf83bba6a5e5b514e8732e81b",
+    "mine500_catalog.py": "23219a5c4ad2320ea68e202f83630d56858513cbe45a2797ee551e9b15aec2c7",
+    "mine500_constraints.py": "44d3dd77514791e5e762589c51d7dddbeeea1200f5da2a6f5456ca903b71488d",
+    "replay_engine.py": "5a293f7a773d46335d2ddf4fe342f400863b616ddd4f9027ae38444d15289785",
+    "cash_release_audit.py": "0f9cc36ef8a3277cc39021e7b67c0ae00a34d151ecf43f69ed094386b4efe8da"
+  },
+  "scenarios": {
+    "base": {
+      "full_or_zero": false,
+      "latencies_ms": [
+        500,
+        600,
+        1000
+      ],
+      "shares": 100.0,
+      "initial_cash_usd": 1000.0,
+      "max_quote_age_ms": 250,
+      "require_constraints": true,
+      "min_notional_usd": 1.0,
+      "depth_fraction": 1.0,
+      "extra_cost_per_filled_share_usd": 0.0,
+      "cash_release_delay_ms": 0,
+      "side_specific_books": false,
+      "post_send_reject_bps": 0,
+      "post_send_reject_seed": "research-only-v1"
+    },
+    "half_depth": {
+      "full_or_zero": false,
+      "latencies_ms": [
+        500,
+        600,
+        1000
+      ],
+      "shares": 100.0,
+      "initial_cash_usd": 1000.0,
+      "max_quote_age_ms": 250,
+      "require_constraints": true,
+      "min_notional_usd": 1.0,
+      "depth_fraction": 0.5,
+      "extra_cost_per_filled_share_usd": 0.0,
+      "cash_release_delay_ms": 0,
+      "side_specific_books": false,
+      "post_send_reject_bps": 0,
+      "post_send_reject_seed": "research-only-v1"
+    },
+    "plus_1cent": {
+      "full_or_zero": false,
+      "latencies_ms": [
+        500,
+        600,
+        1000
+      ],
+      "shares": 100.0,
+      "initial_cash_usd": 1000.0,
+      "max_quote_age_ms": 250,
+      "require_constraints": true,
+      "min_notional_usd": 1.0,
+      "depth_fraction": 1.0,
+      "extra_cost_per_filled_share_usd": 0.01,
+      "cash_release_delay_ms": 0,
+      "side_specific_books": false,
+      "post_send_reject_bps": 0,
+      "post_send_reject_seed": "research-only-v1"
+    },
+    "release24h": {
+      "full_or_zero": false,
+      "latencies_ms": [
+        500,
+        600,
+        1000
+      ],
+      "shares": 100.0,
+      "initial_cash_usd": 1000.0,
+      "max_quote_age_ms": 250,
+      "require_constraints": true,
+      "min_notional_usd": 1.0,
+      "depth_fraction": 1.0,
+      "extra_cost_per_filled_share_usd": 0.0,
+      "cash_release_delay_ms": 86400000,
+      "side_specific_books": false,
+      "post_send_reject_bps": 0,
+      "post_send_reject_seed": "research-only-v1"
+    }
+  },
+  "initial_cash_usd_each_reference_or_shared_portfolio_and_scenario": 1000,
+  "target_order_shares": 100,
+  "daily_cash_reset": false,
+  "borrow_or_topup": false,
+  "primary_latency_ms": 500,
+  "stress_latencies_ms": [
+    600,
+    1000
+  ],
+  "stress_dimensions_separate": [
+    "half_depth",
+    "extra_1cent",
+    "release24h"
+  ],
+  "input_hash": null,
+  "market_manifest_hash": null,
+  "future_pnl_usd": null,
+  "result": null,
+  "status": "pending_complete_unseen_window_and_execution_evidence",
+  "purpose": "prospective development diagnostic with two isolated reference accounts and ancillary shared portfolio; portfolio never replaces single-strategy ranking",
+  "formal_oos_eligible": false,
+  "formal_oos_ineligibility_reason": "existing execution engine is development-only; this reservation alone does not confer OOS admission",
+  "admission_requires": [
+    "full record and official settlement coverage of all2016slots",
+    "same complete7day window/input manifest/costs for every comparison",
+    "actual per-market tick/minimum/fee/wait effective observations",
+    "all registered scenarios retained; no choice of most profitable lag or funding delay",
+    "independent saved order, fee, cash, receivable and summary reconciliation",
+    "zero-signal or zero-fill separate; missing input/result stays null"
+  ],
+  "late_joining_policy": "new rules or execution changes after registration require another strictly later untouched common window; cannot reuse this freeze",
+  "old_Oct10_Oct11_Oct12_19_Oct19_26_protocols_modified": false,
+  "recording_or_redemption_service_deployment": false
+}
