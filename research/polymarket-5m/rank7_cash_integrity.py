@@ -8,6 +8,8 @@ import csv
 import math
 
 EPS = 1e-7
+# Match the pinned replay engine's price/quantity classification tolerance.
+EXECUTION_EPS = 1e-9
 BALANCES = ('cash_usd', 'reserved_usd', 'locked_payout_usd', 'realized_pnl_usd')
 
 
@@ -125,6 +127,8 @@ def audit_cash(attempts, events, summaries):
         need(0<=q<=100 and c>=0,'invalid filled shares or cost')
         need(type(row.get('submitted')) is bool,'submitted flag required')
         if row['submitted']:
+            limit=amount(row,'limit_price')
+            need(0<limit<1,'submitted fixed limit outside binary price bounds')
             need(amount(row,'reserved_usd_at_decision')>0,'submitted order has no collateral')
             expected[ident+('reservation',)]+=1
             expected[ident+('reservation_release',)]+=1
@@ -132,12 +136,27 @@ def audit_cash(attempts, events, summaries):
             need(q==c==0,'unsubmitted order filled or debited')
         if q>0:
             need(row['submitted'] and row.get('settled') is True,'filled order unresolved')
+            status=row.get('status')
+            need(status in ('filled_full','filled_partial'),'positive fill has non-fill status')
+            if status=='filled_full':
+                need(abs(q-row['requested_shares'])<=EXECUTION_EPS,
+                     'full-fill status differs from target quantity')
+            else:
+                need(q<row['requested_shares']-EXECUTION_EPS,
+                     'partial-fill status has full target quantity')
+            price=amount(row,'fill_vwap')
+            need(0<price<1,'fill VWAP outside binary price bounds')
+            need(price<=limit+EXECUTION_EPS,'fill VWAP exceeds fixed decision limit')
             need(amount(row,'fees_usd')>=0 and amount(row,'extra_cost_usd')>=0,'negative cost')
             same(c,q*amount(row,'fill_vwap')+row['fees_usd']+row['extra_cost_usd'],
                  'order notional/fees/cost mismatch')
             need(c<=row['reserved_usd_at_decision']+EPS,'fill cost exceeds collateral')
             payout=amount(row,'payout_usd')
             need(payout in (0.,q),'invalid binary payout')
+            side,winner=row.get('side'),row.get('winner')
+            need(side in ('Up','Down') and winner in ('Up','Down'),
+                 'explicit binary side and winner required')
+            same(payout,q if side==winner else 0.,'payout disagrees with side and winner')
             same(amount(row,'net_pnl_usd'),payout-c,'payout/cost profit mismatch')
             expected[ident+('fill',)]+=1;expected[ident+('settlement',)]+=1
             settle=amount(row,'settlement_ms')
@@ -146,9 +165,13 @@ def audit_cash(attempts, events, summaries):
             same(due,settle+amount(summary_by_key[key],'cash_release_delay_ms'),
                  'cash release delay mismatch')
             need(type(row.get('cash_released')) is bool,'explicit payout release state required')
+            if payout==0 or due==settle:
+                need(row['cash_released'] is True,'immediate or zero payout falsely marked locked')
             if payout and due>settle and row['cash_released']:
                 expected[ident+('payout_release',)]+=1
         else:
+            need(row.get('status') not in ('filled_full','filled_partial'),
+                 'zero fill has filled status')
             same(c,0.,'unfilled order debited')
             same(amount(row,'fees_usd'),0.,'unfilled order charged fees')
             same(amount(row,'extra_cost_usd'),0.,'unfilled order charged extra cost')
