@@ -1,0 +1,203 @@
+{
+  "schema": "usdm-flow-candidate-registry-v1",
+  "registered_at_utc": "2026-10-25T10:29:03.072898+00:00",
+  "evidence_class": "new_venue_variants_signal_only_not_historical_backtest",
+  "candidate_count": 4,
+  "independent_new_mechanisms": 0,
+  "selection": "first registered parameter set of each existing template; no PnL-based choice",
+  "candidates": [
+    {
+      "id": "UFLOW-20261025-001",
+      "version": "usdm-flow-development-v1",
+      "name": "15s and 60s aggressive flow persistence / tau 10-30s / strength 1",
+      "family": "order_flow",
+      "template": "flow_persistence",
+      "parameter_variant_of": "flow_persistence",
+      "params": {
+        "tau_min_s": 10.0,
+        "tau_max_s": 30.0,
+        "tau_upper_inclusive": false,
+        "threshold": 0.15,
+        "threshold_multiplier": 1.0
+      },
+      "required_features": [
+        "tau_s",
+        "flow_15s",
+        "flow_60s"
+      ],
+      "novelty": "explicit_futures_venue_variant_of_existing_flow_rule",
+      "prior_art": [
+        "zoo100.py",
+        "strategy_zoo.py"
+      ],
+      "causal_rule": "Use only available receipt-time features in the declared tau interval. require flow_15s*flow_60s>0; score=sign(flow_15s)*min(abs(flow_15s),abs(flow_60s)); positive score buys Up, negative score buys Down, abs(score)>=threshold required.",
+      "execution_kind": "single_leg_taker_research",
+      "research_status": "registered_signal_only_execution_unbound",
+      "independent_mechanism_claim": false,
+      "source_candidate_id": "M500-181",
+      "source_rule_fingerprint": "e47822ba9ebc6325db7c101aae8f68809be33e316029aaf4d07facb38220bcf5",
+      "venue": "binance_usdm",
+      "instrument": "BTCUSDT",
+      "recorder_contract": "paper-trader-7bf9cf2a-usdm-raw-trade-v1",
+      "execution_binding": null,
+      "main_ranking_admitted": false,
+      "rule_fingerprint": "2fd3b1ddf4c8e518cef001a91bbcf0dc32d6191adf0c60424a65ef1d0b69bc0a"
+    },
+    {
+      "id": "UFLOW-20261025-002",
+      "version": "usdm-flow-development-v1",
+      "name": "Fresh aggressive-flow imbalance acceleration / tau 10-30s / strength 1",
+      "family": "order_flow",
+      "template": "flow_acceleration",
+      "parameter_variant_of": "flow_acceleration",
+      "params": {
+        "tau_min_s": 10.0,
+        "tau_max_s": 30.0,
+        "tau_upper_inclusive": false,
+        "threshold": 0.15,
+        "threshold_multiplier": 1.0
+      },
+      "required_features": [
+        "tau_s",
+        "flow_15s",
+        "flow_60s"
+      ],
+      "novelty": "explicit_futures_venue_variant_of_existing_flow_rule",
+      "prior_art": [
+        "zoo100.py",
+        "strategy_zoo.py"
+      ],
+      "causal_rule": "Use only available receipt-time features in the declared tau interval. require flow_15s*(flow_15s-flow_60s)>0; score=flow_15s-flow_60s; this is an imbalance contrast, not incremental signed volume; positive score buys Up, negative score buys Down, abs(score)>=threshold required.",
+      "execution_kind": "single_leg_taker_research",
+      "research_status": "registered_signal_only_execution_unbound",
+      "independent_mechanism_claim": false,
+      "source_candidate_id": "M500-191",
+      "source_rule_fingerprint": "0e049da3728648b9bc8ae8311ad9a88e5ca61bf60031bf94c7bc6a0e770c689c",
+      "venue": "binance_usdm",
+      "instrument": "BTCUSDT",
+      "recorder_contract": "paper-trader-7bf9cf2a-usdm-raw-trade-v1",
+      "execution_binding": null,
+      "main_ranking_admitted": false,
+      "rule_fingerprint": "4da598c3c514ce6f773e9bc252b2a1af1f09f4c2476c24fe5a63c856a2e1e4de"
+    },
+    {
+      "id": "UFLOW-20261025-003",
+      "version": "usdm-flow-development-v1",
+      "name": "Persistent aggressive flow weakening / tau 10-30s / strength 1",
+      "family": "order_flow",
+      "template": "flow_exhaustion",
+      "parameter_variant_of": "flow_exhaustion",
+      "params": {
+        "tau_min_s": 10.0,
+        "tau_max_s": 30.0,
+        "tau_upper_inclusive": false,
+        "threshold": 0.2,
+        "threshold_multiplier": 1.0
+      },
+      "required_features": [
+        "tau_s",
+        "flow_15s",
+        "flow_60s"
+      ],
+      "novelty": "explicit_futures_venue_variant_of_existing_flow_rule",
+      "prior_art": [
+        "zoo100.py",
+        "strategy_zoo.py"
+      ],
+      "causal_rule": "Use only available receipt-time features in the declared tau interval. require flow_15s*flow_60s>0 and abs(flow_15s)<0.5*abs(flow_60s); score=-flow_60s; positive score buys Up, negative score buys Down, abs(score)>=threshold required.",
+      "execution_kind": "single_leg_taker_research",
+      "research_status": "registered_signal_only_execution_unbound",
+      "independent_mechanism_claim": false,
+      "source_candidate_id": "M500-201",
+      "source_rule_fingerprint": "60deb610d1ddb34334488f986728e0adb789a331f66cc5f5d3969e6e1fbb6647",
+      "venue": "binance_usdm",
+      "instrument": "BTCUSDT",
+      "recorder_contract": "paper-trader-7bf9cf2a-usdm-raw-trade-v1",
+      "execution_binding": null,
+      "main_ranking_admitted": false,
+      "rule_fingerprint": "9eb7dde626fec3fa90a3cbc2b30db8f95be7270b542408e873451b1788a3eda3"
+    },
+    {
+      "id": "UFLOW-20261025-004",
+      "version": "usdm-flow-development-v1",
+      "name": "Aggressive-flow direction reversal / tau 10-30s / strength 1",
+      "family": "order_flow",
+      "template": "flow_flip",
+      "parameter_variant_of": "flow_flip",
+      "params": {
+        "tau_min_s": 10.0,
+        "tau_max_s": 30.0,
+        "tau_upper_inclusive": false,
+        "threshold": 0.2,
+        "threshold_multiplier": 1.0
+      },
+      "required_features": [
+        "tau_s",
+        "flow_15s",
+        "flow_60s"
+      ],
+      "novelty": "explicit_futures_venue_variant_of_existing_flow_rule",
+      "prior_art": [
+        "zoo100.py",
+        "strategy_zoo.py"
+      ],
+      "causal_rule": "Use only available receipt-time features in the declared tau interval. require flow_15s*flow_60s<0; score=flow_15s; positive score buys Up, negative score buys Down, abs(score)>=threshold required.",
+      "execution_kind": "single_leg_taker_research",
+      "research_status": "registered_signal_only_execution_unbound",
+      "independent_mechanism_claim": false,
+      "source_candidate_id": "M500-211",
+      "source_rule_fingerprint": "9e76e671e8388fae0bf4e1e3a5af4adbddaeac38964b339f6fe7fa5d11f3cce9",
+      "venue": "binance_usdm",
+      "instrument": "BTCUSDT",
+      "recorder_contract": "paper-trader-7bf9cf2a-usdm-raw-trade-v1",
+      "execution_binding": null,
+      "main_ranking_admitted": false,
+      "rule_fingerprint": "de65ce11682c61ffb5f876383ea68a74db816a8227fed22746878e1e8be54317"
+    }
+  ],
+  "code_sha256": {
+    "usdm_flow_candidates.py": "ec321faa940e51bb659ea731e864be0e0e02862e3e484e40b53b49369ba7ce98",
+    "recorder_futures_flow.py": "ac3da3f697c9441c6cbbd0e411531947ac9909573570dd8d421a39b8a5d8a3bd",
+    "historical_flow_receipts.py": "057a72f422becab7eae5712c482caa73bf2029eb887e4cb94ac4fab9c0f2b4d9",
+    "binance_native_flow.py": "386f2b5783753daee286d8ef5a65b5a92b13ace33823b92a03d878f4b1c8ccc4",
+    "mine500_catalog.py": "23219a5c4ad2320ea68e202f83630d56858513cbe45a2797ee551e9b15aec2c7"
+  },
+  "real_input_sha256": null,
+  "actual_backtests": 0,
+  "new_financial_replays": 0,
+  "protocol_status": "development_registration_only; full execution and future common window binding pending",
+  "prospective_benchmark": {
+    "starting_cash_usd_per_strategy_and_scenario": 1000,
+    "target_shares": 100,
+    "latencies_ms": [
+      500,
+      600,
+      1000
+    ],
+    "stress": [
+      "half_depth",
+      "extra_1cent"
+    ],
+    "continuous_utc_days": 7,
+    "slots_required": 2016,
+    "daily_reset": false,
+    "borrow_or_topup": false,
+    "status": "not_executed"
+  },
+  "rank7_pnl_usd": null,
+  "formal_oos_result": null,
+  "multiple_testing": "All720catalogattempts,allhistoricalstudiesand4newvenuevariantregistrationsretained;neverresetdenominator",
+  "unchanged_freezes": [
+    "Oct10",
+    "Oct11",
+    "Oct12-19",
+    "Oct24-31reservation"
+  ],
+  "requirements": [
+    "native quantity and m side",
+    "independently justified local receipt coverage",
+    "current-decision tau and local clock evidence",
+    "BTC5m fixed-limit partialFAK/fees/constraints/cash execution inputs",
+    "future unconsumed common window after execution registration"
+  ]
+}
