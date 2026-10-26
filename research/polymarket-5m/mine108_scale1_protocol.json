@@ -1,0 +1,95 @@
+{
+  "schema": "m500108-scale1-development-registration-v1",
+  "registered_date": "2026-10-26",
+  "classification": "new_execution_variant_after_selection_on_consumed_development_results",
+  "candidate": {
+    "id": "M500-108-SCALE1",
+    "version": "mine108-scale1-development-v1",
+    "name": "Nested 5s and 15s continuation / tau 120-180s / strength 1.5 / equal-size scale-in",
+    "family": "trend_shape",
+    "template": "nested_5_15",
+    "parameter_variant_of": "nested_5_15",
+    "params": {
+      "tau_min_s": 120.0,
+      "tau_max_s": 180.0,
+      "tau_upper_inclusive": false,
+      "threshold": 1.125,
+      "threshold_multiplier": 1.5
+    },
+    "required_features": [
+      "tau_s",
+      "r_5s",
+      "r_15s"
+    ],
+    "novelty": "existing_family_new_prespecified_grid",
+    "prior_art": [
+      "zoo100.py",
+      "strategy_zoo.py"
+    ],
+    "causal_rule": "Use only available receipt-time features in the declared tau interval. require r_5s*r_15s>0; score=r_5s; positive score buys Up, negative score buys Down, abs(score)>=threshold required.",
+    "execution_kind": "single_leg_taker_research",
+    "research_status": "development_new_execution_variant_pending_engine/allowlist",
+    "independent_mechanism_claim": false,
+    "rule_fingerprint": "0efa36979f71dd20905c917a1ba63a6e5e67ee6f7663f69c63a45d5b75231cba",
+    "parent_id": "M500-108",
+    "parent_code_sha256": "23219a5c4ad2320ea68e202f83630d56858513cbe45a2797ee551e9b15aec2c7",
+    "parent_rule_fingerprint": "6075e1b82f627f700e7001d3a1c2d746d28d0b3426f8d93ccd7bae7fb0f9a440",
+    "scale_policy": {
+      "cooldown_ms": 2000,
+      "feedback_ms": 250,
+      "max_entries": 99,
+      "mode": "equal",
+      "total_weight": 99
+    },
+    "evidence_classification": "historical_development_new_execution_variant",
+    "confirmed_edge": false,
+    "full_window_pnl_usd": null,
+    "formal_oos_result": null
+  },
+  "parent_repository": "samuelyeung-space/whole-web-station-clone",
+  "parent_commit": "c65a5c821120161c7e603d6bd360e218ae8ae33e",
+  "planned_comparison": {
+    "start": "2026-10-11T00:00:00Z",
+    "end": "2026-10-18T00:00:00Z",
+    "end_exclusive": true,
+    "dataset_id": "native52",
+    "cash_usd_per_candidate_scenario": 1000,
+    "target_shares_per_entry": 100,
+    "latencies_ms": [
+      500,
+      600,
+      1000
+    ],
+    "primary_latency_ms": 500,
+    "daily_reset": false,
+    "topup": false,
+    "borrowing": false,
+    "comparators": [
+      "mine500_catalog:M500-108",
+      "mine439_recover:M500-439-SCALE1-RECOVER"
+    ],
+    "already_consumed_window": true
+  },
+  "required_execution_identity": {
+    "replay_sha256": "00ad1cc12d96445cc7bfde92f6e7467ba814dddb3e1fef7d36a7196d93e21392",
+    "scalein_sha256": "6cbfe43cb827fcd44730ef8fc6c2112fbc9881fa1ab3c7d211a9af023f4192e9",
+    "tape_sha256": "39ae286248289fc52b696403f7e3a57226971a05d16da92bb5805b2c467da33a"
+  },
+  "engine_contract": "Reuse matching existing scale-aware engine. Each eligible re-entry receives its own fixed limit, FAK partial/failure accounting, fees, cash reservation, receipt feedback and cooldown; no free cash, duplicated depth, future receipt or future health allowed. Metadata wrapper alone is not an executor.",
+  "status": "blocked_pending_allowlist_or_matching_local_replay_engine_and_input",
+  "executed": false,
+  "job_id": null,
+  "pnl_usd": null,
+  "formal_oos_result": null,
+  "execution_tests_run": false,
+  "signal_registration_tests_passed": 11,
+  "existing_Oct10_Oct11_and_Oct12_19_freezes_unchanged": true,
+  "new_independent_mechanism_claim": false,
+  "formal_use_requires": "New hashes, a later untouched fixed holdout and full 2016-slot coverage; this consumed-window development test cannot inherit old OOS status.",
+  "stress_not_yet_executed": [
+    "half_depth",
+    "extra_0.01_usd_per_share",
+    "cash_release_delay",
+    "mark_to_market_drawdown"
+  ]
+}
