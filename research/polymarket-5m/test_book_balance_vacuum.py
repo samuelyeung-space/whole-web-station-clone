@@ -83,5 +83,10 @@ class BookGateTests(unittest.TestCase):
         self.book(30200,{.49:25},{.51:175})
         self.assertEqual(self.d.arms['m']['status'],'timeout_unfilled')
 
+    def test_timer_can_expire_without_a_new_book_but_cannot_fill(self):
+        self.baseline(True);self.d.advance_time(30200)
+        self.assertEqual(self.d.arms['m']['status'],'timeout_unfilled')
+        self.assertFalse(self.d.gate('m',30200))
+
 
 if __name__=='__main__':unittest.main(verbosity=2)

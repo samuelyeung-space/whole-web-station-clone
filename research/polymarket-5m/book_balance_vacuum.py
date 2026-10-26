@@ -112,6 +112,15 @@ class QuoteGates:
             arm['status']='cancel_'+reason
             self._record(parentkey,arm['status'],time)
 
+    def advance_time(self,time):
+        """Expire watches on an observed local timer without inventing a quote."""
+        if not _finite(time):
+            raise ValueError('invalid local timer')
+        for key,arm in self.arms.items():
+            if arm.get('status')=='armed' and time>=arm['arm_ms']+self.config.deadline_ms:
+                arm['status']='timeout_unfilled'
+                self._record(key,'timeout_unfilled',arm['arm_ms']+self.config.deadline_ms)
+
     def on_book(self,parentkey,recv_ms,epoch,bids,asks,*,update_id=None,
                 validated=True,ambiguous_receipt=False):
         """Accept one complete book state after an atomic, distinct frame."""
