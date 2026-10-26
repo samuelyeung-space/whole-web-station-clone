@@ -1,0 +1,100 @@
+{
+  "schema": "orderbook-gated-entry-development-protocol-v1",
+  "registered_date": "2026-10-26",
+  "semantic_correction": "Book-pressure equilibrium or liquidity-vacuum repair, not fixed 1c/2c retracements. Fixed price ladders are controls only.",
+  "parent_scope": {
+    "original_spec_count": 1055,
+    "registration_sha256": "e826fc07fb368c3697156cf724840843328ec9fe83933fe028f90fabe59331e3",
+    "rules_unchanged": true,
+    "cohort": "All original first signals per parent/market, including failed/partial/missed/expired cases. Never select on later fills/PnL.",
+    "feedback_policy": "Original fill-dependent re-entry requires its own causal feedback state, never reuse original-fill-derived future opportunities."
+  },
+  "book_gate_parameters": {
+    "baseline_ms": 1000.0,
+    "minimum_baseline_updates": 3,
+    "deadline_ms": 30000.0,
+    "hold_ms": 250.0,
+    "maximum_event_gap_ms": 1000.0,
+    "opposing_imbalance": 0.5,
+    "neutral_imbalance": 0.1,
+    "recovered_depth_fraction": 0.5,
+    "collapsed_depth_fraction": 0.25,
+    "spread_expansion": 2.0,
+    "wall_fraction": 0.5,
+    "minimum_wall_updates": 3,
+    "overshoot_spreads": 3.0
+  },
+  "gates": [
+    "counterpressure_then_neutrality_with_depth_and_spread_recovery",
+    "displayed_depth_collapse_persistent_wall_excursion_then_repair"
+  ],
+  "gate_semantics": "Displayed-depth proxies only; no market-maker identity, cancellation-vs-fill or emotional-mispricing proof. Excursion is relative to arm midpoint.",
+  "venues": [
+    "BTC_external_L2",
+    "PM_direct_token_L2"
+  ],
+  "allocation_policies": [
+    {
+      "id": "WAIT100",
+      "at_signal": 0,
+      "at_gate": 100,
+      "total_target": 100
+    },
+    {
+      "id": "BASE25_GATE75",
+      "at_signal": 25,
+      "at_gate": 75,
+      "total_target": 100
+    },
+    {
+      "id": "BASE50_GATE50",
+      "at_signal": 50,
+      "at_gate": 50,
+      "total_target": 100
+    },
+    {
+      "id": "BASE100_GATE100",
+      "at_signal": 100,
+      "at_gate": 100,
+      "total_target": 200,
+      "matched_control": "immediate200"
+    }
+  ],
+  "controls": [
+    "original_immediate100",
+    "immediate200_for_200_target_only"
+  ],
+  "cash_per_parent_policy_scenario": 1000,
+  "latencies_ms": [
+    500,
+    600,
+    1000
+  ],
+  "primary_latency_ms": 500,
+  "stress_required": [
+    "half_depth",
+    "extra_1cent_per_share",
+    "cash_release_delay",
+    "mark_to_market_drawdown"
+  ],
+  "daily_reset": false,
+  "topup": false,
+  "borrowing": false,
+  "execution": "FAK after causal gate; fix limit from directly received quote; preserve all failures/partials/fees/cash reservations and shared snapshot depth. Measure price improvement, do not assume it.",
+  "formal_ranking_note": "Fractional entry legs are auxiliary allocation experiments, not unchanged 100shares-per-order formal ranking.",
+  "data_contract": [
+    "Atomic full frame before evaluation; equal-clock subrows are not separate wall observations.",
+    "Use local receipts/lifecycle and exact input/code hashes.",
+    "Trade side audit-only until semantic proof; no tick-sign aggressor substitute.",
+    "Daily trade integer-millisecond receipts need clock/lifecycle/duplicate proof before joining strict submillisecond books.",
+    "Old fixed-grid projections cannot price new raw-event decision times; rebuild causal snapshots at new decisions and actual matching horizons.",
+    "External BTC L2 must not be inferred from BBO-only exports."
+  ],
+  "status": "detectors_tested_raw_source_restored_financial_integration_pending",
+  "book_gated_financial_replays": 0,
+  "book_gated_pnl": null,
+  "formal_oos": null,
+  "formal_holdout_window": null,
+  "independent_mechanism_claim": false,
+  "old_freezes_unchanged": true
+}
