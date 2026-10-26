@@ -4,14 +4,14 @@ Signal frozen at `2026-10-01T06:20:50Z` from zoo100 rule #27; executable protoco
 
 | Local signal-to-match lag | Signals | Five-share fills | Days | Net EV/share | Exact fair-price p |
 |---:|---:|---:|---:|---:|---:|
-| 300 ms | 3,161 | 2,623 | 15 | +0.65¢ | 0.2063 |
-| 350 ms | 3,161 | 2,619 | 15 | +0.14¢ | 0.4392 |
-| 400 ms | 3,161 | 2,637 | 15 | +0.30¢ | 0.3595 |
-| 500 ms | 3,161 | 2,644 | 15 | +0.16¢ | 0.4274 |
+| 300 ms | 3,203 | 2,661 | 16 | +0.77¢ | 0.1623 |
+| 350 ms | 3,203 | 2,657 | 16 | +0.27¢ | 0.3746 |
+| 400 ms | 3,203 | 2,674 | 16 | +0.44¢ | 0.2932 |
+| 500 ms | 3,203 | 2,682 | 16 | +0.28¢ | 0.3675 |
 
 Primary 400 ms fresh stopping sample (markets after the executable-protocol freeze): 1,000/1,000 fills across 8 days; EV -0.60¢, one-sided 99% day lower bound -4.67¢, exact p 1.
 Status: `lower_bound_not_positive`.
 
 ## Recording notes
 
-- btc _temp: 4 candidates dropped because the CLOB socket closed between the quote and the order (17 disconnects in the recording; test C counts its judged lag only)
+- btc _temp: 8 candidates dropped because the CLOB socket closed between the quote and the order (43 disconnects in the recording; test C counts its judged lag only)
