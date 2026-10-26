@@ -1,0 +1,341 @@
+{
+  "classification": "consumed_Oct9_development_only_not_full_week_not_OOS",
+  "input_sha256": "df18fced61a95368a592770157f858dc5f102fc07adc06a53c39b40ff9e74cee",
+  "spot_sha256": "f4521658d88daa62982eb8d0beb156ac8281cf6a20f1aaf6576838a025da227b",
+  "source_code_sha256": {
+    "run_trend_pullback_ablation.py": "54030b2db7f873e2f22f589f1e00cfddc03d0a1d075ebc1c84021e62b433bc12",
+    "mine500_replay_v2.py": "83a5e555c5ecdc9bef0cd27da383e22fea37c7754ae4dd0a5d7e9b7c91472420",
+    "trend_pullback_context.py": "3cedd882c3f3eb5ab986956de4b33713a3e890acae5deaf12e8a7421204e1ffb",
+    "trend_pullback_ablation.py": "816245cb05bc6eda798d71f308bb1528d0fabe13c5e80c0100b90c402d86df2d",
+    "mine500_constraints.py": "44d3dd77514791e5e762589c51d7dddbeeea1200f5da2a6f5456ca903b71488d"
+  },
+  "candidates": [
+    {
+      "id": "TPB108-REFERENCE",
+      "version": "trend-pullback-ablation-development-v1",
+      "arm": "REFERENCE",
+      "name": "M500-108 / REFERENCE",
+      "parent_rule_fingerprint": "6075e1b82f627f700e7001d3a1c2d746d28d0b3426f8d93ccd7bae7fb0f9a440",
+      "params": {
+        "tau_min_s": 120,
+        "tau_max_s_exclusive": 180,
+        "r5_threshold_bps": 1.125,
+        "wait_ms_exclusive": 10000,
+        "max_pullback_fraction_of_armed_abs_r15": 0.5,
+        "required_direct_ask_discount_usd": 0.01,
+        "trend_bar_seconds": 60,
+        "ma_length": 10,
+        "supertrend_atr_length": 10,
+        "supertrend_multiplier": 3
+      },
+      "filters": [],
+      "waits": false,
+      "required_features": [
+        "tau_s",
+        "r_5s",
+        "r_15s"
+      ],
+      "rule_fingerprint": "85270d0ec4ca8b73905b67717b20236230525f09f72b2fb9fc80a4c775feac20",
+      "research_status": "registered_development_ablation_not_executed",
+      "independent_mechanism_claim": false,
+      "formal_oos_result": null
+    },
+    {
+      "id": "TPB108-CONTROL",
+      "version": "trend-pullback-ablation-development-v1",
+      "arm": "CONTROL",
+      "name": "M500-108 / CONTROL",
+      "parent_rule_fingerprint": "6075e1b82f627f700e7001d3a1c2d746d28d0b3426f8d93ccd7bae7fb0f9a440",
+      "params": {
+        "tau_min_s": 120,
+        "tau_max_s_exclusive": 180,
+        "r5_threshold_bps": 1.125,
+        "wait_ms_exclusive": 10000,
+        "max_pullback_fraction_of_armed_abs_r15": 0.5,
+        "required_direct_ask_discount_usd": 0.01,
+        "trend_bar_seconds": 60,
+        "ma_length": 10,
+        "supertrend_atr_length": 10,
+        "supertrend_multiplier": 3
+      },
+      "filters": [],
+      "waits": false,
+      "required_features": [
+        "tau_s",
+        "r_5s",
+        "r_15s",
+        "ctx_ma_direction",
+        "ctx_st_direction",
+        "ctx_price",
+        "ctx_r1_bps",
+        "ctx_epoch",
+        "ctx_market_start_ms",
+        "ctx_decision_ms",
+        "ctx_ask_up",
+        "ctx_ask_down"
+      ],
+      "rule_fingerprint": "3c77fdffca06b63087f439b977750617cf1359b5294dec0b7688cda48ebc32a4",
+      "research_status": "registered_development_ablation_not_executed",
+      "independent_mechanism_claim": false,
+      "formal_oos_result": null
+    },
+    {
+      "id": "TPB108-MA10",
+      "version": "trend-pullback-ablation-development-v1",
+      "arm": "MA10",
+      "name": "M500-108 / MA10",
+      "parent_rule_fingerprint": "6075e1b82f627f700e7001d3a1c2d746d28d0b3426f8d93ccd7bae7fb0f9a440",
+      "params": {
+        "tau_min_s": 120,
+        "tau_max_s_exclusive": 180,
+        "r5_threshold_bps": 1.125,
+        "wait_ms_exclusive": 10000,
+        "max_pullback_fraction_of_armed_abs_r15": 0.5,
+        "required_direct_ask_discount_usd": 0.01,
+        "trend_bar_seconds": 60,
+        "ma_length": 10,
+        "supertrend_atr_length": 10,
+        "supertrend_multiplier": 3
+      },
+      "filters": [
+        "ma"
+      ],
+      "waits": false,
+      "required_features": [
+        "tau_s",
+        "r_5s",
+        "r_15s",
+        "ctx_ma_direction",
+        "ctx_st_direction",
+        "ctx_price",
+        "ctx_r1_bps",
+        "ctx_epoch",
+        "ctx_market_start_ms",
+        "ctx_decision_ms",
+        "ctx_ask_up",
+        "ctx_ask_down"
+      ],
+      "rule_fingerprint": "f1e137efbe39c084405524deb2a1f57616b65c96facb1326589cecd054e0395a",
+      "research_status": "registered_development_ablation_not_executed",
+      "independent_mechanism_claim": false,
+      "formal_oos_result": null
+    },
+    {
+      "id": "TPB108-ST10",
+      "version": "trend-pullback-ablation-development-v1",
+      "arm": "ST10",
+      "name": "M500-108 / ST10",
+      "parent_rule_fingerprint": "6075e1b82f627f700e7001d3a1c2d746d28d0b3426f8d93ccd7bae7fb0f9a440",
+      "params": {
+        "tau_min_s": 120,
+        "tau_max_s_exclusive": 180,
+        "r5_threshold_bps": 1.125,
+        "wait_ms_exclusive": 10000,
+        "max_pullback_fraction_of_armed_abs_r15": 0.5,
+        "required_direct_ask_discount_usd": 0.01,
+        "trend_bar_seconds": 60,
+        "ma_length": 10,
+        "supertrend_atr_length": 10,
+        "supertrend_multiplier": 3
+      },
+      "filters": [
+        "st"
+      ],
+      "waits": false,
+      "required_features": [
+        "tau_s",
+        "r_5s",
+        "r_15s",
+        "ctx_ma_direction",
+        "ctx_st_direction",
+        "ctx_price",
+        "ctx_r1_bps",
+        "ctx_epoch",
+        "ctx_market_start_ms",
+        "ctx_decision_ms",
+        "ctx_ask_up",
+        "ctx_ask_down"
+      ],
+      "rule_fingerprint": "7e4327411907395a074c4f023fa6e376048bba476a4e163d05c9a3bb1362a0d3",
+      "research_status": "registered_development_ablation_not_executed",
+      "independent_mechanism_claim": false,
+      "formal_oos_result": null
+    },
+    {
+      "id": "TPB108-WAIT",
+      "version": "trend-pullback-ablation-development-v1",
+      "arm": "WAIT",
+      "name": "M500-108 / WAIT",
+      "parent_rule_fingerprint": "6075e1b82f627f700e7001d3a1c2d746d28d0b3426f8d93ccd7bae7fb0f9a440",
+      "params": {
+        "tau_min_s": 120,
+        "tau_max_s_exclusive": 180,
+        "r5_threshold_bps": 1.125,
+        "wait_ms_exclusive": 10000,
+        "max_pullback_fraction_of_armed_abs_r15": 0.5,
+        "required_direct_ask_discount_usd": 0.01,
+        "trend_bar_seconds": 60,
+        "ma_length": 10,
+        "supertrend_atr_length": 10,
+        "supertrend_multiplier": 3
+      },
+      "filters": [],
+      "waits": true,
+      "required_features": [
+        "tau_s",
+        "r_5s",
+        "r_15s",
+        "ctx_ma_direction",
+        "ctx_st_direction",
+        "ctx_price",
+        "ctx_r1_bps",
+        "ctx_epoch",
+        "ctx_market_start_ms",
+        "ctx_decision_ms",
+        "ctx_ask_up",
+        "ctx_ask_down"
+      ],
+      "rule_fingerprint": "0df5b288b896802d5b43a542961ab34ec67d8f34ef4d050e4ec3044d032e44c4",
+      "research_status": "registered_development_ablation_not_executed",
+      "independent_mechanism_claim": false,
+      "formal_oos_result": null
+    },
+    {
+      "id": "TPB108-MAWAIT",
+      "version": "trend-pullback-ablation-development-v1",
+      "arm": "MAWAIT",
+      "name": "M500-108 / MAWAIT",
+      "parent_rule_fingerprint": "6075e1b82f627f700e7001d3a1c2d746d28d0b3426f8d93ccd7bae7fb0f9a440",
+      "params": {
+        "tau_min_s": 120,
+        "tau_max_s_exclusive": 180,
+        "r5_threshold_bps": 1.125,
+        "wait_ms_exclusive": 10000,
+        "max_pullback_fraction_of_armed_abs_r15": 0.5,
+        "required_direct_ask_discount_usd": 0.01,
+        "trend_bar_seconds": 60,
+        "ma_length": 10,
+        "supertrend_atr_length": 10,
+        "supertrend_multiplier": 3
+      },
+      "filters": [
+        "ma"
+      ],
+      "waits": true,
+      "required_features": [
+        "tau_s",
+        "r_5s",
+        "r_15s",
+        "ctx_ma_direction",
+        "ctx_st_direction",
+        "ctx_price",
+        "ctx_r1_bps",
+        "ctx_epoch",
+        "ctx_market_start_ms",
+        "ctx_decision_ms",
+        "ctx_ask_up",
+        "ctx_ask_down"
+      ],
+      "rule_fingerprint": "1478422c5d416b1a05c7bb353abb004458694b64b3be69fdf9662811d465db7d",
+      "research_status": "registered_development_ablation_not_executed",
+      "independent_mechanism_claim": false,
+      "formal_oos_result": null
+    },
+    {
+      "id": "TPB108-STWAIT",
+      "version": "trend-pullback-ablation-development-v1",
+      "arm": "STWAIT",
+      "name": "M500-108 / STWAIT",
+      "parent_rule_fingerprint": "6075e1b82f627f700e7001d3a1c2d746d28d0b3426f8d93ccd7bae7fb0f9a440",
+      "params": {
+        "tau_min_s": 120,
+        "tau_max_s_exclusive": 180,
+        "r5_threshold_bps": 1.125,
+        "wait_ms_exclusive": 10000,
+        "max_pullback_fraction_of_armed_abs_r15": 0.5,
+        "required_direct_ask_discount_usd": 0.01,
+        "trend_bar_seconds": 60,
+        "ma_length": 10,
+        "supertrend_atr_length": 10,
+        "supertrend_multiplier": 3
+      },
+      "filters": [
+        "st"
+      ],
+      "waits": true,
+      "required_features": [
+        "tau_s",
+        "r_5s",
+        "r_15s",
+        "ctx_ma_direction",
+        "ctx_st_direction",
+        "ctx_price",
+        "ctx_r1_bps",
+        "ctx_epoch",
+        "ctx_market_start_ms",
+        "ctx_decision_ms",
+        "ctx_ask_up",
+        "ctx_ask_down"
+      ],
+      "rule_fingerprint": "d9ef7ad40fbe29fc0f319cdd4dfffe4fd56504cfbb2b8f381bc57270bd44713d",
+      "research_status": "registered_development_ablation_not_executed",
+      "independent_mechanism_claim": false,
+      "formal_oos_result": null
+    },
+    {
+      "id": "TPB108-BOTHWAIT",
+      "version": "trend-pullback-ablation-development-v1",
+      "arm": "BOTHWAIT",
+      "name": "M500-108 / BOTHWAIT",
+      "parent_rule_fingerprint": "6075e1b82f627f700e7001d3a1c2d746d28d0b3426f8d93ccd7bae7fb0f9a440",
+      "params": {
+        "tau_min_s": 120,
+        "tau_max_s_exclusive": 180,
+        "r5_threshold_bps": 1.125,
+        "wait_ms_exclusive": 10000,
+        "max_pullback_fraction_of_armed_abs_r15": 0.5,
+        "required_direct_ask_discount_usd": 0.01,
+        "trend_bar_seconds": 60,
+        "ma_length": 10,
+        "supertrend_atr_length": 10,
+        "supertrend_multiplier": 3
+      },
+      "filters": [
+        "ma",
+        "st"
+      ],
+      "waits": true,
+      "required_features": [
+        "tau_s",
+        "r_5s",
+        "r_15s",
+        "ctx_ma_direction",
+        "ctx_st_direction",
+        "ctx_price",
+        "ctx_r1_bps",
+        "ctx_epoch",
+        "ctx_market_start_ms",
+        "ctx_decision_ms",
+        "ctx_ask_up",
+        "ctx_ask_down"
+      ],
+      "rule_fingerprint": "ab02cff37f29c447c650f2c4e5ff1fbf473ec798a10c1b5fdaaa6ce320def541",
+      "research_status": "registered_development_ablation_not_executed",
+      "independent_mechanism_claim": false,
+      "formal_oos_result": null
+    }
+  ],
+  "cash_per_arm_scenario": 1000,
+  "target_shares": 100,
+  "scenarios": [
+    "total_latency_500ms",
+    "total_latency_600ms",
+    "total_latency_1000ms",
+    "500ms_half_displayed_depth",
+    "500ms_extra_1cent_per_filled_share"
+  ],
+  "full_week_pnl": null,
+  "formal_oos_result": null,
+  "volume_and_aggressor_confirmation": "pending_native_direction_and_lifecycle_evidence",
+  "cohort_caveat": "REFERENCE is unrestricted; other arms share context readiness. COMMON control comparisons are separate from reference-readiness differences."
+}
