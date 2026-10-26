@@ -55,3 +55,31 @@ def project(rows,requests,max_age_ms=1000):
     while request is not None:
         yield snapshot(request,last_observed is not None and request['at_ms']<=last_observed)
         request=next(pending,None)
+
+
+def main():
+    import argparse,hashlib,json
+    from pathlib import Path
+    from h_replay_archive import _iter_json_objects
+    p=argparse.ArgumentParser(description=__doc__)
+    p.add_argument('--protocol',required=True);p.add_argument('--output',required=True)
+    args=p.parse_args(); protocol=json.loads(Path(args.protocol).read_text())
+    def sha(path):
+        h=hashlib.sha256()
+        with open(path,'rb') as f:
+            for b in iter(lambda:f.read(1<<20),b''):h.update(b)
+        return h.hexdigest()
+    if sha(protocol['raw_path'])!=protocol['raw_sha256']:raise ValueError('raw hash mismatch')
+    for name,value in protocol['code_sha256'].items():
+        if sha(Path(__file__).parent/name)!=value:raise ValueError('code hash mismatch: '+name)
+    rows=(r for _,r in _iter_json_objects(protocol['raw_path']))
+    result=list(project(rows,protocol['requests'],protocol['max_quote_age_ms']))
+    out=dict(schema='arbitrary-receipt-projection-v1',protocol_sha256=sha(args.protocol),
+        requests=result,financial_replay_completed=False,net_pnl_usd=None,
+        full_week_pnl=None,formal_oos_result=None)
+    Path(args.output).write_text(json.dumps(out,ensure_ascii=False,indent=2)+'\n')
+    print(json.dumps(dict(requests=len(result),valid_direct_tokens=sum(
+        t['valid'] for r in result for t in r['tokens'].values()),net_pnl_usd=None)))
+
+
+if __name__=='__main__':main()
