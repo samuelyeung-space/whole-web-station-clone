@@ -27,7 +27,7 @@ class MultiTimeframe:
     def ingest(self,row):
         for ctx in self.contexts.values():ctx.ingest(row)
     def snapshot(self,now):
-        out={}
+        out={"asof_ms":now}
         for k,ctx in self.contexts.items():
             r=ctx.snapshot(now)
             out[str(k)]=dict(**r,atr=ctx.atr,closed_bars_since_reset=len(ctx.closes),
@@ -51,7 +51,9 @@ class SpecialCase:
         self.exit_checked=False;self.bars=[];self.reason=None
         a,b=opening_context['300000'],opening_context['900000']
         self.epochs=(a['ctx_epoch'],b['ctx_epoch']);self.direction=a['ctx_st_direction'];self.atr=a['atr']
-        if (self.direction not in (-1,1) or b['ctx_st_direction']!=self.direction
+        if opening_context.get('asof_ms')!=start_ms:
+            self.reason='opening_context_not_stamped_at_market_open'
+        if (self.reason is not None or self.direction not in (-1,1) or b['ctx_st_direction']!=self.direction
                 or any(e is None for e in self.epochs) or not self.atr or self.atr<=0):
             self.reason='opening_context_unavailable_or_disagrees'
     def closed_minute(self,bar,now,current_epochs):
